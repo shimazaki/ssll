@@ -36,7 +36,7 @@ def run(spikes, order, window=1, lmbda=0.005, max_iter=10):
     Uses the expectation-maximisation algorithm to find the probability
     distributions of natural parameters of spike-train interactions over time.
     Calls slave functions to perform the expectation and maximisation steps
-    repeatedly until the natural parameters reach asymptotic values.
+    repeatedly until the data likelihood reaches an asymptotic value.
 
     Note that the execution of some slave functions to this master function are
     of exponential complexity with respect to the `order' parameter.
