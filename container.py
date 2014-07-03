@@ -42,19 +42,22 @@ class EMData:
         pairwise, 3 = triplet-wise...
     :param int window:
         Bin-width for counting spikes, in milliseconds.
+    :param function map_function:
+        A function from max_posterior.py that returns an estimate of the
+        posterior distribution of natural parameters for a given timestep.
     :param float lmdbda:
         Coefficient on the identity matrix of the initial state-transition
         covariance matrix.
-    :param object misc:
-        Any miscelaneous data, of any form, about the analysis that may be
-        required for post-processing and plotting later.
 
-    :param numpy.ndarray spikes:
+    :ivar numpy.ndarray spikes:
         Reference to the input spikes.
-    :param int order:
+    :ivar int order:
         Copy of the `order' parameter.
-    :param int window:
+    :ivar int window:
         Copy of the `window' parameter.
+    :ivar function max_posterior:
+        A function from max_posterior.py that returns an estimate of the
+        posterior distribution of natural parameters for a given timestep.
     :ivar int T:
         Number of timestep in the pattern-counts; should equal the length of the
         spike trains divided by the window.
@@ -91,12 +94,11 @@ class EMData:
         Number of EM iterations for which the algorithm ran.
     :ivar float convergence:
         Ratio between previous and current log-marginal prob. on last iteration.
-    :ivar object misc:
-        Reference to miscelaneous data.
     """
-    def __init__(self, spikes, order, window, lmbda, misc=None):
+    def __init__(self, spikes, order, window, map_function, lmbda):
         # Record the input parameters
         self.spikes, self.order, self.window = spikes, order, window
+        self.max_posterior = map_function
         # Compute the `sample' spike-train interactions from the input spikes
         self.y = transforms.compute_y(self.spikes, self.order, self.window)
         # Count timesteps, trials, cells and interaction dimensions
@@ -118,5 +120,3 @@ class EMData:
         self.Q = lmbda * numpy.identity(self.D)
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
-        # Store any miscelaneous data about the analysis
-        self.misc = misc

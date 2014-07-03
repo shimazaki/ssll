@@ -23,7 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import itertools
 import numpy
 import pdb
-import scipy.misc
 
 
 
@@ -32,6 +31,23 @@ p_map = None
 # Matrix to map from probability to eta
 eta_map = None
 
+
+
+def comb(N, k):
+    """
+    Compute the combinatorial operator N-choose-k.
+
+    :param int N:
+        Number of things.
+    :param int k:
+        Number of elements taken.
+    :returns:
+        N-choose-k
+    """
+    nck = numpy.math.factorial(N) / numpy.math.factorial(k) /\
+        numpy.math.factorial(N - k)
+
+    return nck
 
 
 def compute_D(N, O):
@@ -48,7 +64,7 @@ def compute_D(N, O):
     :returns:
         Number of natural parameters for the spike-pattern interactions.
     """
-    D = numpy.sum([scipy.misc.comb(N, k, exact=1) for k in xrange(1, O + 1)])
+    D = numpy.sum([comb(N, k) for k in xrange(1, O + 1)])
 
     return D
 

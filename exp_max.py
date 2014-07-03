@@ -81,14 +81,14 @@ def e_step_filter(emd):
         All data pertaining to the EM algorithm.
     """
     # Iterate forwards over each timestep, computing filter density
-    emd.theta_f[0,:], emd.sigma_f[0,:] = probability.max_posterior(emd, 0)
+    emd.theta_f[0,:], emd.sigma_f[0,:] = emd.max_posterior(emd, 0)
     for i in xrange(1, emd.T):
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
         tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
         emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
         # Get MAP estimate of filter density
-        emd.theta_f[i,:], emd.sigma_f[i,:] = probability.max_posterior(emd, i)
+        emd.theta_f[i,:], emd.sigma_f[i,:] = emd.max_posterior(emd, i)
 
 
 def e_step_smooth(emd):

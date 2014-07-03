@@ -1,6 +1,9 @@
 """
 Master file of the State-Space Analysis of Spike Correlations.
 
+TODO some sort of automatic versioning system
+TODO complete the utilities module
+
 ---
 
 State-Space Analysis of Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012)
@@ -25,12 +28,13 @@ import pdb
 import container
 import exp_max
 import probability
+import max_posterior
 import synthesis
 import transforms
 
 
 
-def run(spikes, order, window=1, lmbda=0.005, max_iter=10):
+def run(spikes, order, window=1, map_function='nr', lmbda=0.005, max_iter=10):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -49,6 +53,9 @@ def run(spikes, order, window=1, lmbda=0.005, max_iter=10):
         pairwise, 3 = triplet-wise...
     :param int window:
         Bin-width for counting spikes, in milliseconds.
+    :param string map_function:
+        Name of the function to use for maximum a-posterior estimation of the
+        natural parameters at each timestep. Refer to max_posterior.py.
     :param float lmdbda:
         Coefficient on the identity matrix of the initial state-transition
         covariance matrix.
@@ -64,7 +71,8 @@ def run(spikes, order, window=1, lmbda=0.005, max_iter=10):
     # Ensure NaNs are caught
     numpy.seterr(invalid='raise', under='raise')
     # Initialise the EM-data container
-    emd = container.EMData(spikes, order, window, lmbda)
+    map_func = max_posterior.functions[map_function]
+    emd = container.EMData(spikes, order, window, map_func, lmbda)
     # Initialise the coordinate-transform maps
     transforms.initialise(emd.N, emd.order)
     # Set up loop guards for the EM algorithm
