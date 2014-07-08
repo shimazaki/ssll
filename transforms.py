@@ -314,3 +314,55 @@ def initialise(N, O):
             p_map[:,i-1] = p_map[:,i-1] & fx[:,idx[j]]
     # Set up the eta map
     eta_map = p_map.transpose()
+
+def compute_beta(df, dfp):
+    """ Computes the beta Polak Ribiere Formula
+
+    :param numpy.ndarray df:
+        gradient of function to minimize
+    :param numpy.ndarray dfp:
+        previous gradient of function to minimize
+
+    :returns float:
+        result of Polak Ribiere Formula
+    """
+
+    # Polak Ribiere Formula
+    beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    return numpy.amax([0, beta])
+
+
+def compute_alpha(R, p, s, dlpo, sigma_o_i):
+    """ Computes a line search along specific direction via quadratic approximation.
+
+    :param int R:
+        number of trials
+    :param numpy.ndarray p:
+        probability vector
+    :param numpy.ndarray s:
+        direction of line search
+    :param numpy.ndarray dlpo:
+        gradient of log posterior
+    :param sigma_o_i:
+        inverse one-step covariance matrix
+
+    :returns float:
+        scale of search vector s to get to the approx. minimum
+    """
+
+    global p_map, eta_map
+
+    # Project p-map on search direction
+    p_map_s = numpy.dot(p_map , s)
+    # Projected eta on search direction
+    eta_s = numpy.dot(p_map_s, p)
+    # Project gradient of log posterior on search direction
+    dlpo_s = numpy.dot(dlpo, s)
+    # Project inverse one-step covariance matrix on search direction
+    sigma_o_i_s = numpy.dot(sigma_o_i, s)
+    # Get Metric of fisher info along s direction
+    s_G_s = -R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) - numpy.dot(s, sigma_o_i_s)
+    # Compute scale of search vector to get to the minimum
+    alpha = -(dlpo_s)/s_G_s
+
+    return alpha
