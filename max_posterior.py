@@ -131,7 +131,7 @@ def conjugate_gradient(emd, t):
     # Set initial search direction
     s = dlpo
     # Compute line search
-    alpha = transforms.compute_alpha(R, p, s, d_th, sigma_o_i)
+    alpha = compute_alpha(R, p, s, d_th, sigma_o_i)
     # Update theta
     theta_max += alpha * d_th
 
@@ -149,11 +149,11 @@ def conjugate_gradient(emd, t):
         # The new theta gradient
         d_th = dlpo
         # Calculate beta
-        beta = transforms.compute_beta(d_th, d_th_prev)
+        beta = compute_beta(d_th, d_th_prev)
         # New search direction
         s = d_th + beta * s
         # Line search
-        alpha = transforms.compute_alpha(R, p, s, dlpo, sigma_o_i)
+        alpha = compute_alpha(R, p, s, dlpo, sigma_o_i)
         # Update theta
         theta_max += alpha * s
         # Get maximal entry of log posterior gradient divided by number of trials
@@ -214,7 +214,7 @@ def bfgs(emd, t):
         # Compute direction for line search
         s_dir = numpy.dot(dlpo, ddlpo_i_e)
         # Get alpha for optimal point i s-direction
-        alpha = transforms.compute_alpha(R, p, s_dir, dlpo, sigma_o_i)
+        alpha = compute_alpha(R, p, s_dir, dlpo, sigma_o_i)
         # Compute theta change
         d_theta = alpha*s_dir
         # Update theta, eta and p
@@ -252,6 +252,58 @@ def bfgs(emd, t):
     ddlpo_i = numpy.linalg.inv(ddlpo)
 
     return theta_max, -ddlpo_i
+
+def compute_beta(df, dfp):
+    """ Computes the beta Polak Ribiere Formula
+
+    :param numpy.ndarray df:
+        gradient of function to minimize
+    :param numpy.ndarray dfp:
+        previous gradient of function to minimize
+
+    :returns float:
+        result of Polak Ribiere Formula
+    """
+
+    # Polak Ribiere Formula
+    beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    return numpy.amax([0, beta])
+
+
+def compute_alpha(R, p, s, dlpo, sigma_o_i):
+    """ Computes a line search along specific direction via quadratic approximation.
+
+    :param int R:
+        number of trials
+    :param numpy.ndarray p:
+        probability vector
+    :param numpy.ndarray s:
+        direction of line search
+    :param numpy.ndarray dlpo:
+        gradient of log posterior
+    :param sigma_o_i:
+        inverse one-step covariance matrix
+
+    :returns float:
+        scale of search vector s to get to the approx. minimum
+    """
+
+    p_map = transforms.p_map
+
+    # Project p-map on search direction
+    p_map_s = numpy.dot(p_map , s)
+    # Projected eta on search direction
+    eta_s = numpy.dot(p_map_s, p)
+    # Project gradient of log posterior on search direction
+    dlpo_s = numpy.dot(dlpo, s)
+    # Project inverse one-step covariance matrix on search direction
+    sigma_o_i_s = numpy.dot(sigma_o_i, s)
+    # Get Metric of fisher info along s direction
+    s_G_s = -R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) - numpy.dot(s, sigma_o_i_s)
+    # Compute scale of search vector to get to the minimum
+    alpha = -(dlpo_s)/s_G_s
+
+    return alpha
 
 
 # Named function pointers to MAP estimators
