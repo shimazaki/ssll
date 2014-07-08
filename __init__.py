@@ -33,8 +33,7 @@ import synthesis
 import transforms
 
 
-
-def run(spikes, order, window=1, map_function='nr', lmbda=0.005, max_iter=10):
+def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -57,8 +56,8 @@ def run(spikes, order, window=1, map_function='nr', lmbda=0.005, max_iter=10):
         Name of the function to use for maximum a-posterior estimation of the
         natural parameters at each timestep. Refer to max_posterior.py.
     :param float lmdbda:
-        Coefficient on the identity matrix of the initial state-transition
-        covariance matrix.
+        Inverse coefficient on the identity matrix of the initial
+        state-transition covariance matrix.
     :param int max_iter:
         Maximum number of iterations for which to run the EM algorithm.
 
@@ -88,6 +87,6 @@ def run(spikes, order, window=1, map_function='nr', lmbda=0.005, max_iter=10):
         lmc = probability.log_marginal(emd)
         # Update EM algorithm metadata
         emd.iterations += 1
-        emd.convergence = lmp / lmc
+        emd.convergence = numpy.absolute(lmp - lmc)/lmp
 
     return emd
