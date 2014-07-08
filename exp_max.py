@@ -30,8 +30,7 @@ import transforms
 
 
 
-CONVERGED = 1+1e-6
-
+CONVERGED = 1e-6
 
 
 def compute_A(sigma_t0, sigma_t1, F):
@@ -164,14 +163,14 @@ def m_step_Q(emd):
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     """
-    lmbda = 0
+    lmbda_i = 0
     for i in xrange(1, emd.T):
         A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
         lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
-        lmbda += numpy.trace(emd.sigma_s[i,:,:]) +\
+        lmbda_i += numpy.trace(emd.sigma_s[i,:,:]) +\
                  numpy.dot(emd.theta_s[i,:], emd.theta_s[i,:]) -\
                  2 * numpy.trace(lag_one_covariance) -\
                  2 * numpy.dot(emd.theta_s[i-1,:], emd.theta_s[i,:]) +\
                  numpy.trace(emd.sigma_s[i-1,:,:]) +\
                  numpy.dot(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
-    emd.Q = lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
+    emd.Q = lmbda_i / emd.D / (emd.T - 1) * numpy.identity(emd.D)
