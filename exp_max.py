@@ -55,12 +55,12 @@ def compute_A(sigma_t0, sigma_t1, F):
 
 def e_step(emd):
     """
-    Computes the expectation (a multivariate Gaussian distribution) of the
+    Computes the posterior (approximated as a multivariate Gaussian distribution) of the
     natural parameters of observed spike patterns, given the state-transition
     hyperparameters. Firstly performs a `forward' iteration, in which the
-    expectation at time t is determined from the observed patterns at time t and
-    the expectation at time t-1. Secondly performs a `backward' iteration, in
-    which these sequential expectation estimates are smoothed over time.
+    filter posterior density at time t is determined from the observed patterns at time t and
+    the one-step prediction density at time t-1. Secondly performs a `backward' iteration, in
+    which these sequential filter estimates are smoothed over time.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
@@ -116,7 +116,7 @@ def e_step_smooth(emd):
 def m_step(emd):
     """
     Computes the optimised hyperparameters of the natural parameters of the
-    expectation distributions over time. `Q' is the covariance matrix of the
+    posterior distributions over time. `Q' is the covariance matrix of the
     transition probability distribution. `F' is the autoregressive parameter of
     the state transitions, but it is kept constant in this implementation.
 
@@ -132,7 +132,7 @@ def m_step(emd):
 def m_step_F(emd):
     """
     Computes the optimised autogregressive hyperparameter `F' of the natural
-    parameters of the expectation distributions over time. See equation 39 of
+    parameters of the posterior distributions over time. See equation 39 of
     the source paper for details.
 
     NB: This function is not called in this implementation because the
@@ -158,7 +158,7 @@ def m_step_F(emd):
 def m_step_Q(emd):
     """
     Computes the optimised state-transition covariance hyperparameters `Q' of
-    the natural parameters of the expectation distributions over time.
+    the natural parameters of the posterior distributions over time.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.

@@ -148,10 +148,10 @@ def compute_p(theta):
 
 def compute_psi(theta):
     """
-    Computes the normalisation parameter, psi, for the log-linear probability
+    Computes the log normalisation parameter, psi, for the log-linear probability
     mass function of spike patterns. For example, for two neurons
 
-        psi(theta) = 1 + e^(t1) + e^(t2) + e^(t1+t2+t12)
+        psi(theta) = log( 1 + e^(t1) + e^(t2) + e^(t1+t2+t12) )
 
     :param numpy.ndarray theta:
         Natural `theta' parameters: t1, t2, ..., t12, ...
@@ -175,7 +175,7 @@ def compute_y(spikes, order, window):
     Computes the empirical mean rate of each spike pattern across trials for
     each timestep up to `order', for example
 
-        y_12,t = 1 / N * \sigma^{L} X1_l,t * X2_l,t
+        y_12,t = 1 / N * \sigma_{l=1}^{L} X1_l,t * X2_l,t
 
     is a second-order pattern where t is the timestep and l is the trial.
 

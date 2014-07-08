@@ -79,9 +79,9 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o, y, R, period=None):
     by marginalising over the natural-parameter distributions. See equation 45
     of the source paper for details.
 
-    From within SSASC, this function should be accessed by calling
+    From within SSLL, this function should be accessed by calling
     `log_marginal` with the EMD container as a parameter. This raw function is
-    designed to be called from outside SSASC, when a complete EMD container
+    designed to be called from outside SSLL, when a complete EMD container
     might not be available.
 
     See the container.py for a full description of the parameter properties.
@@ -115,7 +115,7 @@ def log_multivariate_normal(x, mu, sigma):
     of mean `mu' and covariance `sigma'. This function is taken from SciPy.
 
     :param float x:
-        Point at which to evalue the multivariate normal PDF.
+        Point at which to evaluate the multivariate normal PDF.
     :param numpy.ndarray mu:
         Mean of the multivariate normal, of size D.
     :param numpy.ndarray sigma:
