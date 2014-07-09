@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 # Set time (milliseconds), number of trials, and number of cells
-T, R, N = 1000, 100, 2
+T, R, N = 500, 100, 2
 # Set the interaction order
 O = 2
 
@@ -37,10 +37,17 @@ import numpy
 import synthesis
 import transforms
 
-# Create theta parameters for a single timestep
-theta = numpy.array([-3, -3, 3]) # i.e. [theta_1, theta_2, theta_12]
-# Repeat the parameters for every timestep
-theta = numpy.tile(theta, T).reshape(T, theta.size)
+# Create underlying time-varying theta paramters as Gaussian processes
+# Create mean vector
+MU = numpy.tile(-2,(T, N + N*(N-1)/2))
+MU[:,N:] = 0
+# Create covariance matrix
+X = numpy.tile(numpy.arange(T),(T,1))
+K = .5*numpy.exp( -.001 *.5 * (X - X.transpose())**2 )
+# Generate Gaussian processes
+L = numpy.linalg.cholesky(K + 1e-12* numpy.eye(T) )
+theta = MU + numpy.dot(L, numpy.random.randn(T, N + N*(N-1)/2))
+
 # Initialise the transforms library in preparation for computing P
 transforms.initialise(N, O)
 # Compute P for each timestep
@@ -55,10 +62,10 @@ spikes = synthesis.generate_spikes(p, R, seed=1)
 # Global module
 import numpy
 # Local module
-import __init__ # From outside this folder, this would be 'import ssasc'
+import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-emd = __init__.run(spikes, O, lmbda=.005)
+emd = __init__.run(spikes, O, lmbda=200)
 
 
 # ----- PLOTTING -----
@@ -67,13 +74,16 @@ import pylab
 
 # Set up an output figure
 fig, ax = pylab.subplots(2, 1, sharex=1)
-# Plot theta traces
+# Plot underlying theta traces
+ax[0].plot(theta[:,0], c='b', linestyle='--')
+ax[0].plot(theta[:,1], c='r', linestyle='--')
+ax[1].plot(theta[:,2], c='g', linestyle='--')
+
+# Plot estimated theta traces
 ax[0].plot(emd.theta_s[:,0], c='b')
 ax[0].plot(emd.theta_s[:,1], c='r')
 ax[1].plot(emd.theta_s[:,2], c='g')
-# Set axis limits
-ax[0].set_ylim(-4.5, -1.5)
-ax[1].set_ylim(1.5, 4.5)
+
 # Set labels
 ax[0].set_title('Second order interaction between two cells')
 ax[0].set_ylabel('First-order theta')
