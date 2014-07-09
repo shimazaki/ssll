@@ -68,7 +68,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
         given spikes.
     """
     # Ensure NaNs are caught
-    numpy.seterr(invalid='raise', under='raise')
+    numpy.seterr(invalid='raise')
     # Initialise the EM-data container
     map_func = max_posterior.functions[map_function]
     emd = container.EMData(spikes, order, window, map_func, lmbda)
