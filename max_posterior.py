@@ -114,7 +114,7 @@ def conjugate_gradient(emd, t):
     theta_o = emd.theta_o[t, :]
     sigma_o = emd.sigma_o[t, :, :]
     sigma_o_i = numpy.linalg.inv(sigma_o)
-    # Initialize theta with previous smoothed theta
+    # # Initialize theta with previous smoothed theta
     theta_max = emd.theta_s[t, :]
     # Get p and eta values for current theta
     p = transforms.compute_p(theta_max)
@@ -131,21 +131,13 @@ def conjugate_gradient(emd, t):
     # Set initial search direction
     s = dlpo
     # Compute line search
-    alpha = compute_alpha(R, p, s, d_th, sigma_o_i)
-    # Update theta
-    theta_max += alpha * d_th
+    theta_max, dlpo, p, eta = line_search(theta_max, y_t, R, p, s, dlpo, theta_o, sigma_o_i)
 
     # Iterate until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
-        # Compute p and eta at current theta
-        p = transforms.compute_p(theta_max)
-        eta = transforms.compute_eta(p)
+
         # Set current theta gradient to previous
         d_th_prev = d_th
-        # Compute derivative of posterior
-        dllk = R * (y_t - eta)
-        dlpr = - numpy.dot(sigma_o_i, theta_max - theta_o)
-        dlpo = dllk + dlpr
         # The new theta gradient
         d_th = dlpo
         # Calculate beta
@@ -153,9 +145,7 @@ def conjugate_gradient(emd, t):
         # New search direction
         s = d_th + beta * s
         # Line search
-        alpha = compute_alpha(R, p, s, dlpo, sigma_o_i)
-        # Update theta
-        theta_max += alpha * s
+        theta_max, dlpo, p, eta = line_search(theta_max, y_t, R, p, s, dlpo, theta_o, sigma_o_i)
         # Get maximal entry of log posterior gradient divided by number of trials
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
         # Count iterations
@@ -166,8 +156,6 @@ def conjugate_gradient(emd, t):
                 'number iterations.')
 
     # Compute final covariance matrix
-    p = transforms.compute_p(theta_max)
-    eta = transforms.compute_eta(p)
     ddllk = - R*transforms.compute_fisher_info(p, eta)
     ddlpo = ddllk - sigma_o_i
     ddlpo_i = numpy.linalg.inv(ddlpo)
@@ -175,83 +163,51 @@ def conjugate_gradient(emd, t):
     return theta_max, -ddlpo_i
 
 
-def bfgs(emd, t):
-    """ Fits due to `Broyden-Fletcher-Goldfarb-Shanno algorithm
-    <https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%80%93Shanno_algorithm>`_.
+def line_search(theta_max, y_t, R, p, s, dlpo, theta_o, sigma_o_i):
 
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    :param int t:
-        Timestep for which to compute the maximum posterior probability.
-
-    :returns:
-        Tuple containing the mean and covariance of the posterior probability
-        density, each as a numpy.ndarray.
-    """
-    # Get observations, one-step prediction and constants
-    y_t = emd.y[t, :]
-    R = emd.R
-    theta_o = emd.theta_o[t, :]
-    sigma_o = emd.sigma_o[t, :, :]
-    sigma_o_i = numpy.linalg.inv(sigma_o)
-    # Initialize theta with previous smoothed theta
-    theta_max = emd.theta_s[t, :]
-    # Get p and eta values for current theta
-    p = transforms.compute_p(theta_max)
-    eta = transforms.compute_eta(p)
-    # Initialize the estimate of the inverse fisher info
-    ddlpo_i_e = numpy.identity(theta_max.shape[0])/R
-    # Compute derivative of posterior
-    dllk = R*(y_t - eta)
-    dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
-    dlpo = dllk + dlpr
-    # Initialize stopping criterion variables
-    max_dlpo = 1.
-    iterations = 0
-
-    # Iterate until convergence or failure
-    while max_dlpo > GA_CONVERGENCE:
-        # Compute direction for line search
-        s_dir = numpy.dot(dlpo, ddlpo_i_e)
-        # Get alpha for optimal point i s-direction
-        alpha = compute_alpha(R, p, s_dir, dlpo, sigma_o_i)
-        # Compute theta change
-        d_theta = alpha*s_dir
-        # Update theta, eta and p
-        theta_max += d_theta
-        p = transforms.compute_p(theta_max)
+    # Project p-map on search direction
+    p_map_s = transforms.p_map.dot(s)
+    # Projected eta on search direction
+    eta_s = numpy.dot(p_map_s, p)
+    # Project inverse one-step covariance matrix on search direction
+    sigma_o_i_s = numpy.dot(sigma_o_i, s)
+    # Project gradient of log posterior on search direction
+    dlpo_s = numpy.dot(dlpo, s)
+    # Get Metric of fisher info along s direction
+    s_G_s = R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) + numpy.dot(s, sigma_o_i_s)
+    # Initialize iteration variable and alpha
+    dalpha = numpy.inf
+    alpha = 0
+    snorm = numpy.sum(numpy.absolute(s))
+    while dalpha*snorm > 1e-2:
+        # Compute alpha due to gradient
+        alpha_new = alpha + dlpo_s/s_G_s
+        # If new alpha is negative take the half of old alpha
+        if alpha_new < 0:
+            alpha /= 2.
+            dalpha = alpha
+        # Else take new
+        else:
+            dalpha = numpy.absolute(alpha - alpha_new)
+            alpha = alpha_new
+        # Update theta
+        theta_tmp = theta_max + alpha*s
+        # Compute new eta and p values
+        p = transforms.compute_p(theta_tmp)
         eta = transforms.compute_eta(p)
-        # Set current log posterior gradient to previous
-        dlpo_prev = dlpo
-        # Compute new log posterior gradient
+        # Project eta on search direction
+        eta_s = numpy.dot(p_map_s, p)
+        # Project fisher information on search direction
+        s_G_s = R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) + numpy.dot(s, sigma_o_i_s)
+        # Compute log posterior gradient
         dllk = R*(y_t - eta)
-        dlpr = -numpy.dot(sigma_o_i, theta_max-theta_o)
+        dlpr = -numpy.dot(sigma_o_i, theta_tmp - theta_o)
         dlpo = dllk + dlpr
-        # Difference in log posterior gradients
-        dlpo_diff = dlpo_prev - dlpo
-        # Project gradient change on theta change
-        dlpo_diff_dth = numpy.inner(dlpo_diff, d_theta)
-        # Compute the estimate of covariance matrix according to Sherman-Morrison Formula
-        a = (dlpo_diff_dth + numpy.dot(dlpo_diff, numpy.dot(ddlpo_i_e, dlpo_diff.T)))*numpy.outer(d_theta, d_theta)
-        b = numpy.inner(d_theta, dlpo_diff)**2
-        c = numpy.dot(ddlpo_i_e, numpy.outer(dlpo_diff, d_theta)) + numpy.outer(d_theta, numpy.inner(dlpo_diff, ddlpo_i_e))
-        d = dlpo_diff_dth
-        ddlpo_i_e += (a/b - c/d)
-        # Get maximal entry of log posterior gradient divided by number of trials
-        max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
-        # Count iterations
-        iterations += 1
-        if iterations == MAX_GA_ITERATIONS:
-            raise Exception('The maximum-a-posterior BFGS '+\
-                'algorithm did not converge before reaching the maximum '+\
-                'number iterations.')
+        # Project gradient of log posterior on search direction
+        dlpo_s = numpy.dot(dlpo, s)
+    # return optimized theta and current gradient of log posterior
+    return theta_tmp, dlpo, p, eta
 
-    # Compute final covariance matrix
-    ddllk = -R*transforms.compute_fisher_info(p, eta)
-    ddlpo = ddllk - sigma_o_i
-    ddlpo_i = numpy.linalg.inv(ddlpo)
-
-    return theta_max, -ddlpo_i
 
 def compute_beta(df, dfp):
     """ Computes the beta Polak Ribiere Formula
@@ -266,47 +222,11 @@ def compute_beta(df, dfp):
     """
 
     # Polak Ribiere Formula
-    beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    # beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    beta = float(numpy.dot(df, df) / numpy.dot(dfp, dfp))
     return numpy.amax([0, beta])
-
-
-def compute_alpha(R, p, s, dlpo, sigma_o_i):
-    """ Computes a line search along specific direction via quadratic approximation.
-
-    :param int R:
-        number of trials
-    :param numpy.ndarray p:
-        probability vector
-    :param numpy.ndarray s:
-        direction of line search
-    :param numpy.ndarray dlpo:
-        gradient of log posterior
-    :param sigma_o_i:
-        inverse one-step covariance matrix
-
-    :returns float:
-        scale of search vector s to get to the approx. minimum
-    """
-
-    p_map = transforms.p_map
-
-    # Project p-map on search direction
-    p_map_s = numpy.dot(p_map , s)
-    # Projected eta on search direction
-    eta_s = numpy.dot(p_map_s, p)
-    # Project gradient of log posterior on search direction
-    dlpo_s = numpy.dot(dlpo, s)
-    # Project inverse one-step covariance matrix on search direction
-    sigma_o_i_s = numpy.dot(sigma_o_i, s)
-    # Get Metric of fisher info along s direction
-    s_G_s = -R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) - numpy.dot(s, sigma_o_i_s)
-    # Compute scale of search vector to get to the minimum
-    alpha = -(dlpo_s)/s_G_s
-
-    return alpha
 
 
 # Named function pointers to MAP estimators
 functions = {'nr': newton_raphson,
-             'cg': conjugate_gradient,
-             'bf': bfgs}
+             'cg': conjugate_gradient}
