@@ -115,7 +115,7 @@ def compute_fisher_info(p, eta):
     # Stack columns of p for next step
     p_stack = numpy.repeat(p, eta.size).reshape(p.size, eta.size)
     # Compute Fisher matrix
-    fisher = eta_map.dot(p_map.multiply(p_stack + numpy.finfo(float).eps)) - numpy.outer(eta, eta)
+    fisher = eta_map.dot(p_map.multiply(p_stack)) - numpy.outer(eta, eta)
 
     return numpy.array(fisher)
 
