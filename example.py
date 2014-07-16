@@ -52,7 +52,7 @@ theta = MU + numpy.dot(L, numpy.random.randn(T, N + N*(N-1)/2))
 transforms.initialise(N, O)
 # Compute P for each timestep
 p = numpy.zeros((T, 2**N))
-for i in xrange(T):
+for i in range(T):
     p[i,:] = transforms.compute_p(theta[i,:])
 # Generate spikes!
 spikes = synthesis.generate_spikes(p, R, seed=1)
@@ -73,7 +73,7 @@ emd = __init__.run(spikes, O, lmbda=200)
 import pylab
 
 # Set up an output figure
-fig, ax = pylab.subplots(2, 1, sharex=1)
+fig, ax = pylab.subplots(2, 1, sharex=True)
 # Plot underlying theta traces
 ax[0].plot(theta[:,0], c='b', linestyle='--')
 ax[0].plot(theta[:,1], c='r', linestyle='--')
