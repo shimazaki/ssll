@@ -64,8 +64,8 @@ def klic(p_theta, q_theta, N):
         phi_q = transforms.compute_psi(q_theta[i,:])
         phi_p = transforms.compute_psi(p_theta[i,:])
         # Compute log probability for each pattern
-        log_prob_q = numpy.dot(q_theta[i,:], transforms.eta_map) - phi_q
-        log_prob_p = numpy.dot(p_theta[i,:], transforms.eta_map) - phi_p
+        log_prob_q = numpy.array(transforms.p_map.dot(q_theta[i,:]) - phi_q)
+        log_prob_p = numpy.array(transforms.p_map.dot(p_theta[i,:]) - phi_p)
         # Take the KLD for this timestep
         kld[i] = numpy.sum(numpy.exp(log_prob_q) * log_prob_q -\
                            numpy.exp(log_prob_q) * log_prob_p)
@@ -113,7 +113,7 @@ class TestEstimator(unittest.TestCase):
         pylab.show()
 
 
-    def run_ssasc(self, theta, N, O):
+    def run_ssll(self, theta, N, O):
         # Initialise the library for computing pattern probabilities
         transforms.initialise(N, O)
         # Compute probability from theta values
@@ -142,7 +142,7 @@ class TestEstimator(unittest.TestCase):
             theta = numpy.arange(self.theta_base, self.theta_base + N * .5, 0.5)
             theta = numpy.tile(theta, self.T).reshape(self.T, N)
             # Run the actual test
-            self.run_ssasc(theta, N, 1)
+            self.run_ssll(theta, N, 1)
 
 
     def test_fo_varying(self):
@@ -165,7 +165,7 @@ class TestEstimator(unittest.TestCase):
                 theta[:,idx] = self.theta_base + \
                     self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssasc(theta, N, 1)
+            self.run_ssll(theta, N, 1)
 
 
     def test_so_constant(self):
@@ -180,7 +180,7 @@ class TestEstimator(unittest.TestCase):
             theta[:,:N] = self.theta_base
             theta[:,N:] = -1.
             # Run the actual test
-            self.run_ssasc(theta, N, 2)
+            self.run_ssll(theta, N, 2)
 
 
     def test_so_variable(self):
@@ -217,7 +217,7 @@ class TestEstimator(unittest.TestCase):
                 idx = interactions[i]
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssasc(theta, N, 2)
+            self.run_ssll(theta, N, 2)
 
 
     def test_to_constant(self):
@@ -232,7 +232,7 @@ class TestEstimator(unittest.TestCase):
             theta[:,:N] = self.theta_base
             theta[:,N:] = -1.
             # Run the actual test
-            self.run_ssasc(theta, N, 3)
+            self.run_ssll(theta, N, 3)
 
 
     def test_to_variable(self):
@@ -269,7 +269,7 @@ class TestEstimator(unittest.TestCase):
                 idx = interactions[i]
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssasc(theta, N, 3)
+            self.run_ssll(theta, N, 3)
 
 
     def wave(self, A, f, phi, T):
