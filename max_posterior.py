@@ -75,8 +75,9 @@ def newton_raphson(emd, t):
         dlpo = dllk + dlpr
         # Compute the second derivative of the posterior prob. w.r.t. theta_max
         ddlpo = -R * transforms.compute_fisher_info(p, eta) - sigma_o_i
-        # Dot the results to climb the gradient, and accumulate the result
-        ddlpo_i = numpy.linalg.inv(ddlpo)
+        # Dot the results to climb the gradient, and accumulate the
+        # Small regularization added to avoid singular matrices
+        ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps*numpy.identity(eta.shape))
         # Update Theta
         theta_max -= numpy.dot(ddlpo_i, dlpo)
         # Get maximal entry of log posterior gradient divided by number of trials
@@ -218,7 +219,8 @@ def bfgs(emd, t):
         # Compute the estimate of covariance matrix according to Sherman-Morrison Formula
         a = (dlpo_diff_dth + numpy.dot(dlpo_diff, numpy.dot(ddlpo_i_e, dlpo_diff.T)))*numpy.outer(d_theta, d_theta)
         b = numpy.inner(d_theta, dlpo_diff)**2
-        c = numpy.dot(ddlpo_i_e, numpy.outer(dlpo_diff, d_theta)) + numpy.outer(d_theta, numpy.inner(dlpo_diff, ddlpo_i_e))
+        c = numpy.dot(ddlpo_i_e, numpy.outer(dlpo_diff, d_theta)) + \
+            numpy.outer(d_theta, numpy.inner(dlpo_diff, ddlpo_i_e))
         d = dlpo_diff_dth
         ddlpo_i_e += (a/b - c/d)
         # Get maximal entry of log posterior gradient divided by number of trials
