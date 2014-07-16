@@ -110,7 +110,7 @@ class EMData:
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
         # Initialise covariances of the same (an I-matrix for each timestep)
-        I = [numpy.identity(self.D) for i in xrange(self.T)]
+        I = [numpy.identity(self.D) for i in range(self.T)]
         I = numpy.vstack(I).reshape((self.T,self.D,self.D))
         self.sigma_o = .1 * I
         self.sigma_f = .1 * I

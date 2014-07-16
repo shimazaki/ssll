@@ -30,7 +30,7 @@ import transforms
 
 
 
-CONVERGED = 1e-6
+CONVERGED = 1e-3
 
 
 def compute_A(sigma_t0, sigma_t1, F):
@@ -81,7 +81,7 @@ def e_step_filter(emd):
     """
     # Iterate forwards over each timestep, computing filter density
     emd.theta_f[0,:], emd.sigma_f[0,:] = emd.max_posterior(emd, 0)
-    for i in xrange(1, emd.T):
+    for i in range(1, emd.T):
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
         tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
@@ -101,7 +101,7 @@ def e_step_smooth(emd):
     emd.theta_s[-1,:] = emd.theta_f[-1,:]
     emd.sigma_s[-1,:,:] = emd.sigma_f[-1,:,:]
     # Iterate backwards over each timestep, computing smooth density
-    for i in reversed(xrange(emd.T - 1)):
+    for i in reversed(range(emd.T - 1)):
         # Compute the A matrix
         A = compute_A(emd.sigma_f[i,:,:], emd.sigma_o[i+1,:,:], emd.F)
         # Compute the backward-smoothed means
@@ -145,7 +145,7 @@ def m_step_F(emd):
     a = numpy.zeros((emd.D, emd.D))
     b = numpy.zeros((emd.D, emd.D))
     # Sum partial results over each timestep
-    for i in xrange(1, emd.T):
+    for i in range(1, emd.T):
         A = compute_A(emd.sigma_s[i-1,:,:], emd.sigma_s[i,:,:], emd.F)
         a += numpy.dot(A, emd.sigma_s[i,:,:]) +\
              numpy.outer(emd.theta_s[i,:], emd.theta_s[i-1,:])
@@ -164,7 +164,7 @@ def m_step_Q(emd):
         All data pertaining to the EM algorithm.
     """
     lmbda_i = 0
-    for i in xrange(1, emd.T):
+    for i in range(1, emd.T):
         A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
         lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
         lmbda_i += numpy.trace(emd.sigma_s[i,:,:]) +\

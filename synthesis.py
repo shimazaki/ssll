@@ -53,7 +53,7 @@ def generate_spikes(p, R, seed=None):
     T, C = p.shape[0], numpy.log2(p.shape[1])
     spikes = numpy.zeros((T, R, N))
     # Iterate over each probability
-    for i in xrange(T):
+    for i in range(T):
         # Draw random values from the probability distribution
         idx = random_weighted(p[i], R)
         # Extract spike patterns for each trial
@@ -80,7 +80,7 @@ def random_weighted(p, R):
     rnd = numpy.random.random(R)
     # For each random value, find the index of the first weight above it
     idx = numpy.zeros(R, dtype=numpy.int)
-    for i in xrange(R):
+    for i in range(R):
         idx[i] = numpy.sum(cs < rnd[i])
 
     return idx
