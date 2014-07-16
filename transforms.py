@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import itertools
 import numpy
 import pdb
+from scipy import sparse
 
 
 
@@ -64,7 +65,7 @@ def compute_D(N, O):
     :returns:
         Number of natural parameters for the spike-pattern interactions.
     """
-    D = numpy.sum([comb(N, k) for k in xrange(1, O + 1)])
+    D = int(numpy.sum([comb(N, k) for k in range(1, O + 1)]))
 
     return D
 
@@ -85,9 +86,8 @@ def compute_eta(p):
     """
     global eta_map
 
-    eta = numpy.dot(eta_map, p)
-
-    return eta
+    eta = eta_map.dot(p)
+    return numpy.array(eta)
 
 
 def compute_fisher_info(p, eta):
@@ -114,9 +114,9 @@ def compute_fisher_info(p, eta):
     # Stack columns of p for next step
     p_stack = numpy.repeat(p, eta.size).reshape(p.size, eta.size)
     # Compute Fisher matrix
-    fisher = numpy.dot(eta_map, p_stack * p_map) - numpy.outer(eta, eta)
+    fisher = eta_map.dot(p_map.multiply(p_stack + numpy.finfo(float).eps)) - numpy.outer(eta, eta)
 
-    return fisher
+    return numpy.array(fisher)
 
 
 def compute_p(theta):
@@ -138,12 +138,12 @@ def compute_p(theta):
     global p_map
 
     # Compute log probabilities
-    log_p = numpy.dot(p_map, theta)
+    log_p = p_map.dot(theta)
     # Take exponential and normalise
     p = numpy.exp(log_p)
     p_tmp = p / numpy.sum(p)
 
-    return p_tmp
+    return numpy.array(p_tmp, dtype=float)
 
 
 def compute_psi(theta):
@@ -162,12 +162,12 @@ def compute_psi(theta):
     global p_map
 
     # Take coincident-pattern subsets of theta
-    tmp = numpy.dot(p_map, theta)
+    tmp = p_map.dot(theta)
     # Take the sum of the exponentials and take the log
     tmp = numpy.sum(numpy.exp(tmp))
     psi = numpy.log(tmp)
 
-    return psi
+    return float(psi)
 
 
 def compute_y(spikes, order, window):
@@ -203,7 +203,7 @@ def compute_y(spikes, order, window):
     # Set up the output array
     y = numpy.zeros((T / window, len(subsets)))
     # Iterate over each subset
-    for i in xrange(len(subsets)):
+    for i in range(len(subsets)):
         # Select the cells that are in the subset
         sp = spikes[:,:,subsets[i]]
         # Find the timesteps in which all subset-cells spike coincidentally
@@ -234,7 +234,7 @@ def enumerate_subsets(N, O):
     # Compute each C-choose-k subset of cell IDs up to `O'
     subsets = list()
     ids = numpy.arange(N)
-    for k in xrange(1, O + 1):
+    for k in range(1, O + 1):
         subsets.extend(list(itertools.combinations(ids, k)))
     # Assert that we've got the correct number of subsets
     assert len(subsets) == compute_D(N, O)
@@ -268,7 +268,7 @@ def enumerate_patterns(N):
     assert len(subsets) == 2**N - 1
     # Generate output array and fill according to subsets
     fx = numpy.zeros((2**N, N), dtype=numpy.uint8)
-    for i in xrange(len(subsets)):
+    for i in range(len(subsets)):
         fx[i+1,subsets[i]] = 1
 
     return fx
@@ -308,11 +308,12 @@ def initialise(N, O):
     # Set up the output matrix
     p_map = numpy.ones((2**N, D), dtype=numpy.uint8)
     # Compute the map!
-    for i in xrange(1, D+1):
+    for i in range(1, D+1):
         idx = numpy.nonzero(fx[i,:])[0]
-        for j in xrange(idx.size):
+        for j in range(idx.size):
             p_map[:,i-1] = p_map[:,i-1] & fx[:,idx[j]]
     # Set up the eta map
+    p_map = sparse.csc_matrix(p_map)
     eta_map = p_map.transpose()
 
 
