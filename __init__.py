@@ -87,6 +87,6 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
         lmc = probability.log_marginal(emd)
         # Update EM algorithm metadata
         emd.iterations += 1
-        emd.convergence = numpy.absolute((lmp - lmc)/lmp)
+        emd.convergence = numpy.absolute((lmp - lmc) / lmp)
 
     return emd

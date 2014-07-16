@@ -59,16 +59,18 @@ def newton_raphson(emd, t):
     # Compute the inverse of one-step covariance
     sigma_o_i = numpy.linalg.inv(sigma_o)
     R = emd.R
-    max_dlpo = 1.
+    # Initialise the loop guards
+    max_dlpo = numpy.inf
+    iterations = 0
     # Initialise theta_max to the smooth theta value of the previous iteration
     theta_max = emd.theta_s[t,:]
-    # Use non-normalised posterior prob. as loop guard
-    iterations = 0
     # Iterate the gradient ascent algorithm until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
         # Compute the eta of the current theta values
         p = transforms.compute_p(theta_max)
         eta = transforms.compute_eta(p)
+        # Compute the inverse of one-step covariance
+        sigma_o_i = numpy.linalg.inv(sigma_o)
         # Compute the first derivative of the posterior prob. w.r.t. theta_max
         dllk = R * (y_t - eta)
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
@@ -81,7 +83,7 @@ def newton_raphson(emd, t):
                                    numpy.identity(eta.shape[0]))
         # Update Theta
         theta_max -= numpy.dot(ddlpo_i, dlpo)
-        # Get maximal entry of log posterior grad divided by number of trials
+        # Update the look guard
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
         # Count iterations
         iterations += 1
@@ -116,7 +118,7 @@ def conjugate_gradient(emd, t):
     theta_o = emd.theta_o[t, :]
     sigma_o = emd.sigma_o[t, :, :]
     sigma_o_i = numpy.linalg.inv(sigma_o)
-    # # Initialize theta with previous smoothed theta
+    # Initialize theta with previous smoothed theta
     theta_max = emd.theta_s[t, :]
     # Get p and eta values for current theta
     p = transforms.compute_p(theta_max)

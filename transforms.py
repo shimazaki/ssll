@@ -87,6 +87,7 @@ def compute_eta(p):
     global eta_map
 
     eta = eta_map.dot(p)
+
     return numpy.array(eta)
 
 
@@ -315,5 +316,3 @@ def initialise(N, O):
     # Set up the eta map
     p_map = sparse.csc_matrix(p_map)
     eta_map = p_map.transpose()
-
-
