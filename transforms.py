@@ -148,8 +148,8 @@ def compute_p(theta):
 
 def compute_psi(theta):
     """
-    Computes the log normalisation parameter, psi, for the log-linear probability
-    mass function of spike patterns. For example, for two neurons
+    Computes the log normalisation parameter, psi, for the log-linear
+    probability mass function of spike patterns. For example, for two neurons
 
         psi(theta) = log( 1 + e^(t1) + e^(t2) + e^(t1+t2+t12) )
 
