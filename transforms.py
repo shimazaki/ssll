@@ -87,6 +87,7 @@ def compute_eta(p):
     global eta_map
 
     eta = eta_map.dot(p)
+
     return numpy.array(eta)
 
 
@@ -148,8 +149,8 @@ def compute_p(theta):
 
 def compute_psi(theta):
     """
-    Computes the log normalisation parameter, psi, for the log-linear probability
-    mass function of spike patterns. For example, for two neurons
+    Computes the log normalisation parameter, psi, for the log-linear
+    probability mass function of spike patterns. For example, for two neurons
 
         psi(theta) = log( 1 + e^(t1) + e^(t2) + e^(t1+t2+t12) )
 
@@ -315,5 +316,3 @@ def initialise(N, O):
     # Set up the eta map
     p_map = sparse.csc_matrix(p_map)
     eta_map = p_map.transpose()
-
-
