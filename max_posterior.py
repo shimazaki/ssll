@@ -77,8 +77,8 @@ def newton_raphson(emd, t):
         ddlpo = -R * transforms.compute_fisher_info(p, eta) - sigma_o_i
         # Dot the results to climb the gradient, and accumulate the
         # Small regularization added to avoid singular matrices
-        ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps* \
-                                   numpy.identity(eta.shape))
+        ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps*\
+                                   numpy.identity(eta.shape[0]))
         # Update Theta
         theta_max -= numpy.dot(ddlpo_i, dlpo)
         # Get maximal entry of log posterior grad divided by number of trials
