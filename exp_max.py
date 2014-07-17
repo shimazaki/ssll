@@ -165,14 +165,13 @@ def m_step_Q(emd):
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     """
-    lmbda_inv = 0
+    inv_lmbda = 0
     for i in range(1, emd.T):
         A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
         lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
-        lmbda_inv += numpy.trace(emd.sigma_s[i,:,:]) +\
-                 numpy.dot(emd.theta_s[i,:], emd.theta_s[i,:]) -\
-                 2 * numpy.trace(lag_one_covariance) -\
-                 2 * numpy.dot(emd.theta_s[i-1,:], emd.theta_s[i,:]) +\
-                 numpy.trace(emd.sigma_s[i-1,:,:]) +\
-                 numpy.dot(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
-    emd.Q = lmbda_inv / emd.D / (emd.T - 1) * numpy.identity(emd.D)
+        tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
+        inv_lmbda += numpy.trace(emd.sigma_s[i,:,:]) -\
+                 2 * numpy.trace(lag_one_covariance)  +\
+                 numpy.trace(emd.sigma_s[i-1,:,:])  +\
+                 numpy.dot(tmp, tmp)
+    emd.Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
