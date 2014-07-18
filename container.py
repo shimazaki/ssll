@@ -82,10 +82,14 @@ class EMData:
         Smoothed density mean.
     :ivar numpy.ndarray sigma_o:
         One-step-prediction density covariance.
+    :ivar numpy.ndarray sigma_o_inv:
+        Inverse of one-step-prediction density covariance
     :ivar numpy.ndarray sigma_f:
         Filtered density covariance.
     :ivar numpy.ndarray sigma_s:
         Smoothed density covariance.
+    :ivar numpy.ndarray sigma_s_lag
+        Smoothed density lag-one covariance.
     :ivar numpy.ndarray F:
         Autoregressive parameter of state transitions.
     :ivar numpy.ndarray Q:
@@ -113,8 +117,10 @@ class EMData:
         I = [numpy.identity(self.D) for i in range(self.T)]
         I = numpy.vstack(I).reshape((self.T,self.D,self.D))
         self.sigma_o = .1 * I
+        self.sigma_o_inv = 1/.1 * I
         self.sigma_f = .1 * I
         self.sigma_s = .1 * I
+        self.sigma_s_lag = .1 * I
         # Intialise autoregressive and transition probability hyperparameters
         self.F = numpy.identity(self.D)
         self.Q = 1. / lmbda * numpy.identity(self.D)

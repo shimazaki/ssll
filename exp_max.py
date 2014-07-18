@@ -88,6 +88,8 @@ def e_step_filter(emd):
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
         tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
         emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
+        # Compute inverse of one-step prediction covariance
+        emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = emd.max_posterior(emd, i)
 
@@ -105,7 +107,9 @@ def e_step_smooth(emd):
     # Iterate backwards over each timestep, computing smooth density
     for i in reversed(range(emd.T - 1)):
         # Compute the A matrix
-        A = compute_A(emd.sigma_f[i,:,:], emd.sigma_o[i+1,:,:], emd.F)
+        #A = compute_A(emd.sigma_f[i,:,:], emd.sigma_o[i+1,:,:], emd.F)
+        a = numpy.dot(emd.sigma_f[i,:,:], emd.F.T)
+        A = numpy.dot(a, emd.sigma_o_inv[i+1,:,:])
         # Compute the backward-smoothed means
         tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
         emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
@@ -113,6 +117,8 @@ def e_step_smooth(emd):
         tmp = numpy.dot(A, emd.sigma_s[i+1,:,:] - emd.sigma_o[i+1,:,:])
         tmp = numpy.dot(tmp, A.T)
         emd.sigma_s[i,:,:] = emd.sigma_f[i,:,:] + tmp
+        # Compute the backward-smoothed lag-one covariances
+        emd.sigma_s_lag[i+1,:,:] = numpy.dot(A, emd.sigma_s[i+1,:])
 
 
 def m_step(emd):
@@ -167,8 +173,15 @@ def m_step_Q(emd):
     """
     inv_lmbda = 0
     for i in range(1, emd.T):
-        A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
-        lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
+        # Original by Tom
+        #A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
+        # Computing A locally
+        #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
+        #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
+        #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
+        # Loading from saved lag-one smoother
+        lag_one_covariance = emd.sigma_s_lag[i,:,:]
+        #print lag_one_covariance - emd.sigma_s_lag[i,:,:]
         tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
         inv_lmbda += numpy.trace(emd.sigma_s[i,:,:]) -\
                  2 * numpy.trace(lag_one_covariance)  +\

@@ -57,7 +57,7 @@ def newton_raphson(emd, t):
     theta_o = emd.theta_o[t,:]
     sigma_o = emd.sigma_o[t,:,:]
     # Compute the inverse of one-step covariance
-    sigma_o_i = numpy.linalg.inv(sigma_o)
+    sigma_o_i = emd.sigma_o_inv[t,:,:]
     R = emd.R
     # Initialise the loop guards
     max_dlpo = numpy.inf
@@ -117,7 +117,7 @@ def conjugate_gradient(emd, t):
     R = emd.R
     theta_o = emd.theta_o[t, :]
     sigma_o = emd.sigma_o[t, :, :]
-    sigma_o_i = numpy.linalg.inv(sigma_o)
+    sigma_o_i = emd.sigma_o_inv[t,:,:]
     # Initialize theta with previous smoothed theta
     theta_max = emd.theta_s[t, :]
     # Get p and eta values for current theta
@@ -190,7 +190,7 @@ def bfgs(emd, t):
     R = emd.R
     theta_o = emd.theta_o[t, :]
     sigma_o = emd.sigma_o[t, :, :]
-    sigma_o_i = numpy.linalg.inv(sigma_o)
+    sigma_o_i = emd.sigma_o_inv[t,:,:]
     # # Initialize theta with previous smoothed theta
     theta_max = emd.theta_s[t, :]
     # Get p and eta values for current theta

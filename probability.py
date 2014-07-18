@@ -67,13 +67,13 @@ def log_marginal(emd, period=None):
         Log marginal probability of the synchrony estimate as a float.
     """
     # Unwrap the parameters and call the raw function
-    log_p = log_marginal_raw(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o,
+    log_p = log_marginal_raw(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
         emd.y, emd.R, period)
 
     return log_p
 
 
-def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o, y, R, period=None):
+def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, period=None):
     """
     Computes the log marginal probability of the observed spike-pattern rates
     by marginalising over the natural-parameter distributions. See equation 45
@@ -100,10 +100,9 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o, y, R, period=None):
     for i in range(period[0], period[1]):
         a += log_likelihood(y[i,:], theta_f[i,:], R)
         theta_d = theta_f[i,:] - theta_o[i,:]
-        sig_inv = numpy.linalg.inv(sigma_o[i,:,:])
-        b -= numpy.dot(theta_d, numpy.dot(sig_inv, theta_d))
-        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) -\
-             numpy.log(numpy.linalg.det(sigma_o[i,:,:]))
+        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
+        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
+             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
     log_p = a + b / 2
 
     return log_p
