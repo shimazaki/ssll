@@ -69,8 +69,6 @@ def newton_raphson(emd, t):
         # Compute the eta of the current theta values
         p = transforms.compute_p(theta_max)
         eta = transforms.compute_eta(p)
-        # Compute the inverse of one-step covariance
-        sigma_o_i = numpy.linalg.inv(sigma_o)
         # Compute the first derivative of the posterior prob. w.r.t. theta_max
         dllk = R * (y_t - eta)
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
