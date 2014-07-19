@@ -34,26 +34,6 @@ CONVERGED = 1e-3
 
 
 
-def compute_A(sigma_t0, sigma_t1, F):
-    """
-    TODO explain what A is
-
-    :param numpy.ndarray sigma_t0:
-        Covariance of the theta distribution for timestep t.
-    :param numpy.ndarray sigma_t1:
-        Covariance of the theta distribution for timestep t+1.
-    :param numpy.ndarray F:
-        Autoregressive parameter of state transisions, of dimensions (D, D).
-
-    :returns:
-        TODO explain what A is
-    """
-    a = numpy.dot(sigma_t0, F.T)
-    A = numpy.dot(a, numpy.linalg.inv(sigma_t1))
-
-    return A
-
-
 def e_step(emd):
     """
     Computes the posterior (approximated as a multivariate Gaussian
@@ -107,7 +87,6 @@ def e_step_smooth(emd):
     # Iterate backwards over each timestep, computing smooth density
     for i in reversed(range(emd.T - 1)):
         # Compute the A matrix
-        #A = compute_A(emd.sigma_f[i,:,:], emd.sigma_o[i+1,:,:], emd.F)
         a = numpy.dot(emd.sigma_f[i,:,:], emd.F.T)
         A = numpy.dot(a, emd.sigma_o_inv[i+1,:,:])
         # Compute the backward-smoothed means
@@ -173,15 +152,12 @@ def m_step_Q(emd):
     """
     inv_lmbda = 0
     for i in range(1, emd.T):
-        # Original by Tom
-        #A = compute_A(emd.sigma_f[i-1,:,:], emd.sigma_o[i,:,:], emd.F)
-        # Computing A locally
+        # Computing lag-one covariance locally
         #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
         #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
         #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
-        # Loading from saved lag-one smoother
+        # Loading saved lag-one smoother
         lag_one_covariance = emd.sigma_s_lag[i,:,:]
-        #print lag_one_covariance - emd.sigma_s_lag[i,:,:]
         tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
         inv_lmbda += numpy.trace(emd.sigma_s[i,:,:]) -\
                  2 * numpy.trace(lag_one_covariance)  +\

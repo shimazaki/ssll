@@ -56,7 +56,6 @@ def newton_raphson(emd, t):
     y_t = emd.y[t,:]
     theta_o = emd.theta_o[t,:]
     sigma_o = emd.sigma_o[t,:,:]
-    # Compute the inverse of one-step covariance
     sigma_o_i = emd.sigma_o_inv[t,:,:]
     R = emd.R
     # Initialise the loop guards
