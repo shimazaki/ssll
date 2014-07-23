@@ -34,13 +34,31 @@ import transforms
 MAX_GA_ITERATIONS = 500
 GA_CONVERGENCE = 1e-4
 
-
-def newton_raphson(emd, t):
+def run(emd, t):
     """
-    Computes the MAP estimate of the natural parameters at some timestep, given
+        Computes the MAP estimate of the natural parameters at some timestep, given
     the observed spike patterns at that timestep and the one-step-prediction
     mean and covariance for the same timestep.
+        This function extracts nesseary variables and pass them to the user-specified
+        gradient ascent alogirhtm.  
+    """
+    # Extract observed patterns and one-step predictions for time t
+    # Data at time t 
+    R = emd.R
+    y_t = emd.y[t,:]
+    # Initial values of natural parameters
+    theta_0 = emd.theta_s[t,:]
+    # Mean and covariance of one-step prediction density
+    theta_o = emd.theta_o[t,:]
+    sigma_o = emd.sigma_o[t,:,:]
+    sigma_o_i = emd.sigma_o_inv[t,:,:]
+    # Run the user-specified gradient ascent algorithm
+    theta_f, sigma_f  = emd.max_posterior(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i)
 
+    return theta_f, sigma_f
+
+def newton_raphson(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+    """
     TODO update comments to elaborate on how this method differs from the others
 
     :param container.EMData emd:
@@ -52,17 +70,11 @@ def newton_raphson(emd, t):
         Tuple containing the mean and covariance of the posterior probability
         density, each as a numpy.ndarray.
     """
-    # Extract observed patterns and one-step predictions for time t
-    y_t = emd.y[t,:]
-    theta_o = emd.theta_o[t,:]
-    sigma_o = emd.sigma_o[t,:,:]
-    sigma_o_i = emd.sigma_o_inv[t,:,:]
-    R = emd.R
     # Initialise the loop guards
     max_dlpo = numpy.inf
     iterations = 0
     # Initialise theta_max to the smooth theta value of the previous iteration
-    theta_max = emd.theta_s[t,:]
+    theta_max = theta_0
     # Iterate the gradient ascent algorithm until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
         # Compute the eta of the current theta values
@@ -93,7 +105,7 @@ def newton_raphson(emd, t):
     return theta_max, -ddlpo_i
 
 
-def conjugate_gradient(emd, t):
+def conjugate_gradient(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits with `Nonlinear Conjugate Gradient Method
     <https://en.wikipedia.org/wiki/Nonlinear_conjugate_gradient_method>`_.
 
@@ -109,14 +121,8 @@ def conjugate_gradient(emd, t):
     @author: Christian Donner
     """
 
-    # Get observations, one-step prediction and constants
-    y_t = emd.y[t, :]
-    R = emd.R
-    theta_o = emd.theta_o[t, :]
-    sigma_o = emd.sigma_o[t, :, :]
-    sigma_o_i = emd.sigma_o_inv[t,:,:]
     # Initialize theta with previous smoothed theta
-    theta_max = emd.theta_s[t, :]
+    theta_max = theta_0
     # Get p and eta values for current theta
     p = transforms.compute_p(theta_max)
     eta = transforms.compute_eta(p)
@@ -166,7 +172,7 @@ def conjugate_gradient(emd, t):
     return theta_max, -ddlpo_i
 
 
-def bfgs(emd, t):
+def bfgs(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits due to `Broyden-Fletcher-Goldfarb-Shanno algorithm
     <https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%
     80%93Shanno_algorithm>`_.
@@ -182,14 +188,9 @@ def bfgs(emd, t):
 
     @author: Christian Donner
     """
-    # Get observations, one-step prediction and constants
-    y_t = emd.y[t, :]
-    R = emd.R
-    theta_o = emd.theta_o[t, :]
-    sigma_o = emd.sigma_o[t, :, :]
-    sigma_o_i = emd.sigma_o_inv[t,:,:]
+
     # # Initialize theta with previous smoothed theta
-    theta_max = emd.theta_s[t, :]
+    theta_max = theta_0
     # Get p and eta values for current theta
     p = transforms.compute_p(theta_max)
     eta = transforms.compute_eta(p)

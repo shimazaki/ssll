@@ -27,7 +27,7 @@ import pdb
 
 import probability
 import transforms
-
+import max_posterior
 
 
 CONVERGED = 1e-3
@@ -62,7 +62,7 @@ def e_step_filter(emd):
         All data pertaining to the EM algorithm.
     """
     # Iterate forwards over each timestep, computing filter density
-    emd.theta_f[0,:], emd.sigma_f[0,:] = emd.max_posterior(emd, 0)
+    emd.theta_f[0,:], emd.sigma_f[0,:] = max_posterior.run(emd, 0)
     for i in range(1, emd.T):
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
@@ -71,7 +71,7 @@ def e_step_filter(emd):
         # Compute inverse of one-step prediction covariance
         emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
         # Get MAP estimate of filter density
-        emd.theta_f[i,:], emd.sigma_f[i,:] = emd.max_posterior(emd, i)
+        emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
 
 
 def e_step_smooth(emd):
