@@ -65,7 +65,7 @@ import numpy
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-emd = __init__.run(spikes, O, lmbda=200)
+emd = __init__.run(spikes, O, map_function='nr', lmbda=200, )
 
 
 # ----- PLOTTING -----

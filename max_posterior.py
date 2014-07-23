@@ -36,16 +36,15 @@ GA_CONVERGENCE = 1e-4
 
 def run(emd, t):
     """
-        Computes the MAP estimate of the natural parameters at some timestep, given
+    Computes the MAP estimate of the natural parameters at some timestep, given
     the observed spike patterns at that timestep and the one-step-prediction
-    mean and covariance for the same timestep.
-        This function extracts nesseary variables and pass them to the user-specified
-        gradient ascent alogirhtm.  
+    mean and covariance for the same timestep. This function pass the variables 
+    at time t to the user-specified gradient ascent alogirhtm.  
     """
     # Extract observed patterns and one-step predictions for time t
     # Data at time t 
-    R = emd.R
     y_t = emd.y[t,:]
+    R = emd.R
     # Initial values of natural parameters
     theta_0 = emd.theta_s[t,:]
     # Mean and covariance of one-step prediction density
@@ -56,6 +55,7 @@ def run(emd, t):
     theta_f, sigma_f  = emd.max_posterior(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i)
 
     return theta_f, sigma_f
+
 
 def newton_raphson(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """
