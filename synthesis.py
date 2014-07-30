@@ -25,6 +25,18 @@ import pdb
 import transforms
 
 
+def generate_thetas(N, O, T):
+    D = transforms.compute_D(N, O)
+    MU = numpy.tile(-2,(T, D))
+    MU[:,N:] = 0
+    # Create covariance matrix
+    X = numpy.tile(numpy.arange(T),(T,1))
+    K = .5*numpy.exp( -.001 *.5 * (X - X.transpose())**2 )
+    # Generate Gaussian processes
+    L = numpy.linalg.cholesky(K + 1e-12* numpy.eye(T) )
+    theta = MU + numpy.dot(L, numpy.random.randn(T, D))
+    return theta
+
 
 def generate_spikes(p, R, seed=None):
     """
@@ -84,3 +96,4 @@ def random_weighted(p, R):
         idx[i] = numpy.sum(cs < rnd[i])
 
     return idx
+

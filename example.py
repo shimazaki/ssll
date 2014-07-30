@@ -39,14 +39,7 @@ import transforms
 
 # Create underlying time-varying theta paramters as Gaussian processes
 # Create mean vector
-MU = numpy.tile(-2,(T, N + N*(N-1)/2))
-MU[:,N:] = 0
-# Create covariance matrix
-X = numpy.tile(numpy.arange(T),(T,1))
-K = .5*numpy.exp( -.001 *.5 * (X - X.transpose())**2 )
-# Generate Gaussian processes
-L = numpy.linalg.cholesky(K + 1e-12* numpy.eye(T) )
-theta = MU + numpy.dot(L, numpy.random.randn(T, N + N*(N-1)/2))
+theta = synthesis.generate_thetas(N, O, T)
 
 # Initialise the transforms library in preparation for computing P
 transforms.initialise(N, O)
