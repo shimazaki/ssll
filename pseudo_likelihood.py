@@ -8,13 +8,17 @@ import transforms
 Fx_s = None
 
 def compute_Fx_s(X, O):
-    """ Generates a matrix for F(x_s=1, x_\s)
+    """ 
+    Constructs F(x_s=1, x_\s), feature vectors of interactions up to the 
+    'O'th order from observed patterns for conditional likelihood model. 
 
     :param numpy.array X:
-        two dimensional (r, c) binary array, where first dimension are runs
-        (trials) and second cells
+        Two dimensional (r, c) binary array, where the first dimension is runs
+        (trials) and the second is the number of cells.
     :param int O:
-        Order of interactions
+        Order of interactions.
+    :returns Fx_s:
+        (r, D) sparse matrix, where D is the model dimension.
     """
     R, N = X.shape
     D = 0
@@ -25,26 +29,38 @@ def compute_Fx_s(X, O):
     Fx_s = []
 
     for s in range(N):
-        Xtmp1 = X.copy()
-        Xtmp1[:,s] = 1
-        Fx1 = compute_Fx(Xtmp1, O)
+        Xtmp = X.copy()
+        Xtmp[:,s] = 1
+        Fx1 = compute_Fx(Xtmp, O)
 
-        Xtmp2 = X.copy()
-        Xtmp2[:,s] = 0
-        Fx2 = compute_Fx(Xtmp2, O)
+        Xtmp = X.copy()
+        Xtmp[:,s] = 0
+        Fx2 = compute_Fx(Xtmp, O)
 
         Fx_s.append(sparse.coo_matrix(Fx1 - Fx2))
 
     return Fx_s
 
 
-def compute_Fx(X, order):
+def compute_Fx(X, O):
+    """
+    Construct feature vectors of interactions up to the 'O'th order from 
+    pattern data. 
+
+    :param numpy.array X:
+        (r, c) binary array, where the first dimension are runs (trials) 
+        and second cells.
+    :param int O:
+        Order of interactions
+    :returns Fx:
+        (r, D) matrix of feature vectors, where D is the model 
+        dimension.
+    """
     # Get spike-matrix metadata
     R, N = X.shape
-    # Compute each n-choose-k subset of cell IDs up to `order'
-    subsets = transforms.enumerate_subsets(N, order)
+    # Compute each n-choose-k subset of cell IDs up to the 'O'th order
+    subsets = transforms.enumerate_subsets(N, O)
     # Set up the output array
-    #Fx = numpy.zeros((R, len(subsets)))
     Fx = numpy.zeros((len(subsets),R))
     # Iterate over each subset
     for i in range(len(subsets)):
@@ -53,7 +69,6 @@ def compute_Fx(X, order):
         # Find the timesteps in which all subset-cells spike coincidentally
         spc = sp.sum(axis=1) == len(subsets[i])
         # Save the observed spike pattern
-        #Fx[:,i] = spc
         Fx[i,:] = spc
 
     return Fx
