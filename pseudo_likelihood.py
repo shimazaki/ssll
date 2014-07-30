@@ -220,6 +220,7 @@ def pseudo_likelihood_christian_diag(X, R, theta_0, theta_o, sigma_o, sigma_o_i)
 
 def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     N, D = X.shape[1], theta_0.shape[0]
+    triu_indices = numpy.triu_indices(N, 1)
     theta_max = theta_0
     iterations = 0
     max_dll = numpy.Inf
@@ -227,7 +228,7 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     pool = None
     while max_dll > 1e-5:
 
-        dll, ddll = dll_pseudolikelihood(X, theta_max)
+        dll, ddll = dll_pseudolikelihood(X, theta_max, triu_indices)
         #pseudo_gradient_diag(gradient_fun_tmp, D, N, pool)
         # Gradient method
         ddll_inv = numpy.linalg.inv(ddll)
@@ -240,7 +241,7 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, iterations
 
 
-def dll_pseudolikelihood(X, theta):
+def dll_pseudolikelihood(X, theta, triu_indices):
     """
     Computes the derivative of the pesudo log-lieklihood.
 
@@ -256,7 +257,7 @@ def dll_pseudolikelihood(X, theta):
 
     # construct a matrix of pairwise interactions
     J = numpy.zeros((N,N))
-    triu_indices = numpy.triu_indices(N, 1)
+    #triu_indices = numpy.triu_indices(N, 1)
     J[triu_indices] = theta[N:]
 
     # conditional probabilities of a spike, (R,N) matrix
@@ -266,7 +267,6 @@ def dll_pseudolikelihood(X, theta):
     # Gradient of the first order natrual parameters
     dEta = X - Eta
     dtheta_1 = numpy.sum(dEta, 0)
-    #print dEta
 
     # Gradient of the second order natrual parameters
     A = numpy.dot( dEta.T, X )
