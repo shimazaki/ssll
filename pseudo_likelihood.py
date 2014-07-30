@@ -21,9 +21,6 @@ def compute_Fx_s(X, O):
         (r, D) sparse matrix, where D is the model dimension.
     """
     R, N = X.shape
-    D = 0
-    for i in range(O):
-        D += transforms.comb(N, i+1)
 
     global Fx_s
     Fx_s = []
@@ -209,7 +206,9 @@ def pseudo_likelihood_christian_diag(X, R, theta_0, theta_o, sigma_o, sigma_o_i)
         dll, ddll = pseudo_newton(gradient_fun, D, N, pool)
         #pseudo_gradient_diag(gradient_fun_tmp, D, N, pool)
         # Gradient method
-        ddll_inv = numpy.linalg.inv(ddll + 1e-5*numpy.identity(D))
+        #ddll_inv = numpy.linalg.inv(ddll + 0*1e-5*numpy.identity(D))
+        ddll_diag = numpy.diag(ddll)
+        ddll_inv = numpy.diag(1/ddll_diag, 0)
         theta_max = theta_max - 0.1*numpy.dot(ddll_inv, dll)
         max_dll = numpy.amax(numpy.absolute(dll)) / R
         iterations += 1
@@ -220,6 +219,7 @@ def pseudo_likelihood_christian_diag(X, R, theta_0, theta_o, sigma_o, sigma_o_i)
 
 def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     N, D = X.shape[1], theta_0.shape[0]
+    triu_indices = numpy.triu_indices(N, 1)
     theta_max = theta_0
     iterations = 0
     max_dll = numpy.Inf
@@ -227,10 +227,13 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     pool = None
     while max_dll > 1e-5:
 
-        dll, ddll = dll_pseudolikelihood(X, theta_max)
+        dll, ddll = d_pseudolikelihood(X, theta_max, triu_indices)
         #pseudo_gradient_diag(gradient_fun_tmp, D, N, pool)
         # Gradient method
-        ddll_inv = numpy.linalg.inv(ddll)
+        #ddll_inv = numpy.linalg.inv(ddll)
+        ddll_diag = numpy.diag(ddll)
+        ddll_inv = numpy.diag(1/ddll_diag, 0)
+
         theta_max = theta_max - 0.1*numpy.dot(ddll_inv, dll)
         max_dll = numpy.amax(numpy.absolute(dll)) / R
         iterations += 1
@@ -240,7 +243,7 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, iterations
 
 
-def dll_pseudolikelihood(X, theta):
+def d_pseudolikelihood(X, theta, triu_indices):
     """
     Computes the derivative of the pesudo log-lieklihood.
 
@@ -256,7 +259,7 @@ def dll_pseudolikelihood(X, theta):
 
     # construct a matrix of pairwise interactions
     J = numpy.zeros((N,N))
-    triu_indices = numpy.triu_indices(N, 1)
+    #triu_indices = numpy.triu_indices(N, 1)
     J[triu_indices] = theta[N:]
 
     # conditional probabilities of a spike, (R,N) matrix
@@ -266,7 +269,6 @@ def dll_pseudolikelihood(X, theta):
     # Gradient of the first order natrual parameters
     dEta = X - Eta
     dtheta_1 = numpy.sum(dEta, 0)
-    #print dEta
 
     # Gradient of the second order natrual parameters
     A = numpy.dot( dEta.T, X )
@@ -351,7 +353,7 @@ if __name__=='__main__':
     set_spikes = get_set_pattern(spikes[0])[0]
     compute_Fx_s(set_spikes, O)
     theta_max_h, iterations_h = pseudo_likelihood_hideaki(spikes[0], R, theta_0, 0, 0, 0)
-    theta_max_c, iterations_c = pseudo_likelihood_christian(spikes[0], R, theta_0, 0, 0, 0)
+    theta_max_c, iterations_c = pseudo_likelihood_christian_diag(spikes[0], R, theta_0, 0, 0, 0)
     print(thetas)
     print(theta_max_h, iterations_h)
     print(theta_max_c, iterations_c)
