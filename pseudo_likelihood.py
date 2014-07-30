@@ -226,7 +226,6 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     #pool = Pool(processes=3)
     pool = None
     while max_dll > 1e-5:
-
         dll, ddll = d_pseudolikelihood(X, theta_max, triu_indices)
         #pseudo_gradient_diag(gradient_fun_tmp, D, N, pool)
         # Gradient method
@@ -241,7 +240,6 @@ def pseudo_likelihood_hideaki(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
             max_dll = 0
     #pool.close()
     return theta_max, iterations
-
 
 def d_pseudolikelihood(X, theta, triu_indices):
     """
