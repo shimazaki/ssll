@@ -33,7 +33,6 @@ p_map = None
 eta_map = None
 
 
-
 def comb(N, k):
     """
     Compute the combinatorial operator N-choose-k.
@@ -45,8 +44,8 @@ def comb(N, k):
     :returns:
         N-choose-k
     """
-    nck = numpy.math.factorial(N) / numpy.math.factorial(k) /\
-        numpy.math.factorial(N - k)
+    nck = numpy.around(float(numpy.math.factorial(N)) / float(numpy.math.factorial(k)) /\
+        float(numpy.math.factorial(N - k)))
 
     return nck
 
