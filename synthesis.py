@@ -74,6 +74,73 @@ def generate_spikes(p, R, seed=None):
     return spikes
 
 
+def generate_spikes_gibbs(theta, N, O, R, **kwargs):
+    """Generates spike trains for the model given the thetas with
+    `Gibbs-Sampling <https://en.wikipedia.org/wiki/Gibbs_sampling>`_.
+
+    :param numpy.ndarray theta:
+        parameters used for sampling for each time bin
+    :param int N:
+        Number of cells
+    :param int O:
+        Order of interaction
+    :param int R:
+        Number of runs that are generated.
+
+    :returns:
+        Binary matrix with dimensions (time, runs, cells), in which a `1' in
+        location (t, r, c) denotes a spike at time t in run r by cell c, as a
+        numpy.ndarray
+    """
+    # Set numpy seed (should be removed at some point)
+    seed = kwargs.get('seed', 1)
+    numpy.random.seed(seed)
+    # Set pre-trials
+    pre_R = kwargs.get('pre_n', 100)
+    # Get number of bins
+    T = theta.shape[0]
+    # Initialize array for spike data
+    X = numpy.zeros([T, R+pre_R, N], dtype=numpy.uint8)
+    # Gets subsets
+    subsets = transforms.enumerate_subsets(N, O)
+    # Get number of natural parameters
+    D = len(subsets)
+    # Initialize subset map
+    subset_map = numpy.zeros([D, N])
+    # Get map of relevant patterns (d,c)
+    for i in range(len(subsets)):
+        subset_map[i, subsets[i]] = 1
+    # Count how many cells must be active for each theta
+    subset_count = numpy.sum(subset_map, axis=1)
+    # Draw random numbers from uniform distribution
+    rand_numbers = numpy.random.rand(T, R+pre_R, N)
+    # Iterate over all time bins
+    for t in range(T):
+        # Iterate through all Runs
+        cur_theta = theta[t]
+        for l in range(1, R+pre_R):
+            # Iterate through all cells
+            for i in range(N):
+                # Construct pattern from trial before and
+                # from neurons that have been seen in this trial
+                pattern = numpy.array([numpy.hstack([X[t, l, :i],
+                                                     X[t, l-1, i:]])])
+                # set x^(i,t) to "1" and compute f(X) for those
+                pattern[:, i] = 1
+                fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)[0]
+                # Set x^(i,t) to "0" and compute f(X) for those
+                pattern[:, i] = 0
+                fx0 = (numpy.dot(pattern, subset_map.T) == subset_count)[0]
+                # compute p( x^(i,l) = 1 || X^(1:i-1,t),X^(i+1:N,l-1) )
+                prob_spike = 0.5*(1 + numpy.tanh(0.5*(numpy.sum(cur_theta[fx1])
+                                                - numpy.sum(cur_theta[fx0]))))
+                # if smaller than probability X^(i,l) -> 1
+                X[t, l, i] = numpy.greater_equal(prob_spike,
+                                                 rand_numbers[t, l, i])
+    # Return spike data
+    return X[:, pre_R:, :]
+
+
 def random_weighted(p, R):
     """
     Draws `R' integers from the probability mass over the integers `p'.
