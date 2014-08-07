@@ -24,6 +24,7 @@ import numpy
 
 import probability
 import transforms
+import pseudo_likelihood
 
 
 
@@ -41,9 +42,13 @@ def run(emd, t):
     mean and covariance for the same timestep. This function pass the variables 
     at time t to the user-specified gradient ascent alogirhtm.  
     """
+    # Set time bin in pseudo_likelihood
+    pseudo_likelihood.time_bin = t
     # Extract observed patterns and one-step predictions for time t
-    # Data at time t 
     y_t = emd.y[t,:]
+    # Data at time t
+    X_t = emd.spikes[t,:,:]
+    # Number of runs
     R = emd.R
     # Initial values of natural parameters
     theta_0 = emd.theta_s[t,:]
@@ -52,12 +57,13 @@ def run(emd, t):
     sigma_o = emd.sigma_o[t,:,:]
     sigma_o_i = emd.sigma_o_inv[t,:,:]
     # Run the user-specified gradient ascent algorithm
-    theta_f, sigma_f  = emd.max_posterior(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i)
+    theta_f, sigma_f  = emd.max_posterior(y_t, X_t, R, theta_0, theta_o,
+                                          sigma_o, sigma_o_i)
 
     return theta_f, sigma_f
 
 
-def newton_raphson(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """
     TODO update comments to elaborate on how this method differs from the others
 
@@ -105,7 +111,7 @@ def newton_raphson(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
 
 
-def conjugate_gradient(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits with `Nonlinear Conjugate Gradient Method
     <https://en.wikipedia.org/wiki/Nonlinear_conjugate_gradient_method>`_.
 
@@ -172,7 +178,7 @@ def conjugate_gradient(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
 
 
-def bfgs(y_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits due to `Broyden-Fletcher-Goldfarb-Shanno algorithm
     <https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%
     80%93Shanno_algorithm>`_.

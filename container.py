@@ -43,8 +43,12 @@ class EMData:
     :param int window:
         Bin-width for counting spikes, in milliseconds.
     :param function map_function:
-        A function from max_posterior.py that returns an estimate of the
-        posterior distribution of natural parameters for a given timestep.
+        A function from max_posterior.py or pseudo_likelihood.py
+        that returns an estimate of the posterior distribution of natural
+        parameters for a given timestep.
+    :param function marg_llk_fun:
+        A function that returns the marginal log-likelihood or pseudo-log-
+        likelihood.
     :param float lmdbda:
         Coefficient on the identity matrix of the initial state-transition
         covariance matrix.
@@ -58,6 +62,9 @@ class EMData:
     :ivar function max_posterior:
         A function from max_posterior.py that returns an estimate of the
         posterior distribution of natural parameters for a given timestep.
+    :ivar function  marg_llk:
+        A function that returns the marginal log-likelihood or pseudo-log-
+        likelihood.
     :ivar int T:
         Number of timestep in the pattern-counts; should equal the length of the
         spike trains divided by the window.
@@ -99,10 +106,12 @@ class EMData:
     :ivar float convergence:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
-    def __init__(self, spikes, order, window, map_function, lmbda):
+    def __init__(self, spikes, order, window, map_function, marg_llk_fun,
+                 lmbda):
         # Record the input parameters
         self.spikes, self.order, self.window = spikes, order, window
         self.max_posterior = map_function
+        self.marg_llk = marg_llk_fun
         # Compute the `sample' spike-train interactions from the input spikes
         self.y = transforms.compute_y(self.spikes, self.order, self.window)
         # Count timesteps, trials, cells and interaction dimensions

@@ -4,204 +4,11 @@ import numpy
 import max_posterior
 from scipy import sparse
 import transforms
-import container
 
-CONVERGED = 1e-3
+
 MAX_GA_ITERATIONS = 5000
-GA_CONVERGENCE = 1e-4
 Fx_s = None
 time_bin = -1
-
-def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
-    """
-    Master-function of the State-Space Analysis of Spike Correlation package.
-    Uses the expectation-maximisation algorithm to find the probability
-    distributions of natural parameters of spike-train interactions over time.
-    Calls slave functions to perform the expectation and maximisation steps
-    repeatedly until the data likelihood reaches an asymptotic value.
-
-    Note that the execution of some slave functions to this master function are
-    of exponential complexity with respect to the `order' parameter.
-
-    :param numpy.ndarray spikes:
-        Binary matrix with dimensions (time, runs, cells), in which a `1' in
-        location (t, r, c) denotes a spike at time t in run r by cell c.
-    :param int order:
-        Order of spike-train interactions to estimate, for example, 2 =
-        pairwise, 3 = triplet-wise...
-    :param int window:
-        Bin-width for counting spikes, in milliseconds.
-    :param string map_function:
-        Name of the function to use for maximum a-posterior estimation of the
-        natural parameters at each timestep. Refer to max_posterior.py.
-    :param float lmdbda:
-        Inverse coefficient on the identity matrix of the initial
-        state-transition covariance matrix.
-    :param int max_iter:
-        Maximum number of iterations for which to run the EM algorithm.
-
-    :returns:
-        Results encapsulated in a container.EMData object, containing the
-        smoothed posterior probability distributions of the natural parameters
-        of the spike-train interactions at each timestep, conditional upon the
-        given spikes.
-    """
-    # Ensure NaNs are caught
-    numpy.seterr(invalid='raise')
-    # Initialise the EM-data container
-    map_func = functions[map_function]
-    emd = container.EMData(spikes, order, window, map_func, lmbda)
-    # Initialise the coordinate-transform maps
-    compute_Fx_s(emd.spikes, emd.order)
-    # Set up loop guards for the EM algorithm
-    lmp = -numpy.inf
-    lmc = pseudo_log_marginal(emd)
-    # Iterate the EM algorithm until convergence or failure
-    while (emd.iterations < max_iter) and (emd.convergence > CONVERGED):
-        # Perform EM
-        e_step(emd)
-        m_step(emd)
-        # Update previous and current log marginal values
-        lmp = lmc
-        lmc = pseudo_log_marginal(emd)
-        # Update EM algorithm metadata
-        emd.iterations += 1
-        emd.convergence = numpy.absolute((lmp - lmc) / lmp)
-
-    return emd
-
-def e_step(emd):
-    """
-    Computes the posterior (approximated as a multivariate Gaussian
-    distribution) of the natural parameters of observed spike patterns, given
-    the state-transition hyperparameters. Firstly performs a `forward'
-    iteration, in which the filter posterior density at time t is determined
-    from the observed patterns at time t and the one-step prediction density at
-    time t-1. Secondly performs a `backward' iteration, in which these
-    sequential filter estimates are smoothed over time.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    """
-    # Compute the 'forward' filter density
-    e_step_filter(emd)
-    # Compute the 'backward' smooth density
-    e_step_smooth(emd)
-
-
-def e_step_filter(emd):
-    """
-    Computes the one-step-prediction density and the filter density in the
-    expectation step.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    """
-    # Iterate forwards over each timestep, computing filter density
-    emd.theta_f[0,:], emd.sigma_f[0,:] = run_map(emd, 0)
-    for i in range(1, emd.T):
-        # Compute one-step prediction density
-        emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
-        tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
-        emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
-        # Compute inverse of one-step prediction covariance
-        emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
-        # Get MAP estimate of filter density
-        emd.theta_f[i,:], emd.sigma_f[i,:] = run_map(emd, i)
-
-
-def e_step_smooth(emd):
-    """
-    Computes smooth density in the expectation step.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    """
-    # Initialise the smoothed theta and sigma values
-    emd.theta_s[-1,:] = emd.theta_f[-1,:]
-    emd.sigma_s[-1,:,:] = emd.sigma_f[-1,:,:]
-    # Iterate backwards over each timestep, computing smooth density
-    for i in reversed(range(emd.T - 1)):
-        # Compute the A matrix
-        a = numpy.dot(emd.sigma_f[i,:,:], emd.F.T)
-        A = numpy.dot(a, emd.sigma_o_inv[i+1,:,:])
-        # Compute the backward-smoothed means
-        tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
-        emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
-        # Compute the backward-smoothed covariances
-        tmp = numpy.dot(A, emd.sigma_s[i+1,:,:] - emd.sigma_o[i+1,:,:])
-        tmp = numpy.dot(tmp, A.T)
-        emd.sigma_s[i,:,:] = emd.sigma_f[i,:,:] + tmp
-        # Compute the backward-smoothed lag-one covariances
-        emd.sigma_s_lag[i+1,:,:] = numpy.dot(A, emd.sigma_s[i+1,:])
-
-
-def m_step(emd):
-    """
-    Computes the optimised hyperparameters of the natural parameters of the
-    posterior distributions over time. `Q' is the covariance matrix of the
-    transition probability distribution. `F' is the autoregressive parameter of
-    the state transitions, but it is kept constant in this implementation.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    """
-    # Update the initial mean of the one-step-prediction density
-    emd.theta_o[0,:] = emd.theta_s[0,:]
-    # Compute the state-transition hyperparameter
-    m_step_Q(emd)
-
-
-def m_step_Q(emd):
-    """
-    Computes the optimised state-transition covariance hyperparameters `Q' of
-    the natural parameters of the posterior distributions over time.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    """
-    inv_lmbda = 0
-    for i in range(1, emd.T):
-        # Computing lag-one covariance locally
-        #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
-        #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
-        #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
-        # Loading saved lag-one smoother
-        lag_one_covariance = emd.sigma_s_lag[i,:,:]
-        tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
-        inv_lmbda += numpy.trace(emd.sigma_s[i,:,:]) -\
-                 2 * numpy.trace(lag_one_covariance)  +\
-                 numpy.trace(emd.sigma_s[i-1,:,:])  +\
-                 numpy.dot(tmp, tmp)
-    emd.Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
-
-
-
-def run_map(emd, t):
-    """
-    Computes the MAP estimate of the natural parameters at some timestep, given
-    the observed spike patterns at that timestep and the one-step-prediction
-    mean and covariance for the same timestep. This function pass the variables
-    at time t to the user-specified gradient ascent alogirhtm.
-    """
-    # Extract observed patterns and one-step predictions for time t
-    # Data at time t
-    global time_bin
-    time_bin = t
-    X_t = emd.spikes[t,:,:]
-    #compute_Fx_s(X_t, emd.order)
-    R = emd.R
-    # Initial values of natural parameters
-    theta_0 = emd.theta_o[t,:]
-    # Mean and covariance of one-step prediction density
-    theta_o = emd.theta_o[t,:]
-    sigma_o = emd.sigma_o[t,:,:]
-    sigma_o_i = emd.sigma_o_inv[t,:,:]
-    # Run the user-specified gradient ascent algorithm
-    theta_f, sigma_f = emd.max_posterior(X_t, R, theta_0, theta_o, sigma_o,
-                                          sigma_o_i)
-
-    return theta_f, sigma_f
 
 
 def compute_Fx_s(X, O):
@@ -279,7 +86,7 @@ def compute_Fx(X, O):
     return Fx
 
 
-def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Newton-Raphson method with pseudo-log-likelihood as objective function.
 
     :param numpy.ndarray X:
@@ -303,7 +110,7 @@ def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     @author: Christian Donner
     """
     # Read out number of cells and natural parameters
-    N, D = X.shape[1], theta_0.shape[0]
+    N, D = X_t.shape[1], theta_0.shape[0]
     # Initialize theta, iteration counter and maximal derivative of posterior
     theta_max = theta_0
     iterations = 0
@@ -312,7 +119,7 @@ def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     fs = numpy.empty([R, N])
 
     # Iterate until convergence or failure
-    while max_dlpo > GA_CONVERGENCE:
+    while max_dlpo > max_posterior.GA_CONVERGENCE:
 
         # Initialize gradient and Hessian arrays
         dllk = numpy.zeros(D)
@@ -327,7 +134,7 @@ def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
             # Calculate derivative of conditional rate
             deta = -etas*(1-etas)
             # Calculate derivative for neuron
-            dllk += Fx_s[time_bin][s_i].dot(X[:, s_i] - etas)
+            dllk += Fx_s[time_bin][s_i].dot(X_t[:, s_i] - etas)
             # Fill in detas in Fx_s
             Fx_s_deta = sparse.coo_matrix(((deta)[Fx_s[time_bin][s_i].col],
                                   [Fx_s[time_bin][s_i].col,
@@ -360,7 +167,7 @@ def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
         fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
 
     # Compute final Hessian of posterior
-    dllk, etas = pseudo_dllk(theta_max, X, fs)
+    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     ddllk = pseudo_ddllk(etas, D)
     ddlpo = ddllk - sigma_o_i
     # Compute inverse
@@ -369,7 +176,7 @@ def pseudo_newton(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
 
 
-def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits due to non linear conjugate gradient, where Pseudolikelihood is the
      objective function.
 
@@ -395,7 +202,7 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """
 
     # Extract parameters
-    N = X.shape[1]
+    N = X_t.shape[1]
     D = theta_0.shape[0]
     # Initialize theta
     theta_max = theta_0
@@ -408,7 +215,7 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     max_dlpo = numpy.Inf
     iterations = 0
     # Get likelihood gradient
-    dllk, etas = pseudo_dllk(theta_max, X, fs)
+    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # Get prior
     dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
     # Get posterior
@@ -418,17 +225,17 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     # Set initial search direction
     s = dlpo
     # Perform first line search
-    theta_max, fs = pseudo_line_search(theta_max, X, s, fs, dlpo, sigma_o_i,
+    theta_max, fs = pseudo_line_search(theta_max, X_t, s, fs, dlpo, sigma_o_i,
                                        etas)
     # Calculate new likelihood gradient
-    dllk, etas = pseudo_dllk(theta_max, X, fs)
+    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # and new prior
     dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
     # and new Posterior
     dlpo = dllk + dlpr
 
     # Iterate until convergence or failure
-    while max_dlpo > GA_CONVERGENCE:
+    while max_dlpo > max_posterior.GA_CONVERGENCE:
         # Set old theta direction
         d_th_prev = d_th
         # Set posterior to new theta direction
@@ -438,10 +245,10 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
         # Set new search direction
         s = d_th + beta * s
         # Perform line search in this direction
-        theta_max, fs = pseudo_line_search(theta_max, X, s, fs, dlpo, sigma_o_i,
+        theta_max, fs = pseudo_line_search(theta_max, X_t, s, fs, dlpo, sigma_o_i,
                                            etas)
         # Calculate the new gradient and conditional rates
-        dllk, etas = pseudo_dllk(theta_max, X, fs)
+        dllk, etas = pseudo_dllk(theta_max, X_t, fs)
         # Calculate prior
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
         # Calculate posterior
@@ -456,7 +263,7 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Compute final Hessian of posterior
-    dllk, etas = pseudo_dllk(theta_max, X, fs)
+    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     ddllk = pseudo_ddllk(etas, D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
@@ -465,7 +272,7 @@ def pseudo_cg(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
 
 
-def pseudo_bfgs(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits due to Broyden-Fletcher-Goldfarb-Shanno algorithm, where
     Pseudolikelihood is the objective function.
 
@@ -491,7 +298,7 @@ def pseudo_bfgs(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """
 
     # Get number of cells and natural parameters
-    N, D = X.shape[1], theta_0.shape[0]
+    N, D = X_t.shape[1], theta_0.shape[0]
     # Initialize theta with previous smoothed theta
     theta_max = theta_0
     # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s))
@@ -505,11 +312,11 @@ def pseudo_bfgs(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
     max_dlpo = 1.
     iterations = 0
     # Compute derivative of posterior
-    dllk, etas = pseudo_dllk(theta_max, X, fs)
+    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
     dlpo = dllk + dlpr
     # Iterate until convergence or failure
-    while max_dlpo > GA_CONVERGENCE:
+    while max_dlpo > max_posterior.GA_CONVERGENCE:
 
         # Compute direction for line search
         s_dir = numpy.dot(dlpo, ddlpo_i_e)
@@ -518,12 +325,12 @@ def pseudo_bfgs(X, R, theta_0, theta_o, sigma_o, sigma_o_i):
         # Set current log posterior gradient to previous
         dlpo_prev = dlpo
         # Perform line search
-        theta_max, fs = pseudo_line_search(theta_max, X, s_dir, fs, dlpo,
+        theta_max, fs = pseudo_line_search(theta_max, X_t, s_dir, fs, dlpo,
                                            sigma_o_i, etas)
         # Get the difference between old and new theta
         d_theta = theta_max - theta_prev
         # Compute derivative of posterior
-        dllk, etas = pseudo_dllk(theta_max, X, fs)
+        dllk, etas = pseudo_dllk(theta_max, X_t, fs)
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
         dlpo = dllk + dlpr
         # Difference in log posterior gradients
@@ -682,12 +489,13 @@ def pseudo_log_marginal(emd, period=None):
         Log marginal probability of the synchrony estimate as a float.
     """
     # Unwrap the parameters and call the raw function
-    log_p = pseudo_log_marginal_raw(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
-        emd.spikes, emd.R, period)
+    log_p = pseudo_log_marginal_raw(emd.theta_f, emd.theta_o, emd.sigma_f,
+                                    emd.sigma_o_inv, emd.spikes, emd.R, period)
 
     return log_p
 
-def pseudo_log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, X, R, period=None):
+def pseudo_log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, X, R,
+                            period=None):
     """
     Computes the log marginal probability of the observed spike-pattern rates
     by marginalising over the natural-parameter distributions. See equation 45
@@ -769,7 +577,8 @@ if __name__ == '__main__':
     t1 = time.clock()
     theta_o = numpy.ones(theta_0.shape[0])*1.
     sigma_o_i = numpy.diag(numpy.ones(D))*0.
-    theta_max, sigma = pseudo_cg(spikes[time_bin], R, theta_0, theta_o, 0, sigma_o_i)
+    theta_max, sigma = pseudo_cg(spikes[time_bin], R, theta_0, theta_o, 0,
+                                 sigma_o_i)
     print('fitting done in %f s' %(time.clock() - t1))
     #pylab.plot(thetas[0],theta_max_h, 'bo')
     pylab.plot(thetas[0],theta_max, 'k.')

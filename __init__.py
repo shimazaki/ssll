@@ -34,7 +34,8 @@ import transforms
 import pseudo_likelihood
 
 
-def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
+def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
+        exact=1):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -61,6 +62,8 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
         state-transition covariance matrix.
     :param int max_iter:
         Maximum number of iterations for which to run the EM algorithm.
+    :param bool exact:
+        Parameter weather exact likelihood or pseudo likelihood should be used
 
     :returns:
         Results encapsulated in a container.EMData object, containing the
@@ -70,14 +73,23 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
     """
     # Ensure NaNs are caught
     numpy.seterr(invalid='raise')
-    # Initialise the EM-data container
-    map_func = max_posterior.functions[map_function]
-    emd = container.EMData(spikes, order, window, map_func, lmbda)
     # Initialise the coordinate-transform maps
-    transforms.initialise(emd.N, emd.order)
+    if exact:
+        N = spikes.shape[2]
+        transforms.initialise(N, order)
+        map_func = max_posterior.functions[map_function]
+        marg_llk_fun = probability.log_marginal
+    else:
+        pseudo_likelihood.compute_Fx_s(spikes, order)
+        map_func = pseudo_likelihood.functions[map_function]
+        marg_llk_fun = pseudo_likelihood.pseudo_log_marginal
+    # Initialise the EM-data container
+    emd = container.EMData(spikes, order, window, map_func, marg_llk_fun, lmbda)
+
+
     # Set up loop guards for the EM algorithm
     lmp = -numpy.inf
-    lmc = probability.log_marginal(emd)
+    lmc = emd.marg_llk(emd)
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > exp_max.CONVERGED):
         # Perform EM
@@ -85,7 +97,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30):
         exp_max.m_step(emd)
         # Update previous and current log marginal values
         lmp = lmc
-        lmc = probability.log_marginal(emd)
+        lmc = emd.marg_llk(emd)
         # Update EM algorithm metadata
         emd.iterations += 1
         emd.convergence = numpy.absolute((lmp - lmc) / lmp)
