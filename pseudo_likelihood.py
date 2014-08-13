@@ -523,8 +523,9 @@ def pseudo_log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, X, R,
         a += pseudo_log_likelihood(X[i,:,:], theta_f[i,:], i)
         theta_d = theta_f[i,:] - theta_o[i,:]
         b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
-             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+        A = numpy.dot(sigma_f[i,:,:], sigma_o_inv[i,:,:])
+        L = numpy.linalg.cholesky(A)
+        b += 2*numpy.sum(numpy.log(numpy.diag(L)))
     log_p = a + b / 2
 
     return log_p
@@ -570,7 +571,7 @@ if __name__ == '__main__':
     thetas = synthesis.generate_thetas(N, O, T)
     time_bin = 0
     t1 = time.clock()
-    spikes = generate_spikes_gibbs(thetas, N, O, R)
+    spikes = synthesis.generate_spikes_gibbs(thetas, N, O, R)
     print('sampling done in %f s' %(time.clock() - t1))
     theta_0 = numpy.zeros(D)
     compute_Fx_s(spikes, O)

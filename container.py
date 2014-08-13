@@ -125,11 +125,11 @@ class EMData:
         # Initialise covariances of the same (an I-matrix for each timestep)
         I = [numpy.identity(self.D) for i in range(self.T)]
         I = numpy.vstack(I).reshape((self.T,self.D,self.D))
-        self.sigma_o = .1 * I
-        self.sigma_o_inv = 1. /.1 * I
-        self.sigma_f = .1 * I
-        self.sigma_s = .1 * I
-        self.sigma_s_lag = .1 * I
+        self.sigma_o = 1. * I
+        self.sigma_o_inv = 1. * I
+        self.sigma_f = 1. * I
+        self.sigma_s = 1. * I
+        self.sigma_s_lag = 1. * I
         # Intialise autoregressive and transition probability hyperparameters
         self.F = numpy.identity(self.D)
         self.Q = 1. / lmbda * numpy.identity(self.D)
