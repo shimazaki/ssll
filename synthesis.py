@@ -123,23 +123,21 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
             for i in range(N):
                 # Construct pattern from trial before and
                 # from neurons that have been seen in this trial
-                pattern = numpy.array([numpy.hstack([X[t, l, :i],
-                                                     X[t, l-1, i:]])])
+                pattern = numpy.hstack([X[t, l, :i], X[t, l-1, i:]])
                 # set x^(i,t) to "1" and compute f(X) for those
-                pattern[:, i] = 1
-                fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)[0]
+                pattern[i] = 1
+                fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)
                 # Set x^(i,t) to "0" and compute f(X) for those
-                pattern[:, i] = 0
-                fx0 = (numpy.dot(pattern, subset_map.T) == subset_count)[0]
+                pattern[i] = 0
+                fx0 = (numpy.dot(pattern, subset_map.T) == subset_count)
                 # compute p( x^(i,l) = 1 || X^(1:i-1,t),X^(i+1:N,l-1) )
-                prob_spike = 0.5*(1 + numpy.tanh(0.5*(numpy.sum(cur_theta[fx1])
-                                                - numpy.sum(cur_theta[fx0]))))
+                prob_spike = 0.5*(1 + numpy.tanh(0.5*(numpy.dot(cur_theta,fx1)
+                                                - numpy.dot(cur_theta,fx0))))
                 # if smaller than probability X^(i,l) -> 1
                 X[t, l, i] = numpy.greater_equal(prob_spike,
                                                  rand_numbers[t, l, i])
     # Return spike data
     return X[:, pre_R:, :]
-
 
 def random_weighted(p, R):
     """
