@@ -38,6 +38,22 @@ def generate_thetas(N, O, T):
     return theta
 
 
+def generate_stationary_thetas(N, O, T):
+    th1, th2 = -3., 10.
+    D = transforms.compute_D(N, O)
+    th = numpy.zeros([T,D])
+    th[:,:N] = th1
+    th[:,N:] = th2/N*(1 + 0.5*numpy.sqrt(N)*numpy.random.randn(T,D-N))
+    idx = numpy.triu_indices(N,1)
+    theta_array = numpy.zeros([N,N])
+    theta_array[idx[0],idx[1]] = th[0,N:]
+    theta_array[idx[1],idx[0]] = th[0,N:]
+    mean_thetas = numpy.mean(theta_array, axis=0)
+    theta_array -= numpy.tile(mean_thetas, [N, 1])
+    th[:,N:] = theta_array[idx[0],idx[1]]
+    return th
+
+
 def generate_spikes(p, R, seed=None):
     """
     Draws spike patterns for each of `R' trial runs from the probability mass
@@ -93,7 +109,7 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         numpy.ndarray
     """
     # Set numpy seed (should be removed at some point)
-    seed = kwargs.get('seed', 1)
+    seed = kwargs.get('seed', None)
     numpy.random.seed(seed)
     # Set pre-trials
     pre_R = kwargs.get('pre_n', 100)
