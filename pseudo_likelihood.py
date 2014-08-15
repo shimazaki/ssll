@@ -412,8 +412,29 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     return theta_new, fs_new
 
 
+def compute_cond_eta(theta, t):
+    """ Computes conitional rate
+
+    :param numpy.ndarray theta:
+        (d) array with thetas at time t
+    :param int t:
+        time index of theta
+
+    :returns:
+        (N,) array whit conditional rates for each neuron
+    """
+    N = len(Fx_s[t])
+    R = Fx_s[t][0].shape[1]
+    fs = numpy.empty([R, N])
+    for s_i in range(N):
+        fs[:, s_i] = Fx_s[t][s_i].T.dot(theta)
+
+    eta = numpy.exp(fs)/(1 + numpy.exp(fs))
+    return numpy.mean(eta, axis=0)
+
+
 def pseudo_dllk(theta, X, fs):
-    """ Calculculates the gradient of the pseudo-log-likelihood.
+    """ Calculates the gradient of the pseudo-log-likelihood.
 
     :param numpy.ndarray theta:
         (d,) array of natural parameters

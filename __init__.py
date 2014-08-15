@@ -73,9 +73,10 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     """
     # Ensure NaNs are caught
     numpy.seterr(invalid='raise')
+    # Get Number of cells
+    N = spikes.shape[2]
     # Initialise the coordinate-transform maps
     if exact:
-        N = spikes.shape[2]
         transforms.initialise(N, order)
         map_func = max_posterior.functions[map_function]
         marg_llk_fun = probability.log_marginal
@@ -101,5 +102,14 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
         # Update EM algorithm metadata
         emd.iterations += 1
         emd.convergence = numpy.absolute((lmp - lmc) / lmp)
+
+    # Save rates in the container for smoothed thetas
+    for i in range(emd.T):
+        if exact:
+            p = transforms.compute_p(emd.theta_s[i, :])
+            emd.eta[i,:] = transforms.compute_eta(p)[:N]
+        else:
+            emd.eta[i,:] = pseudo_likelihood.compute_cond_eta(emd.theta_s[i, :],
+                                                              i)
 
     return emd
