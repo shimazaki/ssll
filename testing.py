@@ -25,6 +25,7 @@ import pylab
 import random
 import sys
 import unittest
+import time
 
 import __init__
 import probability
@@ -78,7 +79,7 @@ class TestEstimator(unittest.TestCase):
 
     def setUp(self):
         self.T = 500
-        self.R = 100
+        self.R = 50
         self.theta_base = -3.
         self.spike_seed = 1
         self.wave_seed = 1
@@ -113,7 +114,7 @@ class TestEstimator(unittest.TestCase):
         pylab.show()
 
 
-    def run_ssll(self, theta, N, O):
+    def run_ssll(self, theta, N, O, map_fun='nr', param_exact=1):
         # Initialise the library for computing pattern probabilities
         transforms.initialise(N, O)
         # Compute probability from theta values
@@ -123,29 +124,17 @@ class TestEstimator(unittest.TestCase):
         # Generate spikes according to those probabilities
         spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
         # Run the algorithm!
-        emd = __init__.run(spikes, O)
+        emd = __init__.run(spikes, O, map_function=map_fun, exact=param_exact)
         # Compute the KL divergence between real and estimated parameters
         kld = klic(theta, emd.theta_s, emd.N)
         # Check that KL divergence is OK
-        if numpy.any(kld[50:-50] > .01):
+        if numpy.any(kld[50:-50] > .05): # change from .01
             self.plot(theta, emd.theta_s, emd.sigma_s, emd.y, kld, emd.N, emd.T,
                 emd.D)
-        self.assertFalse(numpy.any(kld[50:-50] > .01))
+        self.assertFalse(numpy.any(kld[50:-50] > .05)) # change from .01
 
 
-    def test_fo_constant(self):
-        print "Test First-Order Constant Interactions."
-        # Repeat test for different numbers of neurons
-        for N in 2**numpy.arange(4):
-            print N
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.arange(self.theta_base, self.theta_base + N * .5, 0.5)
-            theta = numpy.tile(theta, self.T).reshape(self.T, N)
-            # Run the actual test
-            self.run_ssll(theta, N, 1)
-
-
-    def test_fo_varying(self):
+    def test_1_fo_varying(self):
         print "Test First-Order Time-Varying Interactions."
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(4):
@@ -168,22 +157,7 @@ class TestEstimator(unittest.TestCase):
             self.run_ssll(theta, N, 1)
 
 
-    def test_so_constant(self):
-        print "Test Second-Order Constant Interactions."
-        # Repeat test for different numbers of neurons
-        for N in 2**numpy.arange(1, 4):
-            print N
-            # Compute dimensionality of natural-parameter distribution
-            D = transforms.compute_D(N, 2)
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.zeros((self.T, D))
-            theta[:,:N] = self.theta_base
-            theta[:,N:] = -1.
-            # Run the actual test
-            self.run_ssll(theta, N, 2)
-
-
-    def test_so_variable(self):
+    def test_2_so_variable(self):
         print "Test Second-Order Time-Varying Interactions."
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(1, 4):
@@ -220,22 +194,7 @@ class TestEstimator(unittest.TestCase):
             self.run_ssll(theta, N, 2)
 
 
-    def test_to_constant(self):
-        print "Test Third-Order Constant Interactions."
-        # Repeat test for different numbers of neurons
-        for N in 2**numpy.arange(2, 4):
-            print N
-            # Compute dimensionality of natural-parameter distribution
-            D = transforms.compute_D(N, 3)
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.zeros((self.T, D))
-            theta[:,:N] = self.theta_base
-            theta[:,N:] = -1.
-            # Run the actual test
-            self.run_ssll(theta, N, 3)
-
-
-    def test_to_variable(self):
+    def test_3_to_variable(self):
         print "Test Third-Order Time-Varying Interactions."
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(2, 4):
@@ -271,6 +230,39 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             self.run_ssll(theta, N, 3)
 
+    
+    def test_4_so_variable_gradient_methods(self):
+        print "Test Gradient Algorithms (N=8, O=2, Time-Varying Interactions)."
+        # Repeat test for different numbers of neurons
+        N, O = 8, 2
+        # Create time-varying theta parameters
+        theta = synthesis.generate_thetas(N, O, self.T)
+        # Run the algorithm!
+        # Conjugate Gradient
+        tc = time.time()
+        self.run_ssll(theta, N, O, map_fun='cg')
+        print('cg in %f s' %(time.time() - tc))
+        # BFGS
+        tc = time.time()
+        self.run_ssll(theta, N, O, map_fun='bf')
+        print('bfgs in %f s' %(time.time() - tc))
+
+    
+    def test_5_so_variable_pseudolikelihood(self):
+        print "Test Psuedolikelihood Algorithm (N=8, O=2, Time-Varying Interactions)."
+        # Repeat test for different numbers of neurons
+        N, O = 8, 2
+        # Create time-varying theta parameters
+        theta = synthesis.generate_thetas(N, O, self.T)
+        # Run the algorithm!
+        # Conjugate Gradient
+        tc = time.time()
+        self.run_ssll(theta, N, O, map_fun='cg', param_exact=0)
+        print('cg in %f s' %(time.time() - tc))
+        # BFGS
+        tc = time.time()
+        self.run_ssll(theta, N, O, map_fun='bf', param_exact=0)
+        print('bfgs in %f s' %(time.time() - tc))
 
     def wave(self, A, f, phi, T):
         rng = numpy.arange(0, T, 1e-3)
