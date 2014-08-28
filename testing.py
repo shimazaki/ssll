@@ -114,7 +114,7 @@ class TestEstimator(unittest.TestCase):
         pylab.show()
 
 
-    def run_ssll(self, theta, N, O, map_fun='nr', param_exact=1):
+    def run_ssll(self, theta, N, O, map_fun='nr', param_est_val='exact'):
         # Initialise the library for computing pattern probabilities
         transforms.initialise(N, O)
         # Compute probability from theta values
@@ -124,7 +124,8 @@ class TestEstimator(unittest.TestCase):
         # Generate spikes according to those probabilities
         spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
         # Run the algorithm!
-        emd = __init__.run(spikes, O, map_function=map_fun, exact=param_exact)
+        emd = __init__.run(spikes, O, map_function=map_fun,
+                           param_est=param_est_val)
         # Compute the KL divergence between real and estimated parameters
         kld = klic(theta, emd.theta_s, emd.N)
         # Check that KL divergence is OK
@@ -257,11 +258,11 @@ class TestEstimator(unittest.TestCase):
         # Run the algorithm!
         # Conjugate Gradient
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='cg', param_exact=0)
+        self.run_ssll(theta, N, O, map_fun='cg', param_est_val='pseudo')
         print('cg in %f s' %(time.time() - tc))
         # BFGS
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='bf', param_exact=0)
+        self.run_ssll(theta, N, O, map_fun='bf', param_est_val='pseudo')
         print('bfgs in %f s' %(time.time() - tc))
 
     def wave(self, A, f, phi, T):

@@ -35,7 +35,7 @@ import pseudo_likelihood
 
 
 def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
-        exact=1):
+        param_est='exact'):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -62,8 +62,9 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
         state-transition covariance matrix.
     :param int max_iter:
         Maximum number of iterations for which to run the EM algorithm.
-    :param bool exact:
-        Parameter weather exact likelihood or pseudo likelihood should be used
+    :param str param_est:
+        Parameter whether exact likelihood ('exact') or pseudo likelihood
+        ('pseudo') should be used
 
     :returns:
         Results encapsulated in a container.EMData object, containing the
@@ -76,11 +77,11 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the coordinate-transform maps
-    if exact:
+    if param_est == 'exact':
         transforms.initialise(N, order)
         map_func = max_posterior.functions[map_function]
         marg_llk_fun = probability.log_marginal
-    else:
+    elif param_est == 'pseudo':
         pseudo_likelihood.compute_Fx_s(spikes, order)
         map_func = pseudo_likelihood.functions[map_function]
         marg_llk_fun = pseudo_likelihood.pseudo_log_marginal
@@ -105,10 +106,10 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
 
     # Save rates in the container for smoothed thetas
     for i in range(emd.T):
-        if exact:
+        if param_est == 'exact':
             p = transforms.compute_p(emd.theta_s[i, :])
             emd.eta[i,:] = transforms.compute_eta(p)[:N]
-        else:
+        elif param_est == 'pseudo':
             emd.eta[i,:] = pseudo_likelihood.compute_cond_eta(emd.theta_s[i, :],
                                                               i)
 
