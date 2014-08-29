@@ -130,9 +130,10 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             # Calculate sum of active thetas
             fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
             # Calculate conditional rate
-            etas = numpy.exp(fs[:, s_i])/(1 + numpy.exp(fs[:, s_i]))
+            tmp = numpy.exp(fs[:, s_i])
+            etas = tmp / (1 + tmp)
             # Calculate derivative of conditional rate
-            deta = -etas*(1-etas)
+            deta = - etas * (1-etas)
             # Calculate derivative for neuron
             dllk += Fx_s[time_bin][s_i].dot(X_t[:, s_i] - etas)
             # Fill in detas in Fx_s
@@ -428,8 +429,8 @@ def compute_cond_eta(theta, t):
     fs = numpy.empty([R, N])
     for s_i in range(N):
         fs[:, s_i] = Fx_s[t][s_i].T.dot(theta)
-
-    eta = numpy.exp(fs)/(1 + numpy.exp(fs))
+    tmp = numpy.exp(fs)
+    eta = tmp/(1 + tmp)
     return numpy.mean(eta, axis=0)
 
 
@@ -452,7 +453,8 @@ def pseudo_dllk(theta, X, fs):
     # Initialize gradient array
     dllk = numpy.zeros(theta.shape[0])
     # Calculate conditional rate
-    etas = numpy.exp(fs)/(1 + numpy.exp(fs))
+    tmp = numpy.exp(fs)
+    etas = tmp / (1 + tmp)
     # Iterate over all cells
     for s_i in range(N):
         # Add gradient for each cell
