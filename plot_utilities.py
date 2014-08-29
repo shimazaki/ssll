@@ -1,6 +1,7 @@
 __author__ = 'Christian Donner'
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy
 import networkx as nx
@@ -165,31 +166,80 @@ def plot_graphs(theta, theta_est, X, X_est, time_points, max_conns=20):
     cbar.set_ticks([-2,0,2])
     plt.show()
 
-def plot_thetas(theta, theta_est, sigma_est, N, num_thetas=3):
-    """ Produces theta plot over time with confidence interval
 
-    sigma_est has the same dimensions as theta and contains just the diagonal
+def plot_interactions(emd, theta_orig='none', order=2, corder='median', 
+    cmap='coolwarm', transparency=0.8):
+    """ Pltos time-varying interactions with credible intervals.
+        Color is assigned according to their median values. 
+        Default 'coolwarm'. For random color, 'Set1'.
+        http://matplotlib.org/examples/color/colormaps_reference.html
+
+        This is a wrapper function for plot_theta.
     """
-    plt.figure()
-    numpy.random.seed(1)
-    colors = [[.8,.0,.0],[1.,.8,0],[0.,0.,1.]]
-    t = range(theta.shape[0])
-    theta_idx = numpy.random.randint(N, theta.shape[1], num_thetas)
-    for idx,i in theta_idx:
-        plt.plot(t, theta_est[:,i],c=colors[idx], linewidth=2)
-        plt.fill_between(t, theta_est[:,i]-1.96*numpy.sqrt(sigma_est[:,i]),
-                         theta_est[:,i]+1.96*numpy.sqrt(sigma_est[:,i]),
-                         facecolor=colors[idx], interpolate=True, alpha=0.5)
-        line, = plt.plot(theta[:,i],'--',c=colors[idx],linewidth=2)
-        line.set_dashes((2,4))
-        line, = plt.plot(theta[:,i],'--',c='k',linewidth=2)
-        line.set_dashes((2,8))
-    plt.yticks([-1.5,0,1.5])
+    theta_est = emd.theta_s
+    sigma_est = emd.sigma_s
+
+    plot_theta(theta_est, sigma_est, theta_orig, order, 
+        corder, cmap, transparency)
+
+def plot_theta(theta_est, sigma_est, theta_orig='none', order=2, 
+    corder='median', cmap='coolwarm', transparency=0.8):
+    """ Pltos time-varying interactions with credible intervals.
+        Color is assigned according to their median values. 
+        Default 'coolwarm'. For random color, 'Set1'.
+        http://matplotlib.org/examples/color/colormaps_reference.html
+    """
+    if theta_orig == 'none':
+        theta_orig = emd.theta_s
+
+    T, D = theta_est.shape
+    ti = range(T)
+
+    #fig = plt.figure(figsize=(12, 4),facecolor=[1,1,1])
+
+    # construct credible intervals
+    confb = numpy.zeros([T,D])
+    for t in range(T):
+        confb[t,:] = 1.96*numpy.sqrt( numpy.diag(sigma_est[t,:,:]) )
+
+    # draw lines from lines with larger to smaller median abs values
+    sort_idx = numpy.argsort( numpy.median( numpy.abs(theta_est), 0) )
+
+    if corder == 'max':
+        theta_max = numpy.amax(theta_est)
+        theta_min = numpy.amin(theta_est)
+        cval = (numpy.max(theta_est, 0) - theta_min) / (theta_max - theta_min)
+    else:
+        theta_max = numpy.max(numpy.median(theta_est, 0))
+        theta_min = numpy.amin(numpy.median(theta_est, 0))
+        cval = (numpy.median(theta_est, 0) - theta_min) / (theta_max - theta_min)
+
+    for i in sort_idx:
+        cmx = plt.get_cmap(cmap) 
+        colors = cmx( cval[i] )
+        #colors = cm.coolwarm( cval[i] )
+
+        plt.fill_between(ti, theta_est[:,i]-confb[:,i], 
+                         theta_est[:,i]+confb[:,i],
+                         interpolate=True, color=colors, alpha=transparency)
+
+        plt.plot(ti, theta_est[:,i], linewidth=.7, color=colors)
+        plt.plot(ti, theta_orig[:,i],'--', linewidth=.7, color=colors)
+
+    # plot settings
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
     plt.gca().get_xaxis().tick_bottom()
     plt.gca().get_yaxis().tick_left()
-    plt.tick_params(labelsize=18)
-    plt.ylabel('Second order $\mathbf{\\theta}$', axis_font)
-    plt.xlabel('T [A.U.]', axis_font)
+    plt.tick_params(labelsize=12)
+
+    # color bar
+    sm = plt.cm.ScalarMappable(cmap=cm.coolwarm, 
+            norm=plt.Normalize(vmin=theta_min, vmax=theta_max))
+    sm._A = []
+    plt.colorbar(sm)
+
+    # 
+    plt.ylabel('Interactions $\mathbf{\\theta_{ij}}$', axis_font)
+    plt.xlabel('Time [A.U.]', axis_font)
     plt.show()
