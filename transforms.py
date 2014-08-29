@@ -44,8 +44,10 @@ def comb(N, k):
     :returns:
         N-choose-k
     """
-    nck = numpy.around(float(numpy.math.factorial(N)) / float(numpy.math.factorial(k)) /\
-        float(numpy.math.factorial(N - k)))
+    nck = float(numpy.math.factorial(N)) / float(numpy.math.factorial(k)) /\
+        float(numpy.math.factorial(N - k))
+
+    nck = int( numpy.around( nck ) )
 
     return nck
 
