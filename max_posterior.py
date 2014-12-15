@@ -1,40 +1,40 @@
 """
 Functions for computing maximum a-posterior probability estimates of natural
 parameters given the observed data.
-
+ 
 ---
-
+ 
 State-Space Analysis of Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012)
 Copyright (C) 2014  Thomas Sharp (thomas.sharp@riken.jp)
-
+ 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
+ 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
+ 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import numpy
-
+ 
 import probability
 import transforms
 import pseudo_likelihood
-
-
-
+ 
+ 
+ 
 # Named function pointers to MAP estimators
 # SEE BOTTOM OF FILE
-
+ 
 # Parameters for gradient-ascent methods of MAP estimation
 MAX_GA_ITERATIONS = 500
 GA_CONVERGENCE = 1e-4
-
+ 
 def run(emd, t):
     """
     Computes the MAP estimate of the natural parameters at some timestep, given
@@ -59,19 +59,19 @@ def run(emd, t):
     # Run the user-specified gradient ascent algorithm
     theta_f, sigma_f  = emd.max_posterior(y_t, X_t, R, theta_0, theta_o,
                                           sigma_o, sigma_o_i)
-
+ 
     return theta_f, sigma_f
-
-
+ 
+ 
 def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """
     TODO update comments to elaborate on how this method differs from the others
-
+ 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     :param int t:
         Timestep for which to compute the maximum posterior probability.
-
+ 
     :returns:
         Tuple containing the mean and covariance of the posterior probability
         density, each as a numpy.ndarray.
@@ -107,26 +107,26 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             raise Exception('The maximum-a-posterior gradient-ascent '+\
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
-
+ 
     return theta_max, -ddlpo_i
-
-
+ 
+ 
 def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits with `Nonlinear Conjugate Gradient Method
     <https://en.wikipedia.org/wiki/Nonlinear_conjugate_gradient_method>`_.
-
+ 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     :param int t:
         Timestep for which to compute the maximum posterior probability.
-
+ 
     :returns:
         Tuple containing the mean and covariance of the posterior probability
         density, each as a numpy.ndarray.
-
+ 
     @author: Christian Donner
     """
-
+ 
     # Initialize theta with previous smoothed theta
     theta_max = theta_0
     # Get p and eta values for current theta
@@ -146,10 +146,10 @@ def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     # Compute line search
     theta_max, dlpo, p, eta = line_search(theta_max, y_t, R, p, s, dlpo,
                                           theta_o, sigma_o_i)
-
+ 
     # Iterate until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
-
+ 
         # Set current theta gradient to previous
         d_th_prev = d_th
         # The new theta gradient
@@ -169,32 +169,32 @@ def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             raise Exception('The maximum-a-posterior conjugate-gradient '+\
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
-
+ 
     # Compute final covariance matrix
     ddllk = - R*transforms.compute_fisher_info(p, eta)
     ddlpo = ddllk - sigma_o_i
     ddlpo_i = numpy.linalg.inv(ddlpo)
-
+ 
     return theta_max, -ddlpo_i
-
-
+ 
+ 
 def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     """ Fits due to `Broyden-Fletcher-Goldfarb-Shanno algorithm
     <https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%
     80%93Shanno_algorithm>`_.
-
+ 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     :param int t:
         Timestep for which to compute the maximum posterior probability.
-
+ 
     :returns:
         Tuple containing the mean and covariance of the posterior probability
         density, each as a numpy.ndarray.
-
+ 
     @author: Christian Donner
     """
-
+ 
     # # Initialize theta with previous smoothed theta
     theta_max = theta_0
     # Get p and eta values for current theta
@@ -209,7 +209,7 @@ def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     # Initialize stopping criterion variables
     max_dlpo = 1.
     iterations = 0
-
+ 
     # Iterate until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
         # Compute direction for line search
@@ -244,18 +244,18 @@ def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             raise Exception('The maximum-a-posterior bfgs-gradient '+\
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
-
+ 
     # Compute final covariance matrix
     ddllk = -R*transforms.compute_fisher_info(p, eta)
     ddlpo = ddllk - sigma_o_i
     ddlpo_i = numpy.linalg.inv(ddlpo)
-
+ 
     return theta_max, -ddlpo_i
-
-
+ 
+ 
 def line_search(theta_max, y, R, p, s, dlpo, theta_o, sigma_o_i):
     """ Searches the minimum on a line with quadratic approximation
-
+ 
     :param numpy.ndarray theta_max:
         Starting point on the line
     :param numpy.ndarray y:
@@ -272,14 +272,14 @@ def line_search(theta_max, y, R, p, s, dlpo, theta_o, sigma_o_i):
         One-step prediction of theta
     :param numpy.ndarray sigma_o_i:
         One-step prediction of the covariance matrix
-
+ 
     :returns
         Tuple containing the minimum on the line, the log posterior gradient,
         the current p and current eta vector
-
+ 
     This method approximates at each point the log posterior quadratically
     and searches iteratively for the minimum.
-
+ 
     @author: Christian Donner
     """
     y_s = numpy.dot(y, s)
@@ -327,33 +327,38 @@ def line_search(theta_max, y, R, p, s, dlpo, theta_o, sigma_o_i):
         dlpr_s = -numpy.dot(sigma_o_i_s, theta_tmp - theta_o)
         dlpo_s = dllk_s + dlpr_s
     # return optimized theta and current gradient of log posterior
-
+ 
     eta = transforms.compute_eta(p)
     dllk = R*(y - eta)
     dlpr = -numpy.dot(sigma_o_i, theta_tmp - theta_o)
     dlpo = dllk + dlpr
     return theta_tmp, dlpo, p, eta
-
-
-def compute_beta(df, dfp):
+ 
+ 
+def compute_beta(df, dfp, s=None, which='PR'):
     """ Computes the beta Polak Ribiere Formula
-
+ 
     :param numpy.ndarray df:
         gradient of function to minimize
     :param numpy.ndarray dfp:
         previous gradient of function to minimize
-
+ 
     :returns float:
         result of Polak Ribiere Formula
-
+ 
     @author: Christian Donner
     """
-
+ 
     # Polak Ribiere Formula
-    beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    if which == 'PR':
+        beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
+    elif which == 'HS':
+        beta = -float(numpy.dot(df, (df - dfp)) / numpy.dot(s, (df - dfp)))
+        if numpy.allclose(df, dfp):
+            beta = 0
     return numpy.amax([0, beta])
-
-
+ 
+ 
 # Named function pointers to MAP estimators
 functions = {'nr': newton_raphson,
              'cg': conjugate_gradient,
