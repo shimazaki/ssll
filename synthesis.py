@@ -1,21 +1,21 @@
 """
 Functions for generating synthetic spike data.
-
+ 
 ---
-
+ 
 State-Space Analysis of Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012)
 Copyright (C) 2014  Thomas Sharp (thomas.sharp@riken.jp)
-
+ 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
+ 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-
+ 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
@@ -23,23 +23,23 @@ import numpy
 import pdb
 from multiprocessing import Pool
 from functools import partial
-
+ 
 import transforms
-
-
+ 
+ 
 def generate_thetas(N, O, T):
     D = transforms.compute_D(N, O)
     MU = numpy.tile(-2,(T, D))
     MU[:,N:] = 0
     # Create covariance matrix
     X = numpy.tile(numpy.arange(T),(T,1))
-    K = .5*numpy.exp( -.001 *.5 * (X - X.transpose())**2 )
+    K = .5*numpy.exp( -.5 *.001* (X - X.transpose())**2)/numpy.sqrt(N)
     # Generate Gaussian processes
-    L = numpy.linalg.cholesky(K + 1e-12* numpy.eye(T) )
+    L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
     theta = MU + numpy.dot(L, numpy.random.randn(T, D))
     return theta
-
-
+ 
+ 
 def generate_stationary_thetas(N, O, T):
     th1, th2 = -3., 10.
     D = transforms.compute_D(N, O)
@@ -54,20 +54,20 @@ def generate_stationary_thetas(N, O, T):
     theta_array -= numpy.tile(mean_thetas, [N, 1])
     th[:,N:] = theta_array[idx[0],idx[1]]
     return th
-
-
+ 
+ 
 def generate_spikes(p, R, seed=None):
     """
     Draws spike patterns for each of `R' trial runs from the probability mass
     specified in `p'. `p' must have T rows, one independent probability mass for
     each timestep, and 2^C columns, where C is the number of cells (maximum of
     8) involved in the spike pattern.
-
+ 
     :param numpy.ndarray p:
         Probability mass of spike patterns for each timestep.
     :param int R:
         Number of spike patterns to generate for each timestep.
-
+ 
     :returns:
         Binary matrix with dimensions (time, runs, cells), in which a `1' in
         location (t, r, c) denotes a spike at time t in run r by cell c, as a
@@ -88,14 +88,14 @@ def generate_spikes(p, R, seed=None):
         idx = random_weighted(p[i], R)
         # Extract spike patterns for each trial
         spikes[i,:,:] = fx[idx,:]
-
+ 
     return spikes
-
-
+ 
+ 
 def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     """Generates spike trains for the model given the thetas with
     `Gibbs-Sampling <https://en.wikipedia.org/wiki/Gibbs_sampling>`_.
-
+ 
     :param numpy.ndarray theta:
         parameters used for sampling for each time bin
     :param int N:
@@ -104,7 +104,7 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         Order of interaction
     :param int R:
         Number of runs that are generated.
-
+ 
     :returns:
         Binary matrix with dimensions (time, runs, cells), in which a `1' in
         location (t, r, c) denotes a spike at time t in run r by cell c, as a
@@ -156,13 +156,13 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
                                                  rand_numbers[t, l, i])
     # Return spike data
     return X[:, pre_R:, :]
-
-
+ 
+ 
 def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     """Generates spike trains for the model given the thetas with
     `Gibbs-Sampling <https://en.wikipedia.org/wiki/Gibbs_sampling>`_.
     This function parallelizes samplings across bins. 
-
+ 
     :param numpy.ndarray theta:
         parameters used for sampling for each time bin
     :param int N:
@@ -171,7 +171,7 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
         Order of interaction
     :param int R:
         Number of runs that are generated.
-
+ 
     :returns:
         Binary matrix with dimensions (time, runs, cells), in which a `1' in
         location (t, r, c) denotes a spike at time t in run r by cell c, as a
@@ -204,15 +204,15 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     results = pool.map(partial(gibbs_sampler, X=X, theta=theta, N=N, R=R, 
         pre_R=pre_R, subset_map=subset_map, subset_count=subset_count), range(T))
     pool.close()
-
+ 
     return numpy.array(results)
-
-
+ 
+ 
 def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count):
     cur_theta = theta[t]
     cur_X = X[t, :, :]
     rand_numbers = numpy.random.rand(R + pre_R, N)
-
+ 
     for l in range(1, R + pre_R):
         # Iterate through all cells
         for i in range(N):
@@ -230,19 +230,19 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count):
                                                 - numpy.dot(cur_theta,fx0))))
             # if smaller than probability X^(i,l) -> 1
             cur_X[l, i] = numpy.greater_equal(prob_spike, rand_numbers[l, i])
-    
+     
     return cur_X[pre_R:, :]
-
-
+ 
+ 
 def random_weighted(p, R):
     """
     Draws `R' integers from the probability mass over the integers `p'.
-
+ 
     :param numpy.ndarray p:
         Probability mass.
     :param int R:
         Sample size to draw from `p'.
-
+ 
     :returns:
         `R' random numbers drawn from distribution `p', as a numpy.ndarray.
     """
@@ -254,6 +254,5 @@ def random_weighted(p, R):
     idx = numpy.zeros(R, dtype=numpy.int)
     for i in range(R):
         idx[i] = numpy.sum(cs < rnd[i])
-
+ 
     return idx
-
