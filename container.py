@@ -23,7 +23,7 @@ import numpy
 import pdb
 
 import transforms
-
+import mean_field
 
 
 class EMData:

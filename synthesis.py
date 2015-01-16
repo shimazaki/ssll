@@ -29,23 +29,23 @@ import transforms
  
 def generate_thetas(N, O, T):
     D = transforms.compute_D(N, O)
-    MU = numpy.tile(-2,(T, D))
-    MU[:,N:] = 0
+    MU = numpy.tile(-3.0,(T, D))
+    MU[:,N:] = 0.
     # Create covariance matrix
     X = numpy.tile(numpy.arange(T),(T,1))
-    K = .5*numpy.exp( -.5 *.001* (X - X.transpose())**2)/numpy.sqrt(N)
+    K = .5*numpy.exp( -.5 *.001*(X - X.transpose())**2)
     # Generate Gaussian processes
     L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
-    theta = MU + numpy.dot(L, numpy.random.randn(T, D))
+    theta = MU + numpy.dot(L, numpy.random.randn(T, D))*0.4/numpy.sqrt(N)
     return theta
  
  
 def generate_stationary_thetas(N, O, T):
-    th1, th2 = -3., 10.
+    th1, th2 = -3., 0.
     D = transforms.compute_D(N, O)
     th = numpy.zeros([T,D])
     th[:,:N] = th1
-    th[:,N:] = th2/N*(1 + 0.5*numpy.sqrt(N)*numpy.random.randn(T,D-N))
+    th[:,N:] = th2/N*(1 + 0.5*numpy.random.randn(T,D-N))
     idx = numpy.triu_indices(N,1)
     theta_array = numpy.zeros([N,N])
     theta_array[idx[0],idx[1]] = th[0,N:]
@@ -182,6 +182,8 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     numpy.random.seed(seed)
     # Set pre-trials
     pre_R = kwargs.get('pre_n', 100)
+    # Sample Step
+    steps = kwargs.get('sample_steps', 1)
     # Get number of bins
     T = theta.shape[0]
     # Initialize array for spike data
@@ -202,18 +204,18 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     # Parallel samplings at all time bins
     pool = Pool()
     results = pool.map(partial(gibbs_sampler, X=X, theta=theta, N=N, R=R, 
-        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count), range(T))
+        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps), range(T))
     pool.close()
  
     return numpy.array(results)
  
  
-def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count):
+def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps):
     cur_theta = theta[t]
-    cur_X = X[t, :, :]
-    rand_numbers = numpy.random.rand(R + pre_R, N)
+    cur_X = numpy.zeros([R*steps+pre_R, N])
+    rand_numbers = numpy.random.rand(R*steps + pre_R, N)
  
-    for l in range(1, R + pre_R):
+    for l in range(1, R*steps + pre_R):
         # Iterate through all cells
         for i in range(N):
             # Construct pattern from trial before and
@@ -231,7 +233,7 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count):
             # if smaller than probability X^(i,l) -> 1
             cur_X[l, i] = numpy.greater_equal(prob_spike, rand_numbers[l, i])
      
-    return cur_X[pre_R:, :]
+    return cur_X[pre_R::steps, :]
  
  
 def random_weighted(p, R):

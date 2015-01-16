@@ -325,8 +325,8 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=Non
         theta_d = theta_f[i,:] - theta_o[i,:]
         b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
         A = numpy.dot(sigma_f[i,:,:], sigma_o_inv[i,:,:])
-        L = numpy.linalg.cholesky(A)
-        b += 2*numpy.sum(numpy.log(numpy.diag(L)))
+        sign_log_det, log_det = numpy.linalg.slogdet(A)
+        b += sign_log_det*log_det
     log_p = a + b / 2
 
     return log_p
@@ -426,7 +426,8 @@ def create_eta_FI_map(N, O=3):
             eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
             # Entries above the horizontals between first and second order thetas (Third order etas)
             if n < N-2:
-                eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([n]),N*(N-1)/2 - d_n2_idx-d_n2) ])
+                eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],
+                                                      numpy.tile(numpy.array([n]),N*(N-1)/2 - d_n2_idx-d_n2) ])
                 eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(N+d_n2_idx+d_n2, N + N*(N-1)/2)])
                 eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
             # Off Diagonals Close to main diagonal (Third order etas)
@@ -441,14 +442,18 @@ def create_eta_FI_map(N, O=3):
             for pair_idx in range(N-n-2):
                 # Horizontal (third order eta)
                 eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n3+d_n2_idx_tmp+d_n2_tmp]
-                eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([pair_idx+G_x_offset]),d_n2_tmp)])
-                eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(d_n2_idx_tmp+G_y_offset,d_n2_idx_tmp + d_n2_tmp+G_y_offset)])
-                eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
+                eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],
+                                                      numpy.tile(numpy.array([pair_idx+G_x_offset]),d_n2_tmp)])
+                eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(d_n2_idx_tmp+G_y_offset,
+                                                                              d_n2_idx_tmp + d_n2_tmp+G_y_offset)])
+                eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],
+                                                   eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
                 # Diagonals
                 diag_idx = numpy.diag_indices(d_n2_tmp)
                 eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], diag_idx[0]+pair_idx+1+G_x_offset])
                 eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], diag_idx[1]+d_n2_idx_tmp+G_y_offset])
-                eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
+                eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],
+                                                   eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
                 d_n2_idx_tmp += d_n2_tmp
                 d_n2_tmp -= 1
 
@@ -496,10 +501,10 @@ def compute_higher_order_etas(eta1, theta2, O):
     # Compute independent rates of the subpopulations
     ind_rates = numpy.prod(eta1[subpopulations], axis = 1)
     # Compute the terms of the first derivative responsible for pairs within subpopulation
-    terms_within_subpoulation = theta2_mat*(1-numpy.outer(eta1, eta1))
+    terms_within_subpopulation = theta2_mat*(1-numpy.outer(eta1, eta1))
     # Extract the values for each pair within each subpopulation and sum over it
     # (Note that 0.5 is dropped because we consider each pair just once!)
-    first_div1 = numpy.sum(terms_within_subpoulation.flatten()[pair_idx], axis=0)
+    first_div1 = numpy.sum(terms_within_subpopulation.flatten()[pair_idx], axis=0)
     # Product of theta_ij and eta_j
     theta2_eta_j = theta2_mat*eta1[:,numpy.newaxis]
     # Get the eta_i's for each subpopulation
@@ -563,7 +568,6 @@ def mean_field_nr(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, epsilon=.1,
         # Get gradient of posterior
         dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
         # Compute Fisher info
-        #G = compute_fisher_info_from_eta_TAP(eta, theta_max, N)
         G = compute_full_G(eta, theta_max, N)
         ddlpo = - R*G - sigma_o_i
         # Get theta change
@@ -573,7 +577,7 @@ def mean_field_nr(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, epsilon=.1,
         # Get new eta by solving forward problem
         eta = forward_problem(theta_max, N, 'TAP')
         max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
-         # Break if max. number of iterations is reached.
+        # Break if max. number of iterations is reached.
         if iterations == MAX_GA_ITERATIONS:
             raise Exception('The Mean Field NR '+\
                 'algorithm did not converge before reaching the maximum '+\

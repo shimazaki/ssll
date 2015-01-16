@@ -92,7 +92,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
         marg_llk_fun = mean_field.log_marginal
     # Initialise the EM-data container
     emd = container.EMData(spikes, order, window, map_func, marg_llk_fun, lmbda)
- 
+    emd.theta_o[0] = mean_field.backward_problem(emd.y[0], emd.N, 'TAP')
  
     # Set up loop guards for the EM algorithm
     lmp = -numpy.inf
@@ -108,13 +108,5 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
         # Update EM algorithm metadata
         emd.iterations += 1
         emd.convergence = numpy.absolute((lmp - lmc) / lmp)
-    # Save rates in the container for smoothed thetas
-    for i in range(emd.T):
-        if param_est == 'exact':
-            p = transforms.compute_p(emd.theta_s[i, :])
-            emd.eta[i,:] = transforms.compute_eta(p)[:N]
-        elif param_est == 'pseudo':
-            emd.eta[i,:] = pseudo_likelihood.compute_cond_eta(emd.theta_s[i, :],
-                                                              i)
- 
+
     return emd

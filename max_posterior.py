@@ -353,9 +353,9 @@ def compute_beta(df, dfp, s=None, which='PR'):
     if which == 'PR':
         beta = float(numpy.dot(df, (df - dfp)) / numpy.dot(dfp, dfp))
     elif which == 'HS':
-        beta = -float(numpy.dot(df, (df - dfp)) / numpy.dot(s, (df - dfp)))
         if numpy.allclose(df, dfp):
-            beta = 0
+            return 0
+        beta = -float(numpy.dot(df, (df - dfp)) / numpy.dot(s, (df - dfp)))
     return numpy.amax([0, beta])
  
  
