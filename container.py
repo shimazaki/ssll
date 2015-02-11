@@ -125,7 +125,16 @@ class EMData:
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
         # Initialize array for estimated rate
-        self.eta = numpy.zeros((self.T,self.N))
+        self.eta = numpy.zeros((self.T,self.D))
+        # Initialize arrays for Energies
+        self.psi = numpy.zeros((self.T))
+        self.U1 = numpy.zeros((self.T))
+        self.U2 = numpy.zeros((self.T))
+        self.S1 = numpy.zeros((self.T))
+        self.S2 = numpy.zeros((self.T))
+        self.S_ratio = numpy.zeros((self.T))
+        self.psi_sampled = None
+        self.eta_sampled = None
         # Initialise covariances of the same (an I-matrix for each timestep)
         I = [numpy.identity(self.D) for i in range(self.T)]
         I = numpy.vstack(I).reshape((self.T,self.D,self.D))
@@ -139,3 +148,4 @@ class EMData:
         self.Q = 1. / lmbda * numpy.identity(self.D)
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
+
