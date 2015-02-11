@@ -36,7 +36,7 @@ def generate_thetas(N, O, T):
     K = .5*numpy.exp( -.5 *.001*(X - X.transpose())**2)
     # Generate Gaussian processes
     L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
-    theta = MU + numpy.dot(L, numpy.random.randn(T, D))*numpy.sqrt(N)
+    theta = MU + numpy.dot(L, numpy.random.randn(T, D))/numpy.sqrt(N)
     return theta
  
  
