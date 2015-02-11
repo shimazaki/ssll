@@ -29,14 +29,14 @@ import transforms
  
 def generate_thetas(N, O, T):
     D = transforms.compute_D(N, O)
-    MU = numpy.tile(-3.0,(T, D))
+    MU = numpy.tile(-2.0,(T, D))
     MU[:,N:] = 0.
     # Create covariance matrix
     X = numpy.tile(numpy.arange(T),(T,1))
     K = .5*numpy.exp( -.5 *.001*(X - X.transpose())**2)
     # Generate Gaussian processes
     L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
-    theta = MU + numpy.dot(L, numpy.random.randn(T, D))*0.4/numpy.sqrt(N)
+    theta = MU + numpy.dot(L, numpy.random.randn(T, D))*numpy.sqrt(N)
     return theta
  
  
@@ -115,10 +115,11 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     numpy.random.seed(seed)
     # Set pre-trials
     pre_R = kwargs.get('pre_n', 100)
+    steps = kwargs.get('sample_steps', 1)
     # Get number of bins
     T = theta.shape[0]
     # Initialize array for spike data
-    X = numpy.zeros([T, R+pre_R, N], dtype=numpy.uint8)
+    X = numpy.zeros([T, R*steps+pre_R, N], dtype=numpy.uint8)
     # Gets subsets
     subsets = transforms.enumerate_subsets(N, O)
     # Get number of natural parameters
@@ -131,12 +132,12 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
     # Draw random numbers from uniform distribution
-    rand_numbers = numpy.random.rand(T, R+pre_R, N)
+    rand_numbers = numpy.random.rand(T, steps*R+pre_R, N)
     # Iterate over all time bins
     for t in range(T):
         # Iterate through all Runs
         cur_theta = theta[t]
-        for l in range(1, R+pre_R):
+        for l in range(1, steps*R+pre_R):
             # Iterate through all cells
             for i in range(N):
                 # Construct pattern from trial before and
@@ -155,7 +156,7 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
                 X[t, l, i] = numpy.greater_equal(prob_spike,
                                                  rand_numbers[t, l, i])
     # Return spike data
-    return X[:, pre_R:, :]
+    return X[:, pre_R::steps, :]
  
  
 def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
