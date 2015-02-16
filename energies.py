@@ -205,20 +205,20 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
         # compute mean
         avg_dUs[i] = numpy.mean(dU)
     if len(points_to_sample) != 0:
-        th_to_sample = numpy.empty([len(points_to_sample), th0.shape])
+        th_to_sample = numpy.empty([len(points_to_sample), th0.shape[0]])
 
         # get remaining thetas and sample for them
-        for i in points_to_sample:
-            th_to_sample[i] = th0 + int_points[i]*dth
+        for j, point2sample in enumerate(points_to_sample):
+            th_to_sample[j] = th0 + int_points[point2sample]*dth
 
         spikes = synthesis.generate_spikes_gibbs_parallel(th_to_sample, N, O, R=1000)
         eta_from_sample = transforms.compute_y(spikes, O, 1)
 
-        for idx, i in enumerate(points_to_sample):
+        for idx, point2sample in enumerate(points_to_sample):
             # negative derivative of energy function
             dU = numpy.dot(dth, eta_from_sample[idx])
             # compute mean
-            avg_dUs[i] = numpy.mean(dU)
+            avg_dUs[point2sample] = numpy.mean(dU)
 
     # weights for trapezoidal intergration rule
     w = numpy.ones(K)/K
