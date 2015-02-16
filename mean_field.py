@@ -5,7 +5,7 @@ import itertools
 from scipy.optimize import fsolve
 import max_posterior, energies
 import warnings
-warnings.filterwarnings('error')
+warnings.filterwarnings('error', category=RuntimeWarning)
 
 eta_FI_map = None
 
