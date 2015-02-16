@@ -27,6 +27,9 @@ def get_energies(emd):
     emd.U2 = compute_internal_energy(theta, eta)
     emd.S2 = compute_entropy(theta, eta, psi, 2)
     emd.S_ratio = (emd.S1 - emd.S2)/emd.S1
+    emd.dkl = compute_dkl(eta, emd.theta_s, psi, theta1, psi1, N)
+    emd.llk1 = compute_likelihood(emd.y[:,:N], theta1, psi1, emd.R)
+    emd.llk2 = compute_likelihood(emd.y, theta, psi, emd.R)
 
 
 def compute_ind_eta(theta):
@@ -202,7 +205,7 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
         # compute mean
         avg_dUs[i] = numpy.mean(dU)
     if len(points_to_sample) != 0:
-        th_to_sample = numpy.empty([len(points_to_sample), th0.shape[1]])
+        th_to_sample = numpy.empty([len(points_to_sample), th0.shape])
 
         # get remaining thetas and sample for them
         for i in points_to_sample:
@@ -262,3 +265,13 @@ def compute_entropy(theta, eta, psi, O):
         S = U - F
 
     return S
+
+def compute_dkl(eta2, theta2, psi2, theta1, psi1, N):
+    dtheta = numpy.copy(theta2)
+    dtheta[:,:N] = theta2[:,:N] - theta1
+    dkl = numpy.sum(eta2*dtheta, axis=1) - (psi2 - psi1)
+    return dkl
+
+def compute_likelihood(y, theta, psi, R):
+    llk = R*(numpy.sum(y*theta, axis=1) - psi)
+    return llk
