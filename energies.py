@@ -197,13 +197,13 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
         # Sample Data
         try:
             eta = mean_field.forward_problem(th_tmp, N, expansion)
+            # negative derivative of energy function
+            dU = numpy.dot(dth, eta)
+            # compute mean
+            avg_dUs[i] = numpy.mean(dU)
         except Exception:
             sampled = True
             points_to_sample.append(i)
-        # negative derivative of energy function
-        dU = numpy.dot(dth, eta)
-        # compute mean
-        avg_dUs[i] = numpy.mean(dU)
     if len(points_to_sample) != 0:
         th_to_sample = numpy.empty([len(points_to_sample), th0.shape[0]])
 
