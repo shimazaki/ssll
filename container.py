@@ -125,14 +125,14 @@ class EMData:
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
         # Initialize array for estimated rate
-        self.eta = numpy.zeros((self.T,self.D))
+        #self.eta = numpy.zeros((self.T,self.D))
         # Initialize arrays for Energies
-        self.psi = numpy.zeros((self.T))
-        self.U1 = numpy.zeros((self.T))
-        self.U2 = numpy.zeros((self.T))
-        self.S1 = numpy.zeros((self.T))
-        self.S2 = numpy.zeros((self.T))
-        self.S_ratio = numpy.zeros((self.T))
+        #self.psi = numpy.zeros((self.T))
+        #self.U1 = numpy.zeros((self.T))
+        #self.U2 = numpy.zeros((self.T))
+        #self.S1 = numpy.zeros((self.T))
+        #self.S2 = numpy.zeros((self.T))
+        #self.S_ratio = numpy.zeros((self.T))
         self.psi_sampled = None
         self.eta_sampled = None
         # Initialise covariances of the same (an I-matrix for each timestep)
@@ -140,9 +140,10 @@ class EMData:
         I = numpy.vstack(I).reshape((self.T,self.D,self.D))
         self.sigma_o = .1 * I
         self.sigma_o_inv = 1./.1 * I
-        self.sigma_f = .1 * I
-        self.sigma_s = .1 * I
-        self.sigma_s_lag = .1 * I
+        del I
+        self.sigma_f = numpy.copy(self.sigma_o)
+        self.sigma_s = numpy.copy(self.sigma_o)
+        self.sigma_s_lag = numpy.copy(self.sigma_o)
         # Intialise autoregressive and transition probability hyperparameters
         self.F = numpy.identity(self.D)
         self.Q = 1. / lmbda * numpy.identity(self.D)
