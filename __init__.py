@@ -95,9 +95,12 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     emd = container.EMData(spikes, order, window, map_func, marg_llk_fun, lmbda)
     # Solves backward problem. For zero rates in the beginning small number is added
     if emd.order == 2:
-        y_init = numpy.copy(emd.y[0])
-        y_init[y_init == 0] = numpy.spacing(1)
-        emd.theta_o[0] = mean_field.backward_problem(y_init, emd.N, 'TAP')
+        try:
+            y_init = numpy.copy(emd.y[0])
+            y_init[y_init == 0] = numpy.spacing(1)
+            emd.theta_o[0] = mean_field.backward_problem(y_init, emd.N, 'TAP')
+        except numpy.linalg.linalg.LinAlgError:
+            emd.theta_o[0][:emd.N] = energies.compute_ind_theta(y_init[:emd.N])
  
     # Set up loop guards for the EM algorithm
     lmp = -numpy.inf
