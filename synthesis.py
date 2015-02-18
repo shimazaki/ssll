@@ -215,6 +215,7 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
 def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps):
     cur_theta = theta[t]
     cur_X = numpy.zeros([R*steps+pre_R, N])
+    numpy.random.seed()
     rand_numbers = numpy.random.rand(R*steps + pre_R, N)
  
     for l in range(1, R*steps + pre_R):
