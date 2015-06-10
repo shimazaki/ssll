@@ -113,7 +113,7 @@ def m_step(emd):
     # Update the initial mean of the one-step-prediction density
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
-    m_step_Q2(emd)
+    m_step_Q3(emd)
 
 
 def m_step_F(emd):
@@ -196,3 +196,27 @@ def m_step_Q2(emd):
     emd.Q[:emd.N,:emd.N] = inv_lmbda1 / emd.N / (emd.T - 1) * numpy.identity(emd.N)
     if emd.order > 1:
         emd.Q[emd.N:,emd.N:] = inv_lmbda2 / (emd.D - emd.N) / (emd.T - 1) * numpy.identity(emd.D - emd.N)
+
+def m_step_Q3(emd):
+    """
+    Computes the optimised state-transition covariance hyperparameters `Q' of
+    the natural parameters of the posterior distributions over time.
+
+    :param container.EMData emd:
+        All data pertaining to the EM algorithm.
+    """
+    lmbda = numpy.zeros([emd.Q.shape[0]])
+    for i in range(1, emd.T):
+        # Computing lag-one covariance locally
+        #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
+        #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
+        #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
+        # Loading saved lag-one smoother
+        lag_one_covariance = emd.sigma_s_lag[i,:,:]
+        tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
+        lmbda += numpy.diagonal(emd.sigma_s[i,:,:]) -\
+                 2 * numpy.diagonal(lag_one_covariance[:,:])  +\
+                 numpy.diagonal(emd.sigma_s[i-1,:,:])  +\
+                 tmp**2
+
+    emd.Q = numpy.diag(lmbda/ (emd.T - 1))
