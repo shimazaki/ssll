@@ -4,6 +4,7 @@ import numpy
 import max_posterior
 from scipy import sparse
 import transforms
+import mean_field
 
 
 MAX_GA_ITERATIONS = 5000
@@ -265,8 +266,11 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
 
     # Compute final Hessian of posterior
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
-    ddllk = pseudo_ddllk(etas, D)
+    #ddllk = pseudo_ddllk(etas, D)
+    eta = mean_field.forward_problem(theta_max, N, 'TAP')
+    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
+    #ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
     ddlpo_i = numpy.linalg.inv(ddlpo)
     # Return fitted theta and Fisher Info matrix

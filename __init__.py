@@ -87,6 +87,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
         pseudo_likelihood.compute_Fx_s(spikes, order)
         map_func = pseudo_likelihood.functions[map_function]
         marg_llk_fun = pseudo_likelihood.pseudo_log_marginal
+        mean_field.create_eta_FI_map(N, order)
     elif param_est == 'mf':
         mean_field.create_eta_FI_map(N, order)
         map_func = mean_field.functions[map_function]
