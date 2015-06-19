@@ -113,7 +113,8 @@ def m_step(emd):
     # Update the initial mean of the one-step-prediction density
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
-    m_step_Q3(emd)
+    m_step_Q2(emd)
+    #m_step_F(emd)
 
 
 def m_step_F(emd):
@@ -133,8 +134,7 @@ def m_step_F(emd):
     b = numpy.zeros((emd.D, emd.D))
     # Sum partial results over each timestep
     for i in range(1, emd.T):
-        A = compute_A(emd.sigma_s[i-1,:,:], emd.sigma_s[i,:,:], emd.F)
-        a += numpy.dot(A, emd.sigma_s[i,:,:]) +\
+        a += emd.sigma_s_lag[i,:,:] +\
              numpy.outer(emd.theta_s[i,:], emd.theta_s[i-1,:])
         b += emd.sigma_s[i-1,:,:] +\
              numpy.outer(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
