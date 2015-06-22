@@ -269,7 +269,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     #ddllk = pseudo_ddllk(etas, D)
     eta = mean_field.forward_problem(theta_max, N, 'TAP')
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
-    ddlpo = ddllk - sigma_o_i
+    ddlpo = numpy.diag(numpy.diagonal(ddllk - sigma_o_i))
     #ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
     ddlpo_i = numpy.linalg.inv(ddlpo)
