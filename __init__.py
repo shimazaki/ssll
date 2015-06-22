@@ -97,7 +97,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     # Solves backward problem. For zero rates in the beginning small number is added
     if emd.order == 2:
         try:
-            y_init = numpy.copy(emd.y[0])
+            y_init = numpy.mean(emd.y, axis=0)
             y_init[y_init == 0] = numpy.spacing(1)
             emd.theta_o[0] = mean_field.backward_problem(y_init, emd.N, 'TAP')
         except numpy.linalg.linalg.LinAlgError:
