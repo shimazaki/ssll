@@ -196,7 +196,7 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
         th_tmp = th0 + int_point*dth
         # Sample Data
         try:
-            eta = mean_field.forward_problem(th_tmp, N, expansion)
+            eta = mean_field.forward_problem_iter(th_tmp, N, expansion)
             # negative derivative of energy function
             dU = numpy.dot(dth, eta)
             # compute mean
