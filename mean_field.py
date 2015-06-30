@@ -81,6 +81,7 @@ def forward_problem(theta, N, expansion):
         try:
             eta[:N] = fsolve(f, 0.1*numpy.ones(N))
         except Warning:
+            print theta
             raise Exception('scipy.fsolve did not compute reliable result!')
         G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta[:N], 0.5 - eta[:N])
     elif expansion == 'naive':
@@ -98,6 +99,84 @@ def forward_problem(theta, N, expansion):
     # Compute second order eta
     eta2 = G + numpy.outer(eta[:N], eta[:N])
     eta[N:] = eta2[triu_idx]
+    return eta
+
+
+def self_consistent_eq_jac(eta, theta1, theta2, expansion='TAP'):
+    """ Generates self-consistent equations for forward problem.
+
+    :param numpy.ndarray eta:
+        (c,) vector with individual rates for each cell
+    :param numpy.ndarray theta1:
+        (c,) vector with first order thetas
+    :param numpy.ndarray theta2:
+        (c, c) array with second order thetas (theta_ij in row i and column j)
+    :param str expansion:
+        String that indicates order of approximantion. 'naive' for naive mean field
+        and 'TAP' for second order approximation with Osanger correction. (default='TAP')
+
+    :returns:
+        list of c equations that have to be solved for getting the first order etas.
+    """
+    N = theta1.shape[0]
+    #equation_array = numpy.empty([eta.shape[0], eta.shape[0]])
+
+    # TAP equations
+    if expansion == 'TAP':
+        f = eta/(1 - eta)*numpy.exp(-theta1-numpy.dot(theta2, eta)- \
+                                 .5*numpy.sum(theta2**2*numpy.outer(0.5 - eta, eta*(1.-eta)), axis=0))-1.
+        fprime = -theta2-.5*numpy.sum(theta2**2*numpy.outer(0.5 - eta, 1. - 2.*eta), axis=0)
+
+    diag_idx = numpy.diag_indices(N)
+    fprime[diag_idx] = -1./(1. - eta)**2 + .5*numpy.dot(theta2**2, eta*(1 - eta))
+
+    return numpy.dot(fprime, f)
+
+
+def forward_problem_iter(theta, N, expansion):
+    """ Gets the etas for given thetas.
+
+    :param numpy.ndarray theta:
+        (d,)-dimensional array containing all thetas
+    :param int N:
+        Number of cells
+    :param str expansion:
+        String that indicates order of approximantion. 'naive' for naive mean field
+        and 'TAP' for second order approximation with Osanger correction.
+
+    :returns:
+        (d,) numpy.ndarray with all etas.
+    """
+    # Initialize eta vector
+    eta = numpy.empty(theta.shape)
+    deta = 0.01*numpy.ones(N)
+    eta_max = 0.1*numpy.ones(N)
+    # Extract first order thetas
+    theta1 = theta[:N]
+    # Get indices
+    triu_idx = numpy.triu_indices(N, k=1)
+    diag_idx = numpy.diag_indices(N)
+    # Write second order thetas into matrix
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    conv = numpy.inf
+    # Solve self-consistent equations and calculate approximation of fisher matrix
+    if expansion == 'TAP':
+        iter_num = 0
+        while  conv > 1e-4 and iter_num < 500:
+            f = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+            deta_max = self_consistent_eq_jac(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+            eta_max += .01*deta_max
+            conv = numpy.amax(numpy.absolute(deta_max))
+            iter_num +=1
+        G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N], 0.5 - eta_max[:N])
+    G_inv[diag_idx] = 1./(eta_max[:N]*(1-eta_max[:N]))
+    G = numpy.linalg.inv(G_inv)
+    # Compute second order eta
+    eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
+    eta[N:] = eta2[triu_idx]
+    eta[:N] = eta_max
     return eta
 
 
@@ -271,8 +350,8 @@ def log_likelihood(eta, theta, R, N):
     # Compute TAP estimation of psi
     th0 = numpy.zeros(theta.shape)
     th0[:N] = theta[:N]
-    psi0 = numpy.sum(numpy.log(1+numpy.exp(th0[:N])))
-    psi = energies.ot_estimator(th0, psi0, theta, N, 2, N)
+    psi0 = numpy.sum(numpy.log(1.+numpy.exp(th0[:N])))
+    psi = energies.ot_estimator(th0, psi0, theta, N, 2, N)[0]
     # Return log-likelihood
     return R*(numpy.dot(theta, eta) - psi)
 
@@ -676,7 +755,7 @@ def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight
     # Calculate Fisher info
     G = compute_full_G(eta, theta_max, N)
     ddlpo = -R*G - sigma_o_i
-    ddlpo_i = numpy.linalg.inv(ddlpo)
+    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
     # Return
     return theta_max, -ddlpo_i
 
