@@ -175,6 +175,11 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     # Compute inverse
     ddlpo_i = numpy.linalg.inv(ddlpo)
     # Return fitted theta and Fisher Info matrix
+    eta = mean_field.forward_problem_iter(theta_max, N, 'TAP')
+    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    ddlpo = ddllk - sigma_o_i
+    # Calculate Inverse
+    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
     return theta_max, -ddlpo_i
 
 
@@ -265,27 +270,11 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Compute final Hessian of posterior
-    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
-    #ddllk = pseudo_ddllk(etas, D)
-    eta = mean_field.forward_problem(theta_max, N, 'TAP')
-    #ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
-    epsilon = 1e-3
-    G = numpy.zeros([D, D])
-    for i in range(D):
-        tmp1 = numpy.copy(theta_max)
-        tmp1[i] += epsilon
-        tmp2 = numpy.copy(theta_max)
-        tmp2[i] -= epsilon
-        eta_mf = mean_field.forward_problem(tmp1, N, 'TAP')
-        eta_mf2 = mean_field.forward_problem(tmp2, N, 'TAP')
-        for j in range(i,D):
-            G[i,j] = (y_t[j] - eta_mf[j]) - (y_t[j] - eta_mf2[j])
-    ddllk = R*1./2./epsilon*G
-    ddllk += numpy.triu(ddllk, 1).T
+    eta = mean_field.forward_problem_iter(theta_max, N, 'TAP')
+    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
-    #ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo)
+    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
     # Return fitted theta and Fisher Info matrix
     return theta_max, -ddlpo_i
 
