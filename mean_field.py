@@ -107,6 +107,8 @@ def forward_problem_hessian(theta, N, expansion):
     eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
     eta[N:] = eta2[triu_idx]
     eta[:N] = eta_max
+    eta[eta<0.] = numpy.spacing(1)
+    eta[eta>1.] = 1. - numpy.spacing(1)
     return eta
 
 
