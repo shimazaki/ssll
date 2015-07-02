@@ -190,13 +190,17 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
     # array for negative derivatives of Energy function
     avg_dUs = numpy.empty(K)
     # iterate over all integration points
+    # iterate over all integration points
     points_to_sample = []
     for i, int_point in enumerate(int_points):
         # theta point that needs to be evaluated
         th_tmp = th0 + int_point*dth
         # Sample Data
         try:
-            eta = mean_field.forward_problem_iter(th_tmp, N, expansion)
+            try:
+                eta = mean_field.forward_problem(th_tmp, N, 'TAP')
+            except:
+                eta = mean_field.forward_problem_iter(th_tmp, N, 'TAP')
             # negative derivative of energy function
             dU = numpy.dot(dth, eta)
             # compute mean
