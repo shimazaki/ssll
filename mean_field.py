@@ -19,34 +19,95 @@ def self_consistent_eq(eta, theta1, theta2, expansion='TAP'):
     :param numpy.ndarray theta2:
         (c, c) array with second order thetas (theta_ij in row i and column j)
     :param str expansion:
-        String that indicates order of approximation. 'naive' for naive mean
-        field and 'TAP' for second order approximation with Osanger correction.
-        (default='TAP')
+        String that indicates order of approximantion. 'naive' for naive mean field
+        and 'TAP' for second order approximation with Osanger correction. (default='TAP')
 
     :returns:
-        list of c equations that have to be solved for getting the first order
-        etas.
-
-    Remark: For numerical reasons and to avoid the log the exponential of the equations
-    is solved.
+        list of c equations that have to be solved for getting the first order etas.
     """
-    N = theta1.shape[0]
-    equation_list = []
-
     # TAP equations
     if expansion == 'TAP':
-        for i in range(N):
-            equation_list.append(eta[i]/(1 - eta[i])*numpy.exp( - theta1[i] -
-                                 numpy.dot(theta2[i,:], eta) -
-                                 .5*numpy.dot(theta2[i,:]**2,
-                                              (0.5 - eta[i])*eta*(1 - eta)))-1)
+        equations =  numpy.log(eta) - numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta) - \
+                    .5*numpy.dot((.5 - eta)[:,numpy.newaxis]*theta2**2, (eta - eta**2))
     # Naive Mean field equations
     elif expansion == 'naive':
-        for i in range(N):
-            equation_list.append(eta[i]/(1 - eta[i])*numpy.exp( - theta1[i] -
-                                 numpy.dot(theta2[i,:], eta)) - 1)
+        equations =  numpy.log(eta)- numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta)
 
-    return equation_list
+    return equations
+
+
+def self_consistent_eq_Hinv(eta, theta1, theta2, expansion='TAP'):
+    """ Generates self-consistent equations for forward problem.
+
+    :param numpy.ndarray eta:
+        (c,) vector with individual rates for each cell
+    :param numpy.ndarray theta1:
+        (c,) vector with first order thetas
+    :param numpy.ndarray theta2:
+        (c, c) array with second order thetas (theta_ij in row i and column j)
+    :param str expansion:
+        String that indicates order of approximantion. 'naive' for naive mean field
+        and 'TAP' for second order approximation with Osanger correction. (default='TAP')
+
+    :returns:
+        list of c equations that have to be solved for getting the first order etas.
+    """
+    # TAP equations
+    if expansion == 'TAP':
+        H_diag =  1./eta + 1./(1 - eta) + .5*numpy.dot(theta2**2, (eta - eta**2))
+    # Naive Mean field equations
+    elif expansion == 'naive':
+        H_diag =  1./eta + 1./(1 - eta)
+    Hinv = numpy.diag(1./H_diag)
+    return Hinv
+
+
+def forward_problem_hessian(theta, N, expansion):
+    """ Gets the etas for given thetas.
+
+    :param numpy.ndarray theta:
+        (d,)-dimensional array containing all thetas
+    :param int N:
+        Number of cells
+    :param str expansion:
+        String that indicates order of approximantion. 'naive' for naive mean field
+        and 'TAP' for second order approximation with Osanger correction.
+
+    :returns:
+        (d,) numpy.ndarray with all etas.
+    """
+    # Initialize eta vector
+    eta = numpy.empty(theta.shape)
+    eta_max = 0.5*numpy.ones(N)
+    # Extract first order thetas
+    theta1 = theta[:N]
+    # Get indices
+    triu_idx = numpy.triu_indices(N, k=1)
+    diag_idx = numpy.diag_indices(N)
+    # Write second order thetas into matrix
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    conv = numpy.inf
+    # Solve self-consistent equations and calculate approximation of fisher matrix
+    if expansion == 'TAP':
+        iter_num = 0
+        while  conv > 1e-6 and iter_num < 1e4:
+            deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+            Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+            eta_max -= .1*numpy.dot(Hinv, deta)
+            conv = numpy.amax(numpy.absolute(deta))
+            iter_num -=1
+            eta_max[eta_max < 0.] = numpy.spacing(1)
+            eta_max[eta_max > 1.] = 1. - numpy.spacing(1)
+        G_inv = - theta2 - numpy.dot((.5 - eta_max[:N])[:,numpy.newaxis]*theta2**2., .5 - eta_max[:N])
+    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + numpy.dot(theta2**2, (.5 - eta_max))
+    G = numpy.linalg.inv(G_inv)
+    # Compute second order eta
+    eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
+    eta[N:] = eta2[triu_idx]
+    eta[:N] = eta_max
+    return eta
 
 
 def forward_problem(theta, N, expansion):
@@ -101,40 +162,6 @@ def forward_problem(theta, N, expansion):
     eta[N:] = eta2[triu_idx]
     return eta
 
-
-def self_consistent_eq_jac(eta, theta1, theta2, expansion='TAP'):
-    """ Generates self-consistent equations for forward problem.
-
-    :param numpy.ndarray eta:
-        (c,) vector with individual rates for each cell
-    :param numpy.ndarray theta1:
-        (c,) vector with first order thetas
-    :param numpy.ndarray theta2:
-        (c, c) array with second order thetas (theta_ij in row i and column j)
-    :param str expansion:
-        String that indicates order of approximantion. 'naive' for naive mean field
-        and 'TAP' for second order approximation with Osanger correction. (default='TAP')
-
-    :returns:
-        list of c equations that have to be solved for getting the first order etas.
-    """
-    N = theta1.shape[0]
-    equation_array = numpy.empty([eta.shape[0], eta.shape[0]])
-
-    # TAP equations
-    if expansion == 'TAP':
-        for i in range(N):
-            equation_array[i,i+1:] = (- theta2[i,i+1:] - .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*(1 - 2*eta)))*\
-                        (eta[i]/(1 - eta[i])*numpy.exp(-theta1[i]-numpy.dot(theta2[i,:], eta)- \
-                                 .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*eta*(1.-eta)))-1.)
-            equation_array[i,i] = (-1./(1. - eta[i])**2 + .5*numpy.dot(theta2[i,:]**2, eta*(1. - eta)))*\
-                        (eta[i]/(1 - eta[i])*numpy.exp(-theta1[i]-numpy.dot(theta2[i,:], eta)- \
-                                 .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*eta*(1.-eta)))-1.)
-
-
-    triu_idx = numpy.triu_indices(N, 1)
-    equation_array[triu_idx[1], triu_idx[0]] = equation_array[triu_idx]
-    return numpy.sum(equation_array, axis=1)
 
 def forward_problem_iter(theta, N, expansion):
     """ Gets the etas for given thetas.

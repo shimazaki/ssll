@@ -270,10 +270,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Compute final Hessian of posterior
-    try:
-        eta = mean_field.forward_problem(theta_max, N, 'TAP')
-    except:
-        eta = mean_field.forward_problem_iter(theta_max, N, 'TAP')
+    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
