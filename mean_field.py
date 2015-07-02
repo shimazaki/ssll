@@ -119,19 +119,22 @@ def self_consistent_eq_jac(eta, theta1, theta2, expansion='TAP'):
         list of c equations that have to be solved for getting the first order etas.
     """
     N = theta1.shape[0]
-    #equation_array = numpy.empty([eta.shape[0], eta.shape[0]])
+    equation_array = numpy.empty([eta.shape[0], eta.shape[0]])
 
     # TAP equations
     if expansion == 'TAP':
-        f = eta/(1 - eta)*numpy.exp(-theta1-numpy.dot(theta2, eta)- \
-                                 .5*numpy.sum(theta2**2*numpy.outer(0.5 - eta, eta*(1.-eta)), axis=0))-1.
-        fprime = -theta2-.5*numpy.sum(theta2**2*numpy.outer(0.5 - eta, 1. - 2.*eta), axis=0)
+        for i in range(N):
+            equation_array[i,i+1:] = (- theta2[i,i+1:] - .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*(1 - 2*eta)))*\
+                        (eta[i]/(1 - eta[i])*numpy.exp(-theta1[i]-numpy.dot(theta2[i,:], eta)- \
+                                 .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*eta*(1.-eta)))-1.)
+            equation_array[i,i] = (-1./(1. - eta[i])**2 + .5*numpy.dot(theta2[i,:]**2, eta*(1. - eta)))*\
+                        (eta[i]/(1 - eta[i])*numpy.exp(-theta1[i]-numpy.dot(theta2[i,:], eta)- \
+                                 .5*numpy.dot(theta2[i,:]**2, (0.5 - eta[i])*eta*(1.-eta)))-1.)
 
-    diag_idx = numpy.diag_indices(N)
-    fprime[diag_idx] = -1./(1. - eta)**2 + .5*numpy.dot(theta2**2, eta*(1 - eta))
 
-    return numpy.dot(fprime, f)
-
+    triu_idx = numpy.triu_indices(N, 1)
+    equation_array[triu_idx[1], triu_idx[0]] = equation_array[triu_idx]
+    return numpy.sum(equation_array, axis=1)
 
 def forward_problem_iter(theta, N, expansion):
     """ Gets the etas for given thetas.
@@ -165,7 +168,7 @@ def forward_problem_iter(theta, N, expansion):
     if expansion == 'TAP':
         iter_num = 0
         while  conv > 1e-4 and iter_num < 500:
-            f = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+#            f = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             deta_max = self_consistent_eq_jac(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             eta_max += .01*deta_max
             conv = numpy.amax(numpy.absolute(deta_max))
