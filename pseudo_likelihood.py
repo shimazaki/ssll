@@ -164,18 +164,8 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
 
-    # Compute sum of active thetas
-    for s_i in range(N):
-        fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
-
-    # Compute final Hessian of posterior
-    dllk, etas = pseudo_dllk(theta_max, X_t, fs)
-    ddllk = pseudo_ddllk(etas, D)
-    ddlpo = ddllk - sigma_o_i
-    # Compute inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo)
     # Return fitted theta and Fisher Info matrix
-    eta = mean_field.forward_problem_iter(theta_max, N, 'TAP')
+    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
@@ -362,12 +352,12 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
 
-    # Compute final Hessian of posterior
-    ddllk = pseudo_ddllk(etas, D)
-    ddlpo = ddllk - sigma_o_i
-    # Compute inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo)
     # Return fitted theta and Fisher Info matrix
+    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    ddlpo = ddllk - sigma_o_i
+    # Calculate Inverse
+    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
     return theta_max, -ddlpo_i
 
 
