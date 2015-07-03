@@ -92,14 +92,14 @@ def forward_problem_hessian(theta, N, expansion):
     # Solve self-consistent equations and calculate approximation of fisher matrix
     if expansion == 'TAP':
         iter_num = 0
-        while  conv > 1e-6 and iter_num < 1e4:
+        while  conv > 1e-4 and iter_num < 1e3:
             deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             eta_max -= .1*numpy.dot(Hinv, deta)
             conv = numpy.amax(numpy.absolute(deta))
             iter_num -=1
-            eta_max[eta_max < 0.] = numpy.spacing(1)
-            eta_max[eta_max > 1.] = 1. - numpy.spacing(1)
+            eta_max[eta_max <= 0.] = numpy.spacing(1)
+            eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
         G_inv = - theta2 - numpy.dot((.5 - eta_max[:N])[:,numpy.newaxis]*theta2**2., .5 - eta_max[:N])
     G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + numpy.dot(theta2**2, (.5 - eta_max))
     G = numpy.linalg.inv(G_inv)
@@ -144,7 +144,6 @@ def forward_problem(theta, N, expansion):
         try:
             eta[:N] = fsolve(f, 0.1*numpy.ones(N))
         except Warning:
-            print theta
             raise Exception('scipy.fsolve did not compute reliable result!')
         G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta[:N], 0.5 - eta[:N])
     elif expansion == 'naive':
@@ -685,7 +684,7 @@ def mean_field_nr(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, epsilon=.1,
     # Initialize iteration counter
     iterations = 0
     # Until gradient converges
-    while max_dlpo > GA_CONVERGENCE:
+    while max_dlpo > GA_CONVERGENCE and iterations<MAX_GA_ITERATIONS:
         # Count iterations
         iterations += 1
         # Get gradient of posterior
@@ -698,7 +697,7 @@ def mean_field_nr(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, epsilon=.1,
         # Update theta
         theta_max += epsilon*dth
         # Get new eta by solving forward problem
-        eta = forward_problem(theta_max, N, 'TAP')
+        eta = forward_problem_hessian(theta_max, N, 'TAP')
         max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
         # Break if max. number of iterations is reached.
         if iterations == MAX_GA_ITERATIONS:
@@ -741,7 +740,7 @@ def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight
 
     # Convergence limit for the rate
     GA_CONVERGENCE = 1e-4
-    MAX_GA_ITERATIONS = 1000.
+    MAX_GA_ITERATIONS = 100.
     # Get number of Neurons
     N = X_t.shape[1]
     # Initialize iteration counter
@@ -773,7 +772,7 @@ def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight
         # Update theta by line search
         theta_max = mean_field_line_search(theta_max, N, R, s, dlpo, sigma_o_i, eta)
         # Get eta by solving forward problem
-        eta = forward_problem(theta_max, N, 'TAP')
+        eta = forward_problem_hessian(theta_max, N, 'TAP')
         # Get gradient of posterior
         dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
         # Get maximal Gradient entry
