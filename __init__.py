@@ -34,6 +34,7 @@ import transforms
 import pseudo_likelihood
 import mean_field
 import energies
+import bethe_approximation
  
  
 def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
