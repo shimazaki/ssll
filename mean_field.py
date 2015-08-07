@@ -101,7 +101,7 @@ def forward_problem_hessian(theta, N, expansion):
             eta_max[eta_max <= 0.] = numpy.spacing(1)
             eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
         G_inv = - theta2 - numpy.dot((.5 - eta_max[:N])[:,numpy.newaxis]*theta2**2., .5 - eta_max[:N])
-    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + numpy.dot(theta2**2, (.5 - eta_max))
+    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2**2, (eta_max - eta_max**2))
     G = numpy.linalg.inv(G_inv)
     # Compute second order eta
     eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
@@ -740,7 +740,7 @@ def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight
 
     # Convergence limit for the rate
     GA_CONVERGENCE = 1e-4
-    MAX_GA_ITERATIONS = 100.
+    MAX_GA_ITERATIONS = 1000.
     # Get number of Neurons
     N = X_t.shape[1]
     # Initialize iteration counter
