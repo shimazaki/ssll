@@ -27,17 +27,18 @@ from functools import partial
 import transforms
  
  
-def generate_thetas(N, O, T, strong_mod = [], factor=5.):
+def generate_thetas(N, O, T, mu1, sigma1, mu2, sigma2):
     D = transforms.compute_D(N, O)
-    MU = numpy.tile(-1.5,(T, D))
-    MU[:,N:] = 0.
+    MU = numpy.tile(mu1, (T, D))
+    MU[:,N:] = mu2
     # Create covariance matrix
     X = numpy.tile(numpy.arange(T),(T,1))
     K = .5*numpy.exp( -.5 *.001*(X - X.transpose())**2)
     # Generate Gaussian processes
     L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
-    theta = MU + numpy.dot(L, numpy.random.randn(T, D))/numpy.sqrt(N)
-    theta[:,strong_mod] *= factor
+    theta = numpy.empty([T, D])
+    theta[:,:N] = mu1 + numpy.dot(L, sigma1*numpy.random.randn(T, N))
+    theta[:,N:] = mu2 + numpy.dot(L, sigma2*numpy.random.randn(T, D - N))
     return theta
  
  
