@@ -92,14 +92,16 @@ def forward_problem_hessian(theta, N, expansion):
     # Solve self-consistent equations and calculate approximation of fisher matrix
     if expansion == 'TAP':
         iter_num = 0
-        while  conv > 1e-4 and iter_num < 1e3:
+        while  conv > 1e-4 and iter_num < 500:
             deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
             eta_max -= .1*numpy.dot(Hinv, deta)
             conv = numpy.amax(numpy.absolute(deta))
-            iter_num -=1
+            iter_num += 1
             eta_max[eta_max <= 0.] = numpy.spacing(1)
             eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
+        if iter_num == 500:
+            raise Exception('Self consistent equations could not be solved!')
         G_inv = - theta2 - numpy.dot((.5 - eta_max[:N])[:,numpy.newaxis]*theta2**2., .5 - eta_max[:N])
     G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2**2, (eta_max - eta_max**2))
     G = numpy.linalg.inv(G_inv)
