@@ -3,7 +3,7 @@ __author__ = 'christian'
 import numpy
 
 
-def compute_eta_cccp(theta, N):
+def compute_eta_CCCP(theta, N):
     """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
 
     :param numpy.ndarray theta:
@@ -39,7 +39,7 @@ def compute_eta_cccp(theta, N):
     # Reshape the expectation parameters and return
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
-    eta[N:] = eta2[triu_idx[0], triu_idx[1], 1]
+    eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
     return eta
 
 
@@ -284,3 +284,125 @@ def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     bethe_E = numpy.sum(b_ij[triu_idx] * numpy.log(b_ij[triu_idx] / phi_ij[triu_idx])) \
               - ((N - 1.) - 1.) * numpy.sum(b_i * numpy.log(b_i / psi_i))
     return bethe_E
+
+
+def compute_eta_BP(theta, N, alpha=.5):
+    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
+
+    :param numpy.ndarray theta:
+        (d,) dimensional array with natural parameters in it
+    :param int N:
+        Number of cells
+    :param float alpha:
+        Step size for message update (default=0.5)
+    :returns:
+        (d,) dimensional array with approximated etas
+    """
+    # Upper triangle indices
+    triu_idx = numpy.triu_indices(N, 1)
+    # First order theta in square matrix form
+    from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
+    theta1 = theta[to_idx]
+    # Second order theta in square matrix form
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    # Calculate unnormalized probabilities for message computation
+    psi_i = numpy.exp(theta1)
+    psi_i_ij = numpy.exp(theta1 + theta2)
+    # Actual belief propogation algorithm
+    messages = propagate_beliefs(psi_i, psi_i_ij, N, alpha)
+    # Compute beliefs from messages
+    b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
+    # Get eta vector
+    eta = numpy.empty(theta.shape)
+    eta[:N] = b_i
+    eta[N:] = b_ij[triu_idx]
+    return eta
+
+
+def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
+    """ Actual belief propagation algorithm [Yedidia, 2001]
+
+    :param numpy.ndarray psi_i:
+        (c,) dimensional array with exp(theta_i)
+    :param numpy.ndarray psi_i_ij:
+        (c,c) dimensional array with exp(theta_i + theta_ij)
+    :param int N:
+        Number of cells
+    :param float alpha:
+        Step size for message update (default=0.5)
+    :return
+        (c,c,2) dimensional array with messages from cells to each other about their states
+    """
+
+    # Initialize messages
+    messages = numpy.ones([N,N,2])
+    # Initialize convergence criteria
+    message_difference = numpy.inf
+    iter_num = 0
+
+    while message_difference > 1e-15 and iter_num <= 1000:
+        # Initialize matrix for updated messages
+        new_messages = numpy.ones([N,N,2])
+        # Compute log of old messages
+        log_messages = numpy.log(messages)
+        # Marginalize over message sending neurons
+        sum_log_messages = numpy.sum(log_messages, axis=0)
+        # Compute new messages for neurons being silent
+        new_messages[:,:,0] = psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T)
+        # Compute new messages for neurons firing
+        new_messages[:,:,1] = psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T)
+        # Compute normalization
+        k = numpy.sum(new_messages, axis=2)
+        new_messages = new_messages/k[:,:,numpy.newaxis]
+        # Maximal change in messages
+        message_difference = numpy.amax(numpy.absolute(messages - new_messages))
+        # Normalize and update messages
+        M = (1. - alpha)*messages + alpha*new_messages
+        k = numpy.sum(M, axis=2)
+        messages = M/k[:, :, numpy.newaxis]
+        iter_num += 1
+        # Raise exception if not converged
+        if iter_num == 1000:
+            raise Exception('BP algorithm did not converge!')
+
+    # Return messages
+    return messages
+
+
+def compute_beliefs_BP(messages, theta1, theta2, N):
+    """
+
+    :param numpy.ndarray messages:
+        (c,c,2) dimensional array with messages from cells to each other about their states
+    :param numpy.ndarray theta1:
+        (c,c) array with theta_i in rows
+    :param numpy.ndarray theta2:
+        (c,c) array with theta_ij
+    :param int N:
+        Number of cells
+
+    :return:
+        (c) array containing the belief that a cell fired and (c,c) array that a pair of cells fired
+    """
+    b_i = numpy.empty([N, 2])
+    # Compute unnormalized first order beliefs
+    b_i[:, 1] = numpy.exp(theta1[:, 0])*numpy.prod(messages[:, :, 1], axis=0)
+    b_i[:, 0] = numpy.prod(messages[:, :, 0], axis=0)
+    # Normalize
+    k_i = numpy.sum(b_i, axis=1)
+    b_i /= k_i[:,numpy.newaxis]
+    # Compute unnormalized pair beliefs for x_i = 1
+    b_ij = numpy.empty([N, N, 2])
+    b_ij[:,:,0] = numpy.exp(theta1)*numpy.prod(messages[:, :, 1], axis=0)[:,numpy.newaxis]/messages[:, :, 1].T\
+                    *numpy.prod(messages[:, :, 0],axis=0)[numpy.newaxis,:]/messages[:, :, 0]
+    b_ij[:,:,1] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:, :, 1], axis=0)[:,numpy.newaxis]\
+                    /messages[:, :, 1].T*numpy.prod(messages[:, :, 1], axis=0)[numpy.newaxis, :]/messages[:, :, 1]
+    # Normalize
+    k = numpy.sum(b_ij, axis=2)/b_i[:, 1, numpy.newaxis]
+    b_ij /= k[:, :, numpy.newaxis]
+    # Return
+    return b_i[:, 1], b_ij[:, :, 1]
