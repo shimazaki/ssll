@@ -261,6 +261,86 @@ def compute_dual_energy(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     return dual_energy
 
 
+def log_marginal_CCCP(emd, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    This is just a wrapper function for `log_marginal_raw`. It unpacks data
+    from the EMD container pbject and calls that function.
+
+    :param container.EMData emd:
+        All data pertaining to the EM algorithm.
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    # Unwrap the parameters and call the raw function
+    log_p = log_marginal_raw_CCCP(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
+        emd.y, emd.R, emd.N, period)
+
+    return log_p
+
+
+def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    From within SSLL, this function should be accessed by calling
+    `log_marginal` with the EMD container as a parameter. This raw function is
+    designed to be called from outside SSLL, when a complete EMD container
+    might not be available.
+
+    See the container.py for a full description of the parameter properties.
+
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    if period == None: period = (0, theta_f.shape[0])
+    # Initialise
+    log_p = 0
+    # Iterate over each timestep and compute...
+    a, b = 0, 0
+    for i in range(period[0], period[1]):
+        a += log_likelihood_CCCP(y[i,:], theta_f[i,:], R, N)
+        theta_d = theta_f[i,:] - theta_o[i,:]
+        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
+        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
+             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+    log_p = a + b / 2
+
+    return log_p
+
+
+def log_likelihood_CCCP(y_t, theta_f_t, R, N):
+    """ Computes the log-likelihood with Bethe approximation
+
+    :param numpy.ndarray y_t:
+        Frequency of observed patterns for one timestep.
+    :param numpy.ndarray theta_f_t:
+        Natural parameters of observed patterns for one timestep.
+    :param int R:
+        Number of trials over which patterns were observed.
+    :param int N:
+        Number of cells
+
+    :returns:
+        Log likelhood of the observed patterns given the natural parameters,
+        as a float.
+    """
+    psi_bethe = compute_eta_CCCP(theta_f_t, N)[1]
+    log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
+    return psi_bethe
+
+
 def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     """ Compute Bethe energy. (Minimized by outer loop)
 
@@ -420,3 +500,83 @@ def compute_beliefs_BP(messages, theta1, theta2, N):
     b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
     # Return
     return b_i, b_ij
+
+
+def log_marginal_BP(emd, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    This is just a wrapper function for `log_marginal_raw`. It unpacks data
+    from the EMD container pbject and calls that function.
+
+    :param container.EMData emd:
+        All data pertaining to the EM algorithm.
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    # Unwrap the parameters and call the raw function
+    log_p = log_marginal_raw_BP(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
+        emd.y, emd.R, emd.N, period)
+
+    return log_p
+
+
+def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    From within SSLL, this function should be accessed by calling
+    `log_marginal` with the EMD container as a parameter. This raw function is
+    designed to be called from outside SSLL, when a complete EMD container
+    might not be available.
+
+    See the container.py for a full description of the parameter properties.
+
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    if period == None: period = (0, theta_f.shape[0])
+    # Initialise
+    log_p = 0
+    # Iterate over each timestep and compute...
+    a, b = 0, 0
+    for i in range(period[0], period[1]):
+        a += log_likelihood_BP(y[i,:], theta_f[i,:], R, N)
+        theta_d = theta_f[i,:] - theta_o[i,:]
+        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
+        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
+             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+    log_p = a + b / 2
+
+    return log_p
+
+
+def log_likelihood_BP(y_t, theta_f_t, R, N):
+    """ Computes the log-likelihood with Bethe approximation
+
+    :param numpy.ndarray y_t:
+        Frequency of observed patterns for one timestep.
+    :param numpy.ndarray theta_f_t:
+        Natural parameters of observed patterns for one timestep.
+    :param int R:
+        Number of trials over which patterns were observed.
+    :param int N:
+        Number of cells
+
+    :returns:
+        Log likelhood of the observed patterns given the natural parameters,
+        as a float.
+    """
+    psi_bethe = compute_eta_BP(theta_f_t, N)[1]
+    log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
+    return psi_bethe
