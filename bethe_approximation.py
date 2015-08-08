@@ -40,7 +40,7 @@ def compute_eta_CCCP(theta, N):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    return eta
+    return eta, bethe_energy
 
 
 def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
@@ -80,7 +80,7 @@ def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
         bethe.append(bethe_E)
         conv_crit = numpy.absolute((bethe_E_old - bethe_E) / bethe_E_old)
 
-    return b_i, b_ij, bethe
+    return b_i, b_ij, bethe_E
 
 
 def inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
