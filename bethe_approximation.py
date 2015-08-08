@@ -338,7 +338,7 @@ def log_likelihood_CCCP(y_t, theta_f_t, R, N):
     """
     psi_bethe = compute_eta_CCCP(theta_f_t, N)[1]
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
-    return psi_bethe
+    return log_p
 
 
 def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
@@ -579,4 +579,4 @@ def log_likelihood_BP(y_t, theta_f_t, R, N):
     """
     psi_bethe = compute_eta_BP(theta_f_t, N)[1]
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
-    return psi_bethe
+    return log_p
