@@ -102,7 +102,8 @@ def forward_problem_hessian(theta, N, expansion):
             eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
         if iter_num == 500:
             raise Exception('Self consistent equations could not be solved!')
-        G_inv = - theta2 - numpy.dot((.5 - eta_max[:N])[:,numpy.newaxis]*theta2**2., .5 - eta_max[:N])
+        G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N], 0.5 - eta_max[:N])
+
     G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2**2, (eta_max - eta_max**2))
     G = numpy.linalg.inv(G_inv)
     # Compute second order eta
@@ -163,53 +164,6 @@ def forward_problem(theta, N, expansion):
     # Compute second order eta
     eta2 = G + numpy.outer(eta[:N], eta[:N])
     eta[N:] = eta2[triu_idx]
-    return eta
-
-
-def forward_problem_iter(theta, N, expansion):
-    """ Gets the etas for given thetas.
-
-    :param numpy.ndarray theta:
-        (d,)-dimensional array containing all thetas
-    :param int N:
-        Number of cells
-    :param str expansion:
-        String that indicates order of approximantion. 'naive' for naive mean field
-        and 'TAP' for second order approximation with Osanger correction.
-
-    :returns:
-        (d,) numpy.ndarray with all etas.
-    """
-    # Initialize eta vector
-    eta = numpy.empty(theta.shape)
-    deta = 0.01*numpy.ones(N)
-    eta_max = 0.1*numpy.ones(N)
-    # Extract first order thetas
-    theta1 = theta[:N]
-    # Get indices
-    triu_idx = numpy.triu_indices(N, k=1)
-    diag_idx = numpy.diag_indices(N)
-    # Write second order thetas into matrix
-    theta2 = numpy.zeros([N, N])
-    theta2[triu_idx] = theta[N:]
-    theta2 += theta2.T
-    conv = numpy.inf
-    # Solve self-consistent equations and calculate approximation of fisher matrix
-    if expansion == 'TAP':
-        iter_num = 0
-        while  conv > 1e-4 and iter_num < 500:
-#            f = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
-            deta_max = self_consistent_eq_jac(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
-            eta_max += .01*deta_max
-            conv = numpy.amax(numpy.absolute(deta_max))
-            iter_num +=1
-        G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N], 0.5 - eta_max[:N])
-    G_inv[diag_idx] = 1./(eta_max[:N]*(1-eta_max[:N]))
-    G = numpy.linalg.inv(G_inv)
-    # Compute second order eta
-    eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
-    eta[N:] = eta2[triu_idx]
-    eta[:N] = eta_max
     return eta
 
 
