@@ -453,6 +453,121 @@ def compute_full_G(eta, theta, N):
     G[eta_FI_map[0]] = eta_full[numpy.array(eta_FI_map[1],dtype=int)] - G2[eta_FI_map[0]]
     return G
 
+def compute_full_G_second_order(eta, theta, N):
+    """ Computes Fisher Matrix with all information up to order 3 using eta_FI_map.
+
+    :param numpy.ndarray eta:
+        (d,) vector with all rates (up to second order)
+    :param numpy.ndarray theta:
+        (d,) vector with all natural parameters (up to second order)
+    :param int N:
+        Number of cells
+
+    :returns:
+        Fisher Matrix with all entries that require not more than third-order rates
+    """
+    D = N + N*(N-1)/2
+    G2 = numpy.outer(eta,eta)
+    G = numpy.zeros([D,D])
+    G[eta_FI_map[0]] = eta[numpy.array(eta_FI_map[1],dtype=int)] - G2[eta_FI_map[0]]
+    return G
+
+
+def create_eta_FI_map_second_order(N, O=3):
+    """ Computes the Index map to fill the FI matrix
+
+    :param int N:
+        Number of cells
+    :param int O:
+        Up to which order Information should be used
+    """
+    global eta_FI_map
+    eta_FI_map = [[numpy.array([], dtype=int),numpy.array([], dtype=int)],numpy.array([], dtype=int)]
+    eta1_idx = range(N)
+    eta2_idx = range(N, N + N*(N-1)/2)
+    #eta3_idx = range(N + N*(N-1)/2, N + N*(N-1)/2 + N*(N-1)*(N-2)/6)
+    #eta4_idx = range(N + N*(N-1)/2 + N*(N-1)*(N-2)/6, N + N*(N-1)/2 + N*(N-1)*(N-2)/6 + N*(N-1)*(N-2)*(N-3)/24)
+    triu_idx = numpy.triu_indices(N, k=1)
+    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[0]])
+    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[1]])
+    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta2_idx])
+    d_n2_idx = 0
+    #d_n3_idx = 0
+    #d_n4_idx = 0
+    for n in range(N-1):
+        d_n2 = N - (n+1)
+        # Horizontals between first and second order
+        eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],numpy.tile(numpy.array([n]), d_n2)])
+        eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(N+d_n2_idx,N+d_n2_idx+d_n2)])
+        eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta2_idx[d_n2_idx:d_n2_idx+d_n2]])
+
+        if n != N-1:
+            # Diagonals between first and second order (second order etas)
+            diag_idx = numpy.diag_indices(d_n2)
+            eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], diag_idx[0]+(N-d_n2)])
+            eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], diag_idx[1]+N+d_n2_idx])
+            eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta2_idx[d_n2_idx:d_n2_idx+d_n2]])
+            # Off Diagonals (third order etas)
+            #triu_idx = numpy.triu_indices(d_n2, k=1)
+            #d_n3 = triu_idx[0].shape[0]
+            #eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[0]+(N-d_n2)])
+            #eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[1]+N+d_n2_idx])
+            #eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
+            # Also the transposed
+            #eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[1]+(N-d_n2)])
+            #eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[0]+N+d_n2_idx])
+            #eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
+            # Entries above the horizontals between first and second order thetas (Third order etas)
+            #if n < N-2:
+            #    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([n]),N*(N-1)/2 - d_n2_idx-d_n2) ])
+            #    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(N+d_n2_idx+d_n2, N + N*(N-1)/2)])
+            #    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
+            # Off Diagonals Close to main diagonal (Third order etas)
+            #eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[0]+N+d_n2_idx])
+            #eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[1]+N+d_n2_idx])
+            #eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx:d_n3_idx+d_n3]])
+            # Higher order part
+            #G_x_offset = N+d_n2_idx
+            #G_y_offset = N+d_n2_idx+d_n2
+            #d_n2_tmp = d_n2 - 1
+            #d_n2_idx_tmp = 0
+            #for pair_idx in range(N-n-2):
+            #    # Horizontal (third order eta)
+            #    eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n3+d_n2_idx_tmp+d_n2_tmp]
+            #    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([pair_idx+G_x_offset]),d_n2_tmp)])
+            #    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(d_n2_idx_tmp+G_y_offset,d_n2_idx_tmp + d_n2_tmp+G_y_offset)])
+            #    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
+            #    # Diagonals (thrid order)
+            #    diag_idx = numpy.diag_indices(d_n2_tmp)
+            #    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], diag_idx[0]+pair_idx+1+G_x_offset])
+            #    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], diag_idx[1]+d_n2_idx_tmp+G_y_offset])
+            #    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n2_idx_tmp+d_n2_tmp]])
+            #    # Off diagonals (fourth order)
+            #    triu_idx = numpy.triu_indices(d_n2_tmp, k=1)
+            #    num_of_quadruplets = len(triu_idx[0])
+            #    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[0]+pair_idx+1+G_x_offset])
+            #    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[1]+d_n2_idx_tmp+G_y_offset])
+            #    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1], eta4_idx[d_n4_idx:d_n4_idx + num_of_quadruplets]])
+            #    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[1]+pair_idx+1+G_x_offset])
+            #    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[0]+d_n2_idx_tmp+G_y_offset])
+            #    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1], eta4_idx[d_n4_idx:d_n4_idx + num_of_quadruplets]])
+            #    d_n4_idx += num_of_quadruplets
+            #    d_n2_idx_tmp += d_n2_tmp
+            #    d_n2_tmp -= 1
+
+        #d_n3_idx += d_n3
+        d_n2_idx += d_n2
+    # Transpose
+    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],eta_FI_map[0][1]])
+    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1],eta_FI_map[0][0][:eta_FI_map[0][1].shape[0]]])
+    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],eta_FI_map[1]])
+    # Main Diagonal
+    diag_idx = numpy.diag_indices(N + N*(N-1)/2)
+    eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],diag_idx[0]])
+    eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1],diag_idx[1]])
+    eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],range(N + N*(N-1)/2)])
+
+
 def create_eta_FI_map(N, O=3):
     """ Computes the Index map to fill the FI matrix
 
