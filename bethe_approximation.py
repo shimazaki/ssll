@@ -40,7 +40,7 @@ def compute_eta_CCCP(theta, N):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    return eta, bethe_energy
+    return eta, -bethe_energy
 
 
 def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
@@ -300,6 +300,7 @@ def compute_eta_BP(theta, N, alpha=.5):
     """
     # Upper triangle indices
     triu_idx = numpy.triu_indices(N, 1)
+    diag_idx = numpy.diag_indices(N)
     # First order theta in square matrix form
     from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
     theta1 = theta[to_idx]
@@ -316,9 +317,18 @@ def compute_eta_BP(theta, N, alpha=.5):
     b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
     # Get eta vector
     eta = numpy.empty(theta.shape)
-    eta[:N] = b_i
-    eta[N:] = b_ij[triu_idx]
-    return eta
+    eta[:N] = b_i[:,1]
+    eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
+    theta1 = theta[:N]
+    psi_i = numpy.ones([N,2])
+    psi_i[:,1] = numpy.exp(theta1)
+    phi_ij = numpy.ones([N,N,4])
+    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
+    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
+    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
+    phi_ij[diag_idx[0],diag_idx[1],:] = 1
+    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    return eta, -bethe_free
 
 
 def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
@@ -386,7 +396,7 @@ def compute_beliefs_BP(messages, theta1, theta2, N):
         Number of cells
 
     :return:
-        (c) array containing the belief that a cell fired and (c,c) array that a pair of cells fired
+        (c,2) array containing the belief that  and (c,c,4) array that for pairs
     """
     b_i = numpy.empty([N, 2])
     # Compute unnormalized first order beliefs
@@ -396,13 +406,17 @@ def compute_beliefs_BP(messages, theta1, theta2, N):
     k_i = numpy.sum(b_i, axis=1)
     b_i /= k_i[:,numpy.newaxis]
     # Compute unnormalized pair beliefs for x_i = 1
-    b_ij = numpy.empty([N, N, 2])
-    b_ij[:,:,0] = numpy.exp(theta1)*numpy.prod(messages[:, :, 1], axis=0)[:,numpy.newaxis]/messages[:, :, 1].T\
-                    *numpy.prod(messages[:, :, 0],axis=0)[numpy.newaxis,:]/messages[:, :, 0]
-    b_ij[:,:,1] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:, :, 1], axis=0)[:,numpy.newaxis]\
-                    /messages[:, :, 1].T*numpy.prod(messages[:, :, 1], axis=0)[numpy.newaxis, :]/messages[:, :, 1]
-    # Normalize
-    k = numpy.sum(b_ij, axis=2)/b_i[:, 1, numpy.newaxis]
-    b_ij /= k[:, :, numpy.newaxis]
+    b_ij = numpy.empty([N,N,4])
+    # for x_i = 0
+    b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+    b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+    # for x_i = 1
+    b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+    b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+    k0 = numpy.sum(b_ij[:,:,:2], axis=2)/b_i[:,0,numpy.newaxis]
+    k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
+    # normalized second order thetas
+    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
+    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
     # Return
-    return b_i[:, 1], b_ij[:, :, 1]
+    return b_i, b_ij
