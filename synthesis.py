@@ -27,7 +27,7 @@ from functools import partial
 import transforms
  
  
-def generate_thetas(N, O, T, mu1, sigma1, mu2, sigma2):
+def generate_thetas(N, O, T, mu1=-2., sigma1=.1, mu2=0., sigma2=.5):
     D = transforms.compute_D(N, O)
     MU = numpy.tile(mu1, (T, D))
     MU[:,N:] = mu2
