@@ -782,7 +782,7 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
         # Initialize matrix for updated messages
         new_messages = numpy.ones([N,N,2])
         # Compute log of old messages
-        log_messages = numpy.log(messages)
+        log_messages = numpy.log(messages + numpy.spacing(1))
         # Marginalize over message sending neurons
         sum_log_messages = numpy.sum(log_messages, axis=0)
         # Compute new messages for neurons being silent
