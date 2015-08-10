@@ -628,6 +628,7 @@ def create_eta_FI_map(N, O=3):
             d_n2_idx_tmp = 0
             for pair_idx in range(N-n-2):
                 # Horizontal (third order eta)
+
                 eta3_idx[d_n3_idx+d_n2_idx_tmp:d_n3_idx+d_n3+d_n2_idx_tmp+d_n2_tmp]
                 eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([pair_idx+G_x_offset]),d_n2_tmp)])
                 eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], range(d_n2_idx_tmp+G_y_offset,d_n2_idx_tmp + d_n2_tmp+G_y_offset)])
@@ -640,11 +641,16 @@ def create_eta_FI_map(N, O=3):
                 # Off diagonals (fourth order)
                 triu_idx = numpy.triu_indices(d_n2_tmp, k=1)
                 num_of_quadruplets = len(triu_idx[0])
+                #print n, G_x_offset, pair_idx, G_y_offset, num_of_quadruplets, d_n4_idx, d_n2_tmp
                 eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[0]+pair_idx+1+G_x_offset])
                 eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[1]+d_n2_idx_tmp+G_y_offset])
                 eta_FI_map[1] = numpy.concatenate([eta_FI_map[1], eta4_idx[d_n4_idx:d_n4_idx + num_of_quadruplets]])
                 eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], triu_idx[1]+pair_idx+1+G_x_offset])
                 eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], triu_idx[0]+d_n2_idx_tmp+G_y_offset])
+                eta_FI_map[1] = numpy.concatenate([eta_FI_map[1], eta4_idx[d_n4_idx:d_n4_idx + num_of_quadruplets]])
+                # above horizontals (fourth order)
+                eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0], numpy.tile(numpy.array([G_x_offset + pair_idx], dtype=int), num_of_quadruplets)])
+                eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1], numpy.arange(N+N*(N-1)/2 - num_of_quadruplets, N+N*(N-1)/2)])
                 eta_FI_map[1] = numpy.concatenate([eta_FI_map[1], eta4_idx[d_n4_idx:d_n4_idx + num_of_quadruplets]])
                 d_n4_idx += num_of_quadruplets
                 d_n2_idx_tmp += d_n2_tmp
