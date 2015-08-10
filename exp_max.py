@@ -30,7 +30,7 @@ import transforms
 import max_posterior
 
 
-CONVERGED = 1e-4
+CONVERGED = 1e-3
 
 
 
@@ -64,6 +64,7 @@ def e_step_filter(emd):
     # Iterate forwards over each timestep, computing filter density
     emd.theta_f[0,:], emd.sigma_f[0,:] = max_posterior.run(emd, 0)
     for i in range(1, emd.T):
+        print i
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
         tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
