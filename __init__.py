@@ -37,8 +37,8 @@ import energies
 import bethe_approximation
  
  
-def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
-        param_est='exact'):
+def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=50,
+        param_est_theta='exact', param_est_eta='exact'):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -80,19 +80,31 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the coordinate-transform maps
-    if param_est == 'exact':
+    if param_est_theta == 'exact':
         transforms.initialise(N, order)
         map_func = max_posterior.functions[map_function]
-        marg_llk_fun = probability.log_marginal
-    elif param_est == 'pseudo':
+        #marg_llk_fun = probability.log_marginal
+    elif param_est_theta == 'pseudo':
         pseudo_likelihood.compute_Fx_s(spikes, order)
         map_func = pseudo_likelihood.functions[map_function]
-        marg_llk_fun = mean_field.log_marginal
         mean_field.create_eta_FI_map(N, order)
-    elif param_est == 'mf':
-        mean_field.create_eta_FI_map(N, order)
+    elif param_est_theta == 'mf':
+        mean_field.create_eta_FI_map_second_order(N, order)
         map_func = mean_field.functions[map_function]
+    elif param_est_theta == 'bethe_BP':
+        mean_field.create_eta_FI_map(N, order)
+        map_func = bethe_approximation.conjugate_gradient_BP
+
+    if param_est_eta == 'exact':
+        marg_llk_fun = probability.log_marginal
+    elif param_est_eta == 'mf':
         marg_llk_fun = mean_field.log_marginal
+    elif param_est_eta == 'bethe_BP':
+        marg_llk_fun = bethe_approximation.log_marginal_BP
+    elif param_est_eta == 'bethe_CCCP':
+        marg_llk_fun = bethe_approximation.log_marginal_CCCP
+    elif param_est_eta == 'bethe_hybrid':
+        pass
     # Initialise the EM-data container
     emd = container.EMData(spikes, order, window, map_func, marg_llk_fun, lmbda)
     # Solves backward problem. For zero rates in the beginning small number is added
@@ -109,6 +121,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=30,
     lmc = emd.marg_llk(emd)
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > exp_max.CONVERGED):
+        print emd.convergence
         # Perform EM
         exp_max.e_step(emd)
         exp_max.m_step(emd)
