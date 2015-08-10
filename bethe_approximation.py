@@ -774,8 +774,10 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
     # Initialize convergence criteria
     message_difference = numpy.inf
     iter_num = 0
-
-    while message_difference > 1e-15 and iter_num <= 1000:
+    gamma = 0
+    while message_difference > 1e-15 and iter_num <= 2000:
+        if iter_num % 100 == 0:
+            gamma += .001
         b_i = compute_beliefs_BP(messages, theta1, theta2, N, all=False)
         # Initialize matrix for updated messages
         new_messages = numpy.ones([N,N,2])
@@ -784,10 +786,10 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
         # Marginalize over message sending neurons
         sum_log_messages = numpy.sum(log_messages, axis=0)
         # Compute new messages for neurons being silent
-        new_messages[:,:,0] = b_i[:,0,numpy.newaxis].T**.001*(psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+        new_messages[:,:,0] = b_i[:,0,numpy.newaxis].T**gamma*(psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
                                         + numpy.exp(sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T))
         # Compute new messages for neurons firing
-        new_messages[:,:,1] = b_i[:,1,numpy.newaxis].T**.001*(psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+        new_messages[:,:,1] = b_i[:,1,numpy.newaxis].T**gamma*(psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
                                         + numpy.exp(sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T))
         # Compute normalization
         k = numpy.sum(new_messages, axis=2)
