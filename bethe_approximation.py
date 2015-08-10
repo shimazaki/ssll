@@ -775,7 +775,7 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
     message_difference = numpy.inf
     iter_num = 0
     gamma = 0
-    while message_difference > 1e-15 and iter_num <= 2000:
+    while message_difference > 1e-10:# and iter_num <= 2000:
         if iter_num % 100 == 0:
             gamma += .001
         b_i = compute_beliefs_BP(messages, theta1, theta2, N, all=False)
@@ -802,8 +802,8 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
         messages = M/k[:, :, numpy.newaxis]
         iter_num += 1
         # Raise exception if not converged
-        if iter_num == 1000:
-            raise Exception('BP algorithm did not converge!')
+        #if iter_num == 1000:
+        #    raise Exception('BP algorithm did not converge!')
 
     # Return messages
     return messages
