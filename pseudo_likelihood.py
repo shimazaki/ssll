@@ -5,6 +5,7 @@ import max_posterior
 from scipy import sparse
 import transforms
 import mean_field
+import bethe_approximation
 
 
 MAX_GA_ITERATIONS = 5000
@@ -131,8 +132,14 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             # Calculate sum of active thetas
             fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
             # Calculate conditional rate
-            tmp = numpy.exp(fs[:, s_i])
-            etas = tmp / (1 + tmp)
+            #tmp = numpy.exp(fs[:, s_i])
+            #etas = tmp / (1 + tmp)
+            try:
+                calc = numpy.less_equal(fs[:,s_i], 709)
+            except FloatingPointError:
+                print numpy.amax(fs)
+            etas = numpy.ones(fs.shape[0])
+            etas[calc] = numpy.exp(fs[calc,s_i])/(1.+numpy.exp(fs[calc,s_i]))
             # Calculate derivative of conditional rate
             deta = - etas * (1-etas)
             # Calculate derivative for neuron
@@ -165,7 +172,10 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Return fitted theta and Fisher Info matrix
-    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    try:
+        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
+    except:
+        eta = bethe_approximation.compute_eta_rBP(theta_max, N)[0]
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
@@ -173,7 +183,7 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
 
 
-def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_BP'):
     """ Fits due to non linear conjugate gradient, where Pseudolikelihood is the
      objective function.
 
@@ -222,8 +232,8 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     # Set initial search direction
     s = dlpo
     # Perform first line search
-    theta_max, fs = pseudo_line_search(theta_max, X_t, s, fs, dlpo, sigma_o_i,
-                                       etas)
+    theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo, sigma_o_i,
+                                       etas, theta_o)
     # Calculate new likelihood gradient
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # and new prior
@@ -238,14 +248,15 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
         # Set posterior to new theta direction
         d_th = dlpo
         # Calculate beta
-        beta = max_posterior.compute_beta(d_th, d_th_prev)
+        beta = max_posterior.compute_beta(d_th, d_th_prev, 'HS')
         # Set new search direction
         s = d_th + beta * s
         # Perform line search in this direction
-        theta_max, fs = pseudo_line_search(theta_max, X_t, s, fs, dlpo, sigma_o_i,
-                                           etas)
+        theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo, sigma_o_i,
+                                           etas, theta_o)
         # Calculate the new gradient and conditional rates
         dllk, etas = pseudo_dllk(theta_max, X_t, fs)
+
         # Calculate prior
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
         # Calculate posterior
@@ -260,8 +271,13 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Compute final Hessian of posterior
-    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    #eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    try:
+        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
+    except:
+        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
     ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
@@ -322,7 +338,7 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
         # Set current log posterior gradient to previous
         dlpo_prev = dlpo
         # Perform line search
-        theta_max, fs = pseudo_line_search(theta_max, X_t, s_dir, fs, dlpo,
+        theta_max, fs = pseudo_line_search2(theta_max, X_t, s_dir, fs, dlpo,
                                            sigma_o_i, etas)
         # Get the difference between old and new theta
         d_theta = theta_max - theta_prev
@@ -353,8 +369,13 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Return fitted theta and Fisher Info matrix
-    eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    # eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
+    try:
+        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
+    except:
+        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
     ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
@@ -409,6 +430,65 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     return theta_new, fs_new
 
 
+def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i, etas, theta_o):
+    """ Performs the line search for pseudo-log-likelihood as objective
+    function by quadratic approximation at current theta.
+
+    :param numpy.ndarray theta:
+        (d,) natural parameters
+    :param numpy.ndarray X:
+        (r,c) spike data
+    :param numpy.ndarray s:
+        (d,) search direction
+    :param numpy.ndarray fs:
+        (r,c) sum of active thetas for run and cell
+    :param numpy.ndarray dlpo:
+        (d,) derivative of posterior
+    :param numpy.ndarray:
+        (d,d) inverse of one-step covariance
+    :param numpy.ndarray etas:
+        (r,c) conditional rate for each run and cell
+
+    :returns:
+        (d,) new theta according to quadratic approximation
+        (r, c) new sums of active thetas
+    """
+    # Extract number of runs and cells
+    R, N = X.shape
+    # Initialize array for Fx_s projection on search direction (r,c)
+    Fx_s_s = numpy.empty([R, N])
+    # Iterate of all cells and project Fx_s on search direction
+    for s_i in range(N):
+        Fx_s_s[:, s_i] = Fx_s[time_bin][s_i].T.dot(s)
+    # Project posterior on search direction
+    dlpo_s = numpy.dot(dlpo.T, s)
+    num_iter = 0
+    conv = numpy.inf
+    while conv > 1e-2 and num_iter < 10:
+        dlpo_s_old = numpy.absolute(dlpo_s)
+        # Project conditional rate on search direction
+        detas = etas*(1-etas)
+        # Project one-step covariance matrix on search direction
+        sigma_o_i_s = numpy.dot(s, numpy.dot(sigma_o_i, s))
+        # Compute projection of pseudo-log-likelihood Hessian on search direction
+        ddlpo_s = numpy.tensordot(detas*Fx_s_s, Fx_s_s, ((1,0),(1,0))) + sigma_o_i_s
+        # Compute how much the step should be along search direction
+        alpha = dlpo_s/ddlpo_s
+        # Update sum of active thetas
+        fs_new = fs + .5*alpha*Fx_s_s
+        # Update theta
+        theta_new = theta + .5*alpha*s
+        dllk, etas = pseudo_dllk(theta_new, X, fs)
+        # Calculate prior
+        dlpr = -numpy.dot(sigma_o_i, theta_new - theta_o)
+        dlpo = dllk + dlpr
+        dlpo_s = numpy.dot(dlpo.T, s)
+        conv = numpy.absolute(dlpo_s_old-dlpo_s)
+        num_iter += 1
+    # Return
+    return theta_new, fs_new
+
+
 def compute_cond_eta(theta, t):
     """ Computes conitional rate
 
@@ -425,9 +505,13 @@ def compute_cond_eta(theta, t):
     fs = numpy.empty([R, N])
     for s_i in range(N):
         fs[:, s_i] = Fx_s[t][s_i].T.dot(theta)
-    tmp = numpy.exp(fs)
-    eta = tmp/(1 + tmp)
-    return numpy.mean(eta, axis=0)
+    try:
+        calc = numpy.less_equal(fs, 709)
+    except FloatingPointError:
+        print numpy.amax(fs)
+    etas = numpy.ones(fs.shape)
+    etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
+    return numpy.mean(etas, axis=0)
 
 
 def pseudo_dllk(theta, X, fs):
@@ -449,8 +533,11 @@ def pseudo_dllk(theta, X, fs):
     # Initialize gradient array
     dllk = numpy.zeros(theta.shape[0])
     # Calculate conditional rate
-    tmp = numpy.exp(fs)
-    etas = tmp / (1 + tmp)
+    calc = numpy.less_equal(fs, 709)
+    etas = numpy.ones(fs.shape)
+    etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
+    #etas[skip_calc] = 1.
+    #etas = tmp / (1 + tmp)
     # Iterate over all cells
     for s_i in range(N):
         # Add gradient for each cell
