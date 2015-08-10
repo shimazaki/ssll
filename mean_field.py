@@ -445,8 +445,8 @@ def compute_full_G(eta, theta, N):
     """
     eta1 = eta[:N]
     D = N + N*(N-1)/2
-    eta3 = compute_higher_order_etas(eta1, theta[N:], 3)
-    eta4 = compute_higher_order_etas(eta1, theta[N:], 4)
+    eta3 = estimate_higher_order_eta(eta, N, 3)
+    eta4 = estimate_higher_order_eta(eta, N, 4)
     eta_full = numpy.hstack([eta, eta3, eta4])
     G2 = numpy.outer(eta,eta)
     G = numpy.zeros([D,D])
@@ -661,6 +661,23 @@ def create_eta_FI_map(N, O=3):
     eta_FI_map[0][0] = numpy.concatenate([eta_FI_map[0][0],diag_idx[0]])
     eta_FI_map[0][1] = numpy.concatenate([eta_FI_map[0][1],diag_idx[1]])
     eta_FI_map[1] = numpy.concatenate([eta_FI_map[1],range(N + N*(N-1)/2)])
+
+
+def estimate_higher_order_eta(eta, N, order):
+    subpops = list(itertools.combinations(range(N), order))
+    pairs_in_subpops = []
+    for i in subpops:
+        pairs_in_subpops.append(list(itertools.combinations(i, 2)))
+    pair_array = numpy.array(pairs_in_subpops)
+    sub_pops_array = numpy.array(subpops)
+    eta2 = numpy.zeros([N,N])
+    triu_idx = numpy.triu_indices(N,1)
+    eta2[triu_idx] = eta[N:]
+    eta2 += eta2.T
+    log_eta_a = numpy.sum(numpy.log(eta2[pair_array[:,:,0],pair_array[:,:,1]]), axis=1)
+    eta1 = eta[:N]
+    log_eta_b = numpy.sum(numpy.log(eta1[sub_pops_array])*(order-2), axis=1)
+    return numpy.exp(log_eta_a - log_eta_b)
 
 
 def compute_higher_order_etas(eta1, theta2, O):
