@@ -1,6 +1,7 @@
 __author__ = 'christian'
 
 import numpy
+import max_posterior, mean_field
 
 
 def compute_eta_CCCP(theta, N):
@@ -361,8 +362,8 @@ def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     """
     triu_idx = numpy.triu_indices(N, 1)
     # Compute Bethe energy
-    bethe_E = numpy.sum(b_ij[triu_idx] * numpy.log(b_ij[triu_idx] / phi_ij[triu_idx])) \
-              - ((N - 1.) - 1.) * numpy.sum(b_i * numpy.log(b_i / psi_i))
+    bethe_E = numpy.sum(b_ij[triu_idx] * (numpy.log(b_ij[triu_idx]) - numpy.log(phi_ij[triu_idx]))) \
+              - ((N - 1.) - 1.) * numpy.sum(b_i * (numpy.log(b_i) - numpy.log(psi_i)))
     return bethe_E
 
 
@@ -463,7 +464,7 @@ def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
     return messages
 
 
-def compute_beliefs_BP(messages, theta1, theta2, N):
+def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
     """
 
     :param numpy.ndarray messages:
@@ -486,20 +487,28 @@ def compute_beliefs_BP(messages, theta1, theta2, N):
     k_i = numpy.sum(b_i, axis=1)
     b_i /= k_i[:,numpy.newaxis]
     # Compute unnormalized pair beliefs for x_i = 1
-    b_ij = numpy.empty([N,N,4])
-    # for x_i = 0
-    b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-    b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
-    # for x_i = 1
-    b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-    b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
-    k0 = numpy.sum(b_ij[:,:,:2], axis=2)/b_i[:,0,numpy.newaxis]
-    k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
-    # normalized second order thetas
-    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
-    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
-    # Return
-    return b_i, b_ij
+    if all:
+        b_ij = numpy.empty([N,N,4])
+        # for x_i = 0
+        b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+        b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        # for x_i = 1
+        b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+        b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        k0 = numpy.sum(b_ij[:,:,:2], axis=2)/b_i[:,0,numpy.newaxis]
+        k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
+        # normalized second order thetas
+        try:
+            b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
+            b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
+        except:
+            b_ij *= 1e6
+            b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
+            b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
+        # Return
+        return b_i, b_ij
+    else:
+        return b_i
 
 
 def log_marginal_BP(emd, period=None):
@@ -554,8 +563,10 @@ def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=
         a += log_likelihood_BP(y[i,:], theta_f[i,:], R, N)
         theta_d = theta_f[i,:] - theta_o[i,:]
         b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
-             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+        logdet_sigma_f = numpy.linalg.slogdet(sigma_f[i,:,:])
+        logdet_sigma_o_inv = numpy.linalg.slogdet(sigma_o_inv[i,:,:])
+        b += logdet_sigma_f[0]*logdet_sigma_f[1] +\
+             logdet_sigma_o_inv[0]*logdet_sigma_o_inv[1]
     log_p = a + b / 2
 
     return log_p
@@ -580,3 +591,217 @@ def log_likelihood_BP(y_t, theta_f_t, R, N):
     psi_bethe = compute_eta_BP(theta_f_t, N)[1]
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
     return log_p
+
+
+def conjugate_gradient_BP(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight_trick=False):
+    """ Conjugate Gradient algorithm with TAP approximation.
+
+    :param numpy.ndarray y_t:
+        (d,) dimensional vector with empirical rates of data.
+    :param numpy.ndarray X_t:
+        (r,c) dimensional array with spike trains for each trial and each cell.
+    :param int R:
+        Number of trials.
+    :param numpy.ndarray theta0:
+        Starting point for theta.
+    :param numpy.ndarray theta_o:
+        One-step prediction for theta
+    :param sigma_o:
+        One-step prediction covariance matrix
+    :param sigma_o_i:
+        Inverse one-step prediction covariance matrix
+    :param bool diag_weight_trick:
+        if diagonal weight should be used. (Default=False)
+
+    :returns:
+        Tuple containing the mean and covariance of the posterior probability
+        density, each as a numpy.ndarray.
+
+    """
+
+    # Convergence limit for the rate
+    GA_CONVERGENCE = 1e-4
+    MAX_GA_ITERATIONS = 1000.
+    # Get number of Neurons
+    N = X_t.shape[1]
+    # Initialize iteration counter
+    iterations = 0
+    # get eta
+    theta_max = theta_0
+    theta_max[:N] = -3.
+    eta = compute_eta_BP(theta_max, N)[0]
+    # Get Gradient (just prior beacuse the one of llk is zero)
+    dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
+    # Change of theta
+    d_th = dlpo
+    # Search direction
+    s = d_th
+    # Get initial eta
+    eta = numpy.copy(y_t)
+    # Convergence criterion
+    max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
+    # Until rate converged
+    while max_dlpo > GA_CONVERGENCE and iterations<MAX_GA_ITERATIONS:
+        # Save old theta
+        d_th_prev = d_th
+        # Count iterations
+        iterations += 1
+        # Get new theta direction
+        d_th = dlpo
+        # Get Beta
+        beta = max_posterior.compute_beta(d_th, d_th_prev, s, 'HS')
+        # Update search direction
+        s = d_th + beta*s
+        # Update theta by line search
+        theta_max = line_search_BP(theta_max, N, R, s, dlpo, sigma_o_i, eta)
+        # Get eta by solving forward problem
+        eta = compute_eta_BP(theta_max, N)[0]
+        # Get gradient of posterior
+        dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
+        # Get maximal Gradient entry
+        max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
+        # If maximal number of iterations is reached break
+        if iterations == MAX_GA_ITERATIONS:
+            raise Exception('The Mean Field CG '+\
+                'algorithm did not converge before reaching the maximum '+\
+                'number iterations.')
+
+    # Calculate Fisher info
+    G = mean_field.compute_full_G(eta, theta_max, N)
+    ddlpo = -R*G - sigma_o_i
+    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
+    # Return
+    return theta_max, -ddlpo_i
+
+def line_search_BP(theta, N, R, s, dlpo, sigma_o_i, eta):
+    """ Performs the line search for TAP.
+
+    :param numpy.ndarray theta:
+        (d,) natural parameters
+    :param int R:
+        Number of trials
+    :param numpy.ndarray s:
+        (d,) search direction
+    :param numpy.ndarray dlpo:
+        (d,) derivative of posterior
+    :param numpy.ndarray sigma_o_i:
+        (d,d) inverse of one-step covariance
+    :param numpy.ndarray eta:
+        (d,) all expectation parameters eta
+
+    :returns:
+        (d,) numpy.ndarray with optimal theta
+    """
+    # Project posterior gradient on search direction
+    dlpo_s = numpy.dot(dlpo.T, s)
+    # Get Fisher info py TAP approximation
+    # G = compute_fisher_info_from_eta_TAP(eta, theta, N)
+    G = mean_field.compute_full_G(eta, theta, N)
+    # Get Hessian
+    ddlpo = -R*G - sigma_o_i
+    # Project Hessian on search direction
+    ddlpo_s = numpy.dot(s, numpy.dot(ddlpo,s))
+    # Compute how much the step should be along search direction
+    alpha = -dlpo_s/ddlpo_s
+    # Update theta
+    theta_new = theta + alpha*s
+    # Return
+    return theta_new
+
+
+def compute_eta_rBP(theta, N, alpha=.5):
+    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
+
+    :param numpy.ndarray theta:
+        (d,) dimensional array with natural parameters in it
+    :param int N:
+        Number of cells
+    :param float alpha:
+        Step size for message update (default=0.5)
+    :returns:
+        (d,) dimensional array with approximated etas
+    """
+    # Upper triangle indices
+    triu_idx = numpy.triu_indices(N, 1)
+    diag_idx = numpy.diag_indices(N)
+    # First order theta in square matrix form
+    from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
+    theta1 = theta[to_idx]
+    # Second order theta in square matrix form
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    # Calculate unnormalized probabilities for message computation
+    psi_i = numpy.exp(theta1)
+    psi_i_ij = numpy.exp(theta1 + theta2)
+    # Actual belief propogation algorithm
+    messages = propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha)
+    # Compute beliefs from messages
+    b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
+    # Get eta vector
+    eta = numpy.empty(theta.shape)
+    eta[:N] = b_i[:,1]
+    eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
+    theta1 = theta[:N]
+    psi_i = numpy.ones([N,2])
+    psi_i[:,1] = numpy.exp(theta1)
+    phi_ij = numpy.ones([N,N,4])
+    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
+    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
+    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
+    phi_ij[diag_idx[0],diag_idx[1],:] = 1
+    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    return eta, -bethe_free
+
+
+def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
+    """ Actual belief propagation algorithm [Yedidia, 2001]
+
+    :param numpy.ndarray psi_i:
+        (c,) dimensional array with exp(theta_i)
+    :param numpy.ndarray psi_i_ij:
+        (c,c) dimensional array with exp(theta_i + theta_ij)
+    :param int N:
+        Number of cells
+    :param float alpha:
+        Step size for message update (default=0.5)
+    :return
+        (c,c,2) dimensional array with messages from cells to each other about their states
+    """
+
+    # Initialize messages
+    messages = numpy.ones([N,N,2])
+    # Initialize convergence criteria
+    message_difference = numpy.inf
+    iter_num = 0
+
+    while message_difference > 1e-15 and iter_num <= 1000:
+        b_i = compute_beliefs_BP(messages, theta1, theta2, N, all=False)
+        # Initialize matrix for updated messages
+        new_messages = numpy.ones([N,N,2])
+        # Compute log of old messages
+        log_messages = numpy.log(messages)
+        # Marginalize over message sending neurons
+        sum_log_messages = numpy.sum(log_messages, axis=0)
+        # Compute new messages for neurons being silent
+        new_messages[:,:,0] = b_i[:,0,numpy.newaxis].T**.001*(psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T))
+        # Compute new messages for neurons firing
+        new_messages[:,:,1] = b_i[:,1,numpy.newaxis].T**.001*(psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T))
+        # Compute normalization
+        k = numpy.sum(new_messages, axis=2)
+        new_messages = new_messages/k[:,:,numpy.newaxis]
+        # Maximal change in messages
+        message_difference = numpy.amax(numpy.absolute(messages - new_messages))
+        # Normalize and update messages
+        M = (1. - alpha)*messages + alpha*new_messages
+        k = numpy.sum(M, axis=2)
+        messages = M/k[:, :, numpy.newaxis]
+        iter_num += 1
+        # Raise exception if not converged
+        if iter_num == 1000:
+            raise Exception('BP algorithm did not converge!')
+
+    # Return messages
+    return messages
