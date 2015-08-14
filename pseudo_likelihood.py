@@ -339,7 +339,7 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
         dlpo_prev = dlpo
         # Perform line search
         theta_max, fs = pseudo_line_search2(theta_max, X_t, s_dir, fs, dlpo,
-                                           sigma_o_i, etas)
+                                           sigma_o_i, etas, theta_o)
         # Get the difference between old and new theta
         d_theta = theta_max - theta_prev
         # Compute derivative of posterior
