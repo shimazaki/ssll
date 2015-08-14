@@ -175,7 +175,7 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     try:
         eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
     except:
-        eta = bethe_approximation.compute_eta_rBP(theta_max, N)[0]
+        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
     ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
