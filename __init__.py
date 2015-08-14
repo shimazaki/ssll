@@ -38,7 +38,7 @@ import bethe_approximation
  
  
 def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=50,
-        param_est_theta='exact', param_est_eta='exact'):
+        param_est='exact', param_est_eta='exact'):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -80,18 +80,18 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=50,
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the coordinate-transform maps
-    if param_est_theta == 'exact':
+    if param_est == 'exact':
         transforms.initialise(N, order)
         map_func = max_posterior.functions[map_function]
         #marg_llk_fun = probability.log_marginal
-    elif param_est_theta == 'pseudo':
+    elif param_est == 'pseudo':
         pseudo_likelihood.compute_Fx_s(spikes, order)
         map_func = pseudo_likelihood.functions[map_function]
         mean_field.create_eta_FI_map(N, order)
-    elif param_est_theta == 'mf':
+    elif param_est == 'mf':
         mean_field.create_eta_FI_map_second_order(N, order)
         map_func = mean_field.functions[map_function]
-    elif param_est_theta == 'bethe_BP':
+    elif param_est == 'bethe_BP':
         mean_field.create_eta_FI_map(N, order)
         map_func = bethe_approximation.conjugate_gradient_BP
 
