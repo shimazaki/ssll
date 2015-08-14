@@ -20,6 +20,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import numpy
+import random
 import pdb
 from multiprocessing import Pool
 from functools import partial
@@ -27,7 +28,7 @@ from functools import partial
 import transforms
  
  
-def generate_thetas(N, O, T, mu1=-2., sigma1=.1, mu2=0., sigma2=.5):
+def generate_thetas(N, O, T, mu1=-2., sigma1=.1, mu2=0., sigma2=.5, ratio_modulated=1.):
     D = transforms.compute_D(N, O)
     MU = numpy.tile(mu1, (T, D))
     MU[:,N:] = mu2
@@ -39,6 +40,9 @@ def generate_thetas(N, O, T, mu1=-2., sigma1=.1, mu2=0., sigma2=.5):
     theta = numpy.empty([T, D])
     theta[:,:N] = mu1 + numpy.dot(L, sigma1*numpy.random.randn(T, N))
     theta[:,N:] = mu2 + numpy.dot(L, sigma2*numpy.random.randn(T, D - N))
+    num_non_modulated = int(numpy.around((1. - ratio_modulated)*(D - N)))
+    non_modulated_idx = random.sample(range(N,D), num_non_modulated)
+    theta[:,non_modulated_idx] = 0.
     return theta
  
  
