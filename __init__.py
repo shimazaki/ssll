@@ -37,7 +37,7 @@ import energies
 import bethe_approximation
  
  
-def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=50,
+def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=100,
         param_est='exact', param_est_eta='exact'):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
