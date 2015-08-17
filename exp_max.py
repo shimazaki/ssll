@@ -64,7 +64,6 @@ def e_step_filter(emd):
     # Iterate forwards over each timestep, computing filter density
     emd.theta_f[0,:], emd.sigma_f[0,:] = max_posterior.run(emd, 0)
     for i in range(1, emd.T):
-        print i
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
         tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
@@ -114,7 +113,7 @@ def m_step(emd):
     # Update the initial mean of the one-step-prediction density
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
-    m_step_Q2(emd)
+    m_step_Q3(emd)
     #m_step_F(emd)
 
 
