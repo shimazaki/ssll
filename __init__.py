@@ -128,6 +128,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=100,
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)
+        emd.mllk = lmc
         # Update EM algorithm metadata
         emd.iterations += 1
         emd.convergence = numpy.absolute((lmp - lmc) / lmp)

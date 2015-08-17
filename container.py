@@ -147,6 +147,7 @@ class EMData:
         # Intialise autoregressive and transition probability hyperparameters
         self.F = numpy.identity(self.D)
         self.Q = 1. / lmbda * numpy.identity(self.D)
+        self.mllk = numpy.inf
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
 
