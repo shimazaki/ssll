@@ -209,7 +209,7 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     # Draw random numbers from uniform distribution
     rand_numbers = numpy.random.rand(T, R+pre_R, N)
     # Parallel samplings at all time bins
-    pool = Pool(10)
+    pool = Pool(14)
     results = pool.map(partial(gibbs_sampler, X=X, theta=theta, N=N, R=R, 
         pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps), range(T))
     pool.close()
