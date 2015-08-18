@@ -30,7 +30,7 @@ import transforms
 import max_posterior
 
 
-CONVERGED = 1e-4
+CONVERGED = 1e-3
 
 
 
