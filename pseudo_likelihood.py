@@ -280,7 +280,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
     #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
+    ddlpo_i = numpy.diag(1./ddlpo.diagonal())#numpy.linalg.inv(ddlpo)
     # Return fitted theta and Fisher Info matrix
     return theta_max, -ddlpo_i
 

@@ -169,7 +169,7 @@ def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
             raise Exception('The maximum-a-posterior conjugate-gradient '+\
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
- 
+
     # Compute final covariance matrix
     ddllk = - R*transforms.compute_fisher_info(p, eta)
     ddlpo = ddllk - sigma_o_i
