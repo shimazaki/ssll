@@ -88,7 +88,7 @@ def compute_Fx(X, O):
     return Fx
 
 
-def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
     """ Newton-Raphson method with pseudo-log-likelihood as objective function.
 
     :param numpy.ndarray X:
@@ -172,18 +172,17 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Return fitted theta and Fisher Info matrix
-    try:
-        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
-    except:
-        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
-    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    eta = compute_eta[param_est_eta](theta_max, N)
+    ddllk = -R*bethe_approximation.construct_fisher_diag(eta, N)
+    #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
+    ### ddlpo_i = 1./ddlpo#numpy.linalg.inv(ddlpo)
+    ddlpo_i = 1./ddlpo
     return theta_max, -ddlpo_i
 
 
-def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_BP'):
+def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
     """ Fits due to non linear conjugate gradient, where Pseudolikelihood is the
      objective function.
 
@@ -224,7 +223,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
     # Get likelihood gradient
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # Get prior
-    dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+    dlpr = -sigma_o_i*(theta_max - theta_o)
     # Get posterior
     dlpo = dllk + dlpr
     # Initialize theta gradient
@@ -237,7 +236,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
     # Calculate new likelihood gradient
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # and new prior
-    dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+    dlpr = -sigma_o_i*(theta_max - theta_o)
     # and new Posterior
     dlpo = dllk + dlpr
 
@@ -258,7 +257,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
         dllk, etas = pseudo_dllk(theta_max, X_t, fs)
 
         # Calculate prior
-        dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+        dlpr = -sigma_o_i*(theta_max - theta_o)
         # Calculate posterior
         dlpo = dllk + dlpr
         # Get maximal entry of posterior gradient an count iterations
@@ -272,20 +271,18 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
 
     # Compute final Hessian of posterior
     #eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
-    try:
-        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
-    except:
-        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
-    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    eta = compute_eta[param_est_eta](theta_max, N)
+    ddllk = -R*bethe_approximation.construct_fisher_diag(eta, N)
     #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
-    ddlpo_i = numpy.diag(1./ddlpo.diagonal())#numpy.linalg.inv(ddlpo)
+    ### ddlpo_i = 1./ddlpo#numpy.linalg.inv(ddlpo)
+    ddlpo_i = 1./ddlpo
     # Return fitted theta and Fisher Info matrix
     return theta_max, -ddlpo_i
 
 
-def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
     """ Fits due to Broyden-Fletcher-Goldfarb-Shanno algorithm, where
     Pseudolikelihood is the objective function.
 
@@ -326,7 +323,7 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     iterations = 0
     # Compute derivative of posterior
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
-    dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+    dlpr = -sigma_o_i*(theta_max - theta_o)
     dlpo = dllk + dlpr
     # Iterate until convergence or failure
     while max_dlpo > max_posterior.GA_CONVERGENCE:
@@ -344,7 +341,7 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
         d_theta = theta_max - theta_prev
         # Compute derivative of posterior
         dllk, etas = pseudo_dllk(theta_max, X_t, fs)
-        dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+        dlpr = -sigma_o_i*(theta_max - theta_o)
         dlpo = dllk + dlpr
         # Difference in log posterior gradients
         dlpo_diff = dlpo_prev - dlpo
@@ -369,16 +366,13 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
                 'number iterations.')
 
     # Return fitted theta and Fisher Info matrix
-    # eta = mean_field.forward_problem_hessian(theta_max, N, 'TAP')
-    try:
-        eta = bethe_approximation.compute_eta_BP(theta_max, N)[0]
-    except:
-        eta = bethe_approximation.compute_eta_CCCP(theta_max, N)[0]
-    ddllk = -R*mean_field.compute_full_G(eta, theta_max, N)
+    eta = compute_eta[param_est_eta](theta_max, N)
+    ddllk = -R*bethe_approximation.construct_fisher_diag(eta, N)
     #ddllk = pseudo_ddllk(etas,D)
     ddlpo = ddllk - sigma_o_i
     # Calculate Inverse
-    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
+    ### ddlpo_i = 1./ddlpo#numpy.linalg.inv(ddlpo)
+    ddlpo_i = 1./ddlpo
     return theta_max, -ddlpo_i
 
 
@@ -430,7 +424,7 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     return theta_new, fs_new
 
 
-def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i, etas, theta_o):
+def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     """ Performs the line search for pseudo-log-likelihood as objective
     function by quadratic approximation at current theta.
 
@@ -455,6 +449,7 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i, etas, theta_o):
     """
     # Extract number of runs and cells
     R, N = X.shape
+    sigma_o_i = numpy.diag(sigma_o_i_tmp)
     # Initialize array for Fx_s projection on search direction (r,c)
     Fx_s_s = numpy.empty([R, N])
     # Iterate of all cells and project Fx_s on search direction
@@ -667,6 +662,11 @@ def pseudo_log_likelihood(X_t, theta, t):
 functions = {'nr': pseudo_newton,
              'cg': pseudo_cg,
              'bf': pseudo_bfgs}
+
+compute_eta = {#'mf': mean_field.forward_problem_hessian,
+               'bethe_BP': bethe_approximation.compute_eta_BP,
+               'bethe_CCCP': bethe_approximation.compute_eta_CCCP,
+               'bethe_hybrid': bethe_approximation.compute_eta_hybrid}
 
 if __name__ == '__main__':
     N, O, T, R = 10, 2, 1, 1000

@@ -24,6 +24,10 @@ import pdb
 
 import transforms
 import mean_field
+import pseudo_likelihood
+import bethe_approximation
+import max_posterior
+import probability
 
 
 class EMData:
@@ -108,16 +112,27 @@ class EMData:
     :ivar float convergence:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
-    def __init__(self, spikes, order, window, map_function, marg_llk_fun,
+    def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
                  lmbda):
+
         # Record the input parameters
         self.spikes, self.order, self.window = spikes, order, window
-        self.max_posterior = map_function
-        self.marg_llk = marg_llk_fun
+        T, self.R, self.N = self.spikes.shape
+        if param_est == 'exact':
+            transforms.initialise(self.N, self.order)
+            self.max_posterior = max_posterior.functions[map_function]
+        elif param_est == 'pseudo':
+            pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
+            self.max_posterior = pseudo_likelihood.functions[map_function]
+
+        self.param_est_theta = param_est
+        self.param_est_eta = param_est_eta
+
+        self.marg_llk = log_marginal_functions[param_est_eta]
         # Compute the `sample' spike-train interactions from the input spikes
         self.y = transforms.compute_y(self.spikes, self.order, self.window)
         # Count timesteps, trials, cells and interaction dimensions
-        T, self.R, self.N = self.spikes.shape
+
         self.T, self.D = self.y.shape
         assert self.T == T / window
         # Initialise one-step-prediction- filtered- smoothed-density means
@@ -133,21 +148,34 @@ class EMData:
         #self.S1 = numpy.zeros((self.T))
         #self.S2 = numpy.zeros((self.T))
         #self.S_ratio = numpy.zeros((self.T))
-        self.psi_sampled = None
-        self.eta_sampled = None
+        #self.psi_sampled = None
+        #self.eta_sampled = None
+
         # Initialise covariances of the same (an I-matrix for each timestep)
-        I = [numpy.identity(self.D) for i in range(self.T)]
-        I = numpy.vstack(I).reshape((self.T,self.D,self.D))
-        self.sigma_o = .1 * I
-        self.sigma_o_inv = 1./.1 * I
-        del I
-        self.sigma_f = numpy.copy(self.sigma_o)
-        self.sigma_s = numpy.copy(self.sigma_o)
-        self.sigma_s_lag = numpy.copy(self.sigma_o)
-        # Intialise autoregressive and transition probability hyperparameters
+        if param_est == 'exact':
+            I = [numpy.identity(self.D) for i in range(self.T)]
+            I = numpy.vstack(I).reshape((self.T,self.D,self.D))
+            self.sigma_o = .1 * I
+            self.sigma_o_inv = 1./.1 * I
+            del I
+            self.sigma_f = numpy.copy(self.sigma_o)
+            self.sigma_s = numpy.copy(self.sigma_o)
+            self.sigma_s_lag = numpy.copy(self.sigma_o)
+            # Intialise autoregressive and transition probability hyperparameters
+        else:
+            self.sigma_o = .1*numpy.ones((self.T,self.D))
+            self.sigma_o_inv = 1./.1*numpy.ones((self.T,self.D))
+            self.sigma_f = .1*numpy.ones((self.T,self.D))
+            self.sigma_s = .1*numpy.ones((self.T,self.D))
+            self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
         self.F = numpy.identity(self.D)
         self.Q = 1. / lmbda * numpy.identity(self.D)
         self.mllk = numpy.inf
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
 
+log_marginal_functions = {'exact': probability.log_marginal,
+                          'mf': mean_field.log_marginal,
+                          'bethe_BP': bethe_approximation.log_marginal_BP,
+                          'bethe_CCCP': bethe_approximation.log_marginal_CCCP,
+                          'bethe_hybrid': bethe_approximation.log_marginal_hybrid}

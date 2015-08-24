@@ -66,10 +66,16 @@ def e_step_filter(emd):
     for i in range(1, emd.T):
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
-        tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
-        emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
-        # Compute inverse of one-step prediction covariance
-        emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
+        if emd.param_est_eta == 'exact':
+            tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
+            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
+            # Compute inverse of one-step prediction covariance
+            emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
+        else:
+            #tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
+            #emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q.diagonal()
+            #tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
+            emd.sigma_o[i,:] = emd.sigma_f[i-1,:] + emd.Q.diagonal()
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
 
@@ -82,22 +88,37 @@ def e_step_smooth(emd):
         All data pertaining to the EM algorithm.
     """
     # Initialise the smoothed theta and sigma values
-    emd.theta_s[-1,:] = emd.theta_f[-1,:]
-    emd.sigma_s[-1,:,:] = emd.sigma_f[-1,:,:]
-    # Iterate backwards over each timestep, computing smooth density
-    for i in reversed(range(emd.T - 1)):
-        # Compute the A matrix
-        a = numpy.dot(emd.sigma_f[i,:,:], emd.F.T)
-        A = numpy.dot(a, emd.sigma_o_inv[i+1,:,:])
-        # Compute the backward-smoothed means
-        tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
-        emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
-        # Compute the backward-smoothed covariances
-        tmp = numpy.dot(A, emd.sigma_s[i+1,:,:] - emd.sigma_o[i+1,:,:])
-        tmp = numpy.dot(tmp, A.T)
-        emd.sigma_s[i,:,:] = emd.sigma_f[i,:,:] + tmp
-        # Compute the backward-smoothed lag-one covariances
-        emd.sigma_s_lag[i+1,:,:] = numpy.dot(A, emd.sigma_s[i+1,:])
+    emd.theta_s[-1] = emd.theta_f[-1]
+    emd.sigma_s[-1] = emd.sigma_f[-1]
+    if emd.param_est_eta == 'exact':
+        # Iterate backwards over each timestep, computing smooth density
+        for i in reversed(range(emd.T - 1)):
+            # Compute the A matrix
+            a = numpy.dot(emd.sigma_f[i], emd.F.T)
+            A = numpy.dot(a, emd.sigma_o_inv[i+1])
+            # Compute the backward-smoothed means
+            tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
+            emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
+            # Compute the backward-smoothed covariances
+            tmp = numpy.dot(A, emd.sigma_s[i+1] - emd.sigma_o[i+1])
+            tmp = numpy.dot(tmp, A.T)
+            emd.sigma_s[i] = emd.sigma_f[i] + tmp
+            # Compute the backward-smoothed lag-one covariances
+            emd.sigma_s_lag[i+1] = numpy.dot(A, emd.sigma_s[i+1,:])
+    else:
+        for i in reversed(range(emd.T - 1)):
+            # Compute the A matrix
+            a = numpy.dot(numpy.diag(emd.sigma_f[i]), emd.F.T)
+            A = numpy.dot(a, numpy.diag(emd.sigma_o_inv[i+1]))
+            # Compute the backward-smoothed means
+            tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
+            emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
+            # Compute the backward-smoothed covariances
+            tmp = numpy.dot(A, numpy.diag(emd.sigma_s[i+1] - emd.sigma_o[i+1]))
+            tmp = numpy.dot(tmp, A.T)
+            emd.sigma_s[i] = numpy.diagonal(numpy.diag(emd.sigma_f[i]) + tmp)
+            # Compute the backward-smoothed lag-one covariances
+            emd.sigma_s_lag[i+1] = numpy.dot(A, numpy.diag(emd.sigma_s[i+1])).diagonal()
 
 
 def m_step(emd):
@@ -206,17 +227,32 @@ def m_step_Q3(emd):
         All data pertaining to the EM algorithm.
     """
     lmbda = numpy.zeros([emd.Q.shape[0]])
-    for i in range(1, emd.T):
-        # Computing lag-one covariance locally
-        #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
-        #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
-        #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
-        # Loading saved lag-one smoother
-        lag_one_covariance = emd.sigma_s_lag[i,:,:]
-        tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
-        lmbda += numpy.diagonal(emd.sigma_s[i,:,:]) -\
-                 2 * numpy.diagonal(lag_one_covariance[:,:])  +\
-                 numpy.diagonal(emd.sigma_s[i-1,:,:])  +\
-                 tmp**2
+    if emd.param_est_eta == 'exact':
+        for i in range(1, emd.T):
+            # Computing lag-one covariance locally
+            #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
+            #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
+            #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
+            # Loading saved lag-one smoother
+            lag_one_covariance = emd.sigma_s_lag[i,:,:]
+            tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
+            lmbda += numpy.diagonal(emd.sigma_s[i,:,:]) -\
+                     2 * numpy.diagonal(lag_one_covariance[:,:])  +\
+                     numpy.diagonal(emd.sigma_s[i-1,:,:])  +\
+                     tmp**2
+    else:
+        for i in range(1, emd.T):
+            # Computing lag-one covariance locally
+            #a = numpy.dot(emd.sigma_f[i-1,:,:], emd.F.T)
+            #A = numpy.dot(a, emd.sigma_o_inv[i,:,:])
+            #lag_one_covariance = numpy.dot(A, emd.sigma_s[i,:])
+            # Loading saved lag-one smoother
+            lag_one_covariance = emd.sigma_s_lag[i]
+            tmp = emd.theta_s[i,:] - emd.theta_s[i-1,:]
+            lmbda += emd.sigma_s[i] -\
+                     2 * lag_one_covariance  +\
+                     emd.sigma_s[i-1]  +\
+                     tmp**2
+
 
     emd.Q = numpy.diag(lmbda/ (emd.T - 1))

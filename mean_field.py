@@ -3,9 +3,7 @@ __author__ = 'Christian Donner'
 import numpy
 import itertools
 from scipy.optimize import fsolve
-import max_posterior, energies
-import warnings
-warnings.filterwarnings('error', category=RuntimeWarning)
+import max_posterior,energies
 
 eta_FI_map = None
 
@@ -27,11 +25,11 @@ def self_consistent_eq(eta, theta1, theta2, expansion='TAP'):
     """
     # TAP equations
     if expansion == 'TAP':
-        equations =  numpy.log(eta) - numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta) - \
+        equations = numpy.log(eta) - numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta) - \
                     .5*numpy.dot((.5 - eta)[:,numpy.newaxis]*theta2**2, (eta - eta**2))
     # Naive Mean field equations
     elif expansion == 'naive':
-        equations =  numpy.log(eta)- numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta)
+        equations = numpy.log(eta)- numpy.log(1 - eta) - theta1 - numpy.dot(theta2, eta)
 
     return equations
 
@@ -62,7 +60,7 @@ def self_consistent_eq_Hinv(eta, theta1, theta2, expansion='TAP'):
     return Hinv
 
 
-def forward_problem_hessian(theta, N, expansion):
+def forward_problem_hessian(theta, N):
     """ Gets the etas for given thetas.
 
     :param numpy.ndarray theta:
@@ -90,28 +88,27 @@ def forward_problem_hessian(theta, N, expansion):
     theta2 += theta2.T
     conv = numpy.inf
     # Solve self-consistent equations and calculate approximation of fisher matrix
-    if expansion == 'TAP':
-        iter_num = 0
-        while  conv > 1e-4 and iter_num < 500:
-            deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
-            Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
-            eta_max -= .1*numpy.dot(Hinv, deta)
-            conv = numpy.amax(numpy.absolute(deta))
-            iter_num += 1
-            eta_max[eta_max <= 0.] = numpy.spacing(1)
-            eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
+    iter_num = 0
+    while conv > 1e-4 and iter_num < 500:
+        deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+        Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2, expansion='TAP')
+        eta_max -= .1*numpy.dot(Hinv, deta)
+        conv = numpy.amax(numpy.absolute(deta))
+        iter_num += 1
+        eta_max[eta_max <= 0.] = numpy.spacing(1)
+        eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
         if iter_num == 500:
             raise Exception('Self consistent equations could not be solved!')
-        G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N], 0.5 - eta_max[:N])
 
+    G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N], 0.5 - eta_max[:N])
     G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2**2, (eta_max - eta_max**2))
     G = numpy.linalg.inv(G_inv)
     # Compute second order eta
     eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
     eta[N:] = eta2[triu_idx]
     eta[:N] = eta_max
-    eta[eta<0.] = numpy.spacing(1)
-    eta[eta>1.] = 1. - numpy.spacing(1)
+    eta[eta < 0.] = numpy.spacing(1)
+    eta[eta > 1.] = 1. - numpy.spacing(1)
     return eta
 
 
@@ -321,7 +318,7 @@ def compute_psi(theta, eta, N):
     return psi_trans + psi_0 + psi_1 + psi_2
 
 
-def log_likelihood(eta, theta, R, N):
+def log_likelihood_mf(eta, theta, R, N):
     """ Compute log-likelihood with TAP estimation of log-partition function.
 
     :param numpy.ndarray theta:
@@ -392,12 +389,11 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=Non
     # Iterate over each timestep and compute...
     a, b = 0, 0
     for i in range(period[0], period[1]):
-        a += log_likelihood(y[i,:], theta_f[i,:], R, N)
-        theta_d = theta_f[i,:] - theta_o[i,:]
-        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        A = numpy.dot(sigma_f[i,:,:], sigma_o_inv[i,:,:])
-        sign_log_det, log_det = numpy.linalg.slogdet(A)
-        b += sign_log_det*log_det
+        a += log_likelihood_mf(y[i], theta_f[i], R, N)
+        theta_d = theta_f[i] - theta_o[i]
+        b -= numpy.dot(theta_d, sigma_o_inv[i]*theta_d)
+        b += numpy.sum(numpy.log(sigma_f[i])) +\
+             numpy.sum(numpy.log(sigma_o_inv[i]))
     log_p = a + b / 2
 
     return log_p

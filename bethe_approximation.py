@@ -4,6 +4,18 @@ import numpy
 import max_posterior, mean_field
 
 
+def construct_fisher_diag(eta, N):
+    eta1 = eta[:N]
+    eta2 = eta[N:]
+    ddllk_diag = numpy.empty(eta.shape)
+    ddllk_diag[:N] = eta1 - eta1**2
+    eta1_outer = numpy.outer(eta1, eta1)
+    triu_idx = numpy.triu_indices(N, 1)
+    ddllk_diag[N:] = eta2 - eta1_outer[triu_idx]
+    ddllk_diag = eta - eta**2
+    return ddllk_diag
+
+
 def compute_eta_CCCP(theta, N):
     """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
 
@@ -41,7 +53,47 @@ def compute_eta_CCCP(theta, N):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    return eta, -bethe_energy
+    return eta
+
+
+def compute_psi_CCCP(theta, N):
+    """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
+
+    :param numpy.ndarray theta:
+        (d,) dimensional array with natural parameters in it
+    :param int N:
+        Number of cells
+    :returns:
+        (d,) dimensional array with approximated etas
+    """
+    triu_idx = numpy.triu_indices(N, 1)
+    diag_idx = numpy.diag_indices(N)
+    # Transform thetas
+    theta1 = theta[:N]
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    # Get unnormalized probs
+    psi_i = numpy.ones([N, 2])
+    psi_i[:,1] = numpy.exp(theta1)
+    phi_ij = numpy.ones([N, N, 4])
+    phi_ij[:, :, 1] = numpy.exp(theta1[:, numpy.newaxis])
+    phi_ij[:, :, 2] = numpy.exp(theta1[:, numpy.newaxis].T)
+    phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] + theta1[:, numpy.newaxis].T + theta2)
+    phi_ij[diag_idx[0], diag_idx[1], :] = 1
+    # Initialize beliefs and Lagrange multipliers
+    b_i = .5*numpy.ones([N, 2])
+    b_ij = .25*numpy.ones([N, N, 4])
+    b_ij[diag_idx[0], diag_idx[1], :] = 0
+    lambda_ij = numpy.zeros([N, N, 2])
+    gamma_ij = numpy.zeros([N, N])
+    # Start CCCP
+    eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
+    # Reshape the expectation parameters and return
+    eta = numpy.empty(theta.shape)
+    eta[:N] = eta1[:, 1]
+    eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
+    return -bethe_energy
 
 
 def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
@@ -305,6 +357,7 @@ def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, perio
     :returns:
         Log marginal probability of the synchrony estimate as a float.
     """
+
     if period == None: period = (0, theta_f.shape[0])
     # Initialise
     log_p = 0
@@ -313,9 +366,9 @@ def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, perio
     for i in range(period[0], period[1]):
         a += log_likelihood_CCCP(y[i,:], theta_f[i,:], R, N)
         theta_d = theta_f[i,:] - theta_o[i,:]
-        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
-             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+        b -= numpy.dot(theta_d, sigma_o_inv[i,:]*theta_d)
+        b += numpy.sum(numpy.log(sigma_f[i])) +\
+             numpy.sum(numpy.log(sigma_o_inv[i]))
     log_p = a + b / 2
 
     return log_p
@@ -409,7 +462,52 @@ def compute_eta_BP(theta, N, alpha=.5):
     phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0],diag_idx[1],:] = 1
     bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    return eta, -bethe_free
+    return eta
+
+
+def compute_psi_BP(theta, N, alpha=.5):
+    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
+
+    :param numpy.ndarray theta:
+        (d,) dimensional array with natural parameters in it
+    :param int N:
+        Number of cells
+    :param float alpha:
+        Step size for message update (default=0.5)
+    :returns:
+        (d,) dimensional array with approximated etas
+    """
+    # Upper triangle indices
+    triu_idx = numpy.triu_indices(N, 1)
+    diag_idx = numpy.diag_indices(N)
+    # First order theta in square matrix form
+    from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
+    theta1 = theta[to_idx]
+    # Second order theta in square matrix form
+    theta2 = numpy.zeros([N, N])
+    theta2[triu_idx] = theta[N:]
+    theta2 += theta2.T
+    # Calculate unnormalized probabilities for message computation
+    psi_i = numpy.exp(theta1)
+    psi_i_ij = numpy.exp(theta1 + theta2)
+    # Actual belief propogation algorithm
+    messages = propagate_beliefs(psi_i, psi_i_ij, N, alpha)
+    # Compute beliefs from messages
+    b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
+    # Get eta vector
+    eta = numpy.empty(theta.shape)
+    eta[:N] = b_i[:,1]
+    eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
+    theta1 = theta[:N]
+    psi_i = numpy.ones([N,2])
+    psi_i[:,1] = numpy.exp(theta1)
+    phi_ij = numpy.ones([N,N,4])
+    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
+    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
+    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
+    phi_ij[diag_idx[0],diag_idx[1],:] = 1
+    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    return -bethe_free
 
 
 def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
@@ -562,11 +660,10 @@ def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=
     for i in range(period[0], period[1]):
         a += log_likelihood_BP(y[i,:], theta_f[i,:], R, N)
         theta_d = theta_f[i,:] - theta_o[i,:]
-        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        logdet_sigma_f = numpy.linalg.slogdet(sigma_f[i,:,:])
-        logdet_sigma_o_inv = numpy.linalg.slogdet(sigma_o_inv[i,:,:])
-        b += logdet_sigma_f[0]*logdet_sigma_f[1] +\
-             logdet_sigma_o_inv[0]*logdet_sigma_o_inv[1]
+        b -= numpy.dot(theta_d, sigma_o_inv[i,:]*theta_d)
+        logdet_sigma_f = numpy.sum(numpy.log(sigma_f[i]))
+        logdet_sigma_o_inv = numpy.sum(numpy.log(sigma_o_inv[i]))
+        b += logdet_sigma_f + logdet_sigma_o_inv
     log_p = a + b / 2
 
     return log_p
@@ -588,7 +685,7 @@ def log_likelihood_BP(y_t, theta_f_t, R, N):
         Log likelhood of the observed patterns given the natural parameters,
         as a float.
     """
-    psi_bethe = compute_eta_BP(theta_f_t, N)[1]
+    psi_bethe = compute_psi_BP(theta_f_t, N)
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
     return log_p
 
@@ -807,3 +904,71 @@ def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
 
     # Return messages
     return messages
+
+def log_marginal_hybrid(emd, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    This is just a wrapper function for `log_marginal_raw`. It unpacks data
+    from the EMD container pbject and calls that function.
+
+    :param container.EMData emd:
+        All data pertaining to the EM algorithm.
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    # Unwrap the parameters and call the raw function
+    log_p = log_marginal_raw_hybrid(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
+        emd.y, emd.R, emd.N, period)
+
+    return log_p
+
+
+def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+    """
+    Computes the log marginal probability of the observed spike-pattern rates
+    by marginalising over the natural-parameter distributions. See equation 45
+    of the source paper for details.
+
+    From within SSLL, this function should be accessed by calling
+    `log_marginal` with the EMD container as a parameter. This raw function is
+    designed to be called from outside SSLL, when a complete EMD container
+    might not be available.
+
+    See the container.py for a full description of the parameter properties.
+
+    :param period tuple:
+        Timestep range over which to compute probability.
+
+    :returns:
+        Log marginal probability of the synchrony estimate as a float.
+    """
+    if period == None: period = (0, theta_f.shape[0])
+    # Initialise
+    log_p = 0
+    # Iterate over each timestep and compute...
+    a, b = 0, 0
+    for i in range(period[0], period[1]):
+        try:
+            a += log_likelihood_BP(y[i,:], theta_f[i,:], R, N)
+        except:
+            a += log_likelihood_CCCP(y[i,:], theta_f[i,:], R, N)
+        theta_d = theta_f[i,:] - theta_o[i,:]
+        b -= numpy.dot(theta_d, sigma_o_inv[i]*theta_d)
+        b += numpy.sum(numpy.log(sigma_f[i])) +\
+             numpy.sum(numpy.log(sigma_o_inv[i]))
+    log_p = a + b / 2
+
+    return log_p
+
+
+def compute_eta_hybrid(theta, N):
+    try:
+        return compute_eta_BP(theta, N)
+    except:
+        return compute_eta_CCCP(theta, N)

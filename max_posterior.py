@@ -54,16 +54,16 @@ def run(emd, t):
     theta_0 = emd.theta_s[t,:]
     # Mean and covariance of one-step prediction density
     theta_o = emd.theta_o[t,:]
-    sigma_o = emd.sigma_o[t,:,:]
-    sigma_o_i = emd.sigma_o_inv[t,:,:]
+    sigma_o = emd.sigma_o[t]
+    sigma_o_i = emd.sigma_o_inv[t]
     # Run the user-specified gradient ascent algorithm
-    theta_f, sigma_f  = emd.max_posterior(y_t, X_t, R, theta_0, theta_o,
-                                          sigma_o, sigma_o_i)
+    theta_f, sigma_f = emd.max_posterior(y_t, X_t, R, theta_0, theta_o,
+                                          sigma_o, sigma_o_i, emd.param_est_eta)
  
     return theta_f, sigma_f
  
  
-def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     """
     TODO update comments to elaborate on how this method differs from the others
  
@@ -111,7 +111,7 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
  
  
-def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     """ Fits with `Nonlinear Conjugate Gradient Method
     <https://en.wikipedia.org/wiki/Nonlinear_conjugate_gradient_method>`_.
  
@@ -178,7 +178,7 @@ def conjugate_gradient(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
     return theta_max, -ddlpo_i
  
  
-def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i):
+def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     """ Fits due to `Broyden-Fletcher-Goldfarb-Shanno algorithm
     <https://en.wikipedia.org/wiki/Broyden%E2%80%93Fletcher%E2%80%93Goldfarb%E2%
     80%93Shanno_algorithm>`_.
