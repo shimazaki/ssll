@@ -390,7 +390,7 @@ def log_likelihood_CCCP(y_t, theta_f_t, R, N):
         Log likelhood of the observed patterns given the natural parameters,
         as a float.
     """
-    psi_bethe = compute_eta_CCCP(theta_f_t, N)[1]
+    psi_bethe = compute_psi_CCCP(theta_f_t, N)
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
     return log_p
 
