@@ -182,7 +182,7 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
 
     Tries to solve the forward problem at each point and samples if it fails.
     """
-    sampled = False
+
     # compute difference between th0 and th1
     dth = th1 - th0
     # points of integration
@@ -196,37 +196,18 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
         # theta point that needs to be evaluated
         th_tmp = th0 + int_point*dth
         # Sample Data
-        try:
-            eta = mean_field.forward_problem_hessian(th_tmp, N, 'TAP')
-            # negative derivative of energy function
-            dU = numpy.dot(dth, eta)
-            # compute mean
-            avg_dUs[i] = numpy.mean(dU)
-        except Exception:
-            sampled = True
-            points_to_sample.append(i)
-    if len(points_to_sample) != 0:
-        th_to_sample = numpy.empty([len(points_to_sample), th0.shape[0]])
-
-        # get remaining thetas and sample for them
-        for j, point2sample in enumerate(points_to_sample):
-            th_to_sample[j] = th0 + int_points[point2sample]*dth
-
-        spikes = synthesis.generate_spikes_gibbs_parallel(th_to_sample, N, O, R=1000)
-        eta_from_sample = transforms.compute_y(spikes, O, 1)
-
-        for idx, point2sample in enumerate(points_to_sample):
-            # negative derivative of energy function
-            dU = numpy.dot(dth, eta_from_sample[idx])
-            # compute mean
-            avg_dUs[point2sample] = numpy.mean(dU)
+        eta = mean_field.forward_problem_hessian(th_tmp, N)
+        # negative derivative of energy function
+        dU = numpy.dot(dth, eta)
+        # compute mean
+        avg_dUs[i] = numpy.mean(dU)
 
     # weights for trapezoidal intergration rule
     w = numpy.ones(K)/K
     w[0] /= K
     w[-1] /= K
     # compute estimation of psi
-    return psi0 + numpy.dot(w, avg_dUs), sampled
+    return psi0 + numpy.dot(w, avg_dUs)
 
 
 def compute_internal_energy(theta, eta):
