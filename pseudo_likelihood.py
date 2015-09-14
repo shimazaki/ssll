@@ -663,7 +663,7 @@ functions = {'nr': pseudo_newton,
              'cg': pseudo_cg,
              'bf': pseudo_bfgs}
 
-compute_eta = {#'mf': mean_field.forward_problem_hessian,
+compute_eta = {'mf': mean_field.forward_problem_hessian,
                'bethe_BP': bethe_approximation.compute_eta_BP,
                'bethe_CCCP': bethe_approximation.compute_eta_CCCP,
                'bethe_hybrid': bethe_approximation.compute_eta_hybrid}
