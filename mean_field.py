@@ -335,7 +335,7 @@ def log_likelihood_mf(eta, theta, R, N):
     th0 = numpy.zeros(theta.shape)
     th0[:N] = theta[:N]
     psi0 = numpy.sum(numpy.log(1.+numpy.exp(th0[:N])))
-    psi = energies.ot_estimator(th0, psi0, theta, N, 2, N)[0]
+    psi = energies.ot_estimator(th0, psi0, theta, N, 2, N)
     # Return log-likelihood
     return R*(numpy.dot(theta, eta) - psi)
 
