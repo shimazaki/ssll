@@ -204,15 +204,15 @@ def update_lambda(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     for i in range(1, N):
         q = (diag_idx[1] + i) % N
         # Update lambda_ij(0)
-        exp2lambda0 = (numpy.sum(phi_ij[p, q, :2] *
+        exp2lambda0 = (numpy.sum(phi_ij[p, q, :2] * \
                                  numpy.exp(-lambda_ij[q, p] - gamma_ij[p, q, numpy.newaxis]), axis=1)) \
-                                 /(psi_i[q, 0] * (b_i[q, 0] / psi_i[q, 0]) ** (N - 1) * numpy.exp((N - 1) +
+                                 /(psi_i[q, 0] * (b_i[q, 0] / psi_i[q, 0]) ** (N - 1) * numpy.exp((N - 1) + \
                                  numpy.sum(lambda_ij[:, q, 0], axis=0) - lambda_ij[p, q, 0]))
         lambda_ij[p, q, 0] = .5 * numpy.log(exp2lambda0)
         # Update lambda_ij(1)
-        exp2lambda1 = (numpy.sum(phi_ij[p, q, 2:] *
+        exp2lambda1 = (numpy.sum(phi_ij[p, q, 2:] * \
                                  numpy.exp(-lambda_ij[q, p] - gamma_ij[p, q, numpy.newaxis]), axis=1)) \
-                                 /(psi_i[q, 1] * (b_i[q, 1] / psi_i[q, 1]) ** (N - 1) * numpy.exp((N - 1) +
+                                 /(psi_i[q, 1] * (b_i[q, 1] / psi_i[q, 1]) ** (N - 1) * numpy.exp((N - 1) + \
                                  numpy.sum(lambda_ij[:, q, 1], axis=0) - lambda_ij[p, q, 1]))
         lambda_ij[p, q, 1] = .5 * numpy.log(exp2lambda1)
 
