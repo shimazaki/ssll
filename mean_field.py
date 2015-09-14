@@ -3,9 +3,11 @@ __author__ = 'Christian Donner'
 import numpy
 import itertools
 from scipy.optimize import fsolve
-import max_posterior,energies
+#import max_posterior
+import energies
 
 eta_FI_map = None
+
 
 def self_consistent_eq(eta, theta1, theta2, expansion='TAP'):
     """ Generates self-consistent equations for forward problem.
@@ -801,84 +803,84 @@ def mean_field_nr(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, epsilon=.1,
     # Return
     return theta_max, -ddlpo_i
 
-
-def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight_trick=False):
-    """ Conjugate Gradient algorithm with TAP approximation.
-
-    :param numpy.ndarray y_t:
-        (d,) dimensional vector with empirical rates of data.
-    :param numpy.ndarray X_t:
-        (r,c) dimensional array with spike trains for each trial and each cell.
-    :param int R:
-        Number of trials.
-    :param numpy.ndarray theta0:
-        Starting point for theta.
-    :param numpy.ndarray theta_o:
-        One-step prediction for theta
-    :param sigma_o:
-        One-step prediction covariance matrix
-    :param sigma_o_i:
-        Inverse one-step prediction covariance matrix
-    :param bool diag_weight_trick:
-        if diagonal weight should be used. (Default=False)
-
-    :returns:
-        Tuple containing the mean and covariance of the posterior probability
-        density, each as a numpy.ndarray.
-
-    """
-
-    # Convergence limit for the rate
-    GA_CONVERGENCE = 1e-4
-    MAX_GA_ITERATIONS = 1000.
-    # Get number of Neurons
-    N = X_t.shape[1]
-    # Initialize iteration counter
-    iterations = 0
-    # Solve backward problem without prior
-    theta_max = backward_problem(y_t, N, 'TAP', diag_weight_trick=False)
-    # Get Gradient (just prior beacuse the one of llk is zero)
-    dlpo = -numpy.dot(sigma_o_i, theta_max - theta_o)
-    # Change of theta
-    d_th = dlpo
-    # Search direction
-    s = d_th
-    # Get initial eta
-    eta = numpy.copy(y_t)
-    # Convergence criterion
-    max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
-    # Until rate converged
-    while max_dlpo > GA_CONVERGENCE and iterations<MAX_GA_ITERATIONS:
-        # Save old theta
-        d_th_prev = d_th
-        # Count iterations
-        iterations += 1
-        # Get new theta direction
-        d_th = dlpo
-        # Get Beta
-        beta = max_posterior.compute_beta(d_th, d_th_prev, s, 'HS')
-        # Update search direction
-        s = d_th + beta*s
-        # Update theta by line search
-        theta_max = mean_field_line_search(theta_max, N, R, s, dlpo, sigma_o_i, eta)
-        # Get eta by solving forward problem
-        eta = forward_problem_hessian(theta_max, N, 'TAP')
-        # Get gradient of posterior
-        dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
-        # Get maximal Gradient entry
-        max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
-        # If maximal number of iterations is reached break
-        if iterations == MAX_GA_ITERATIONS:
-            raise Exception('The Mean Field CG '+\
-                'algorithm did not converge before reaching the maximum '+\
-                'number iterations.')
-
-    # Calculate Fisher info
-    G = compute_full_G(eta, theta_max, N)
-    ddlpo = -R*G - sigma_o_i
-    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
-    # Return
-    return theta_max, -ddlpo_i
+#
+# def mean_field_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight_trick=False):
+#     """ Conjugate Gradient algorithm with TAP approximation.
+#
+#     :param numpy.ndarray y_t:
+#         (d,) dimensional vector with empirical rates of data.
+#     :param numpy.ndarray X_t:
+#         (r,c) dimensional array with spike trains for each trial and each cell.
+#     :param int R:
+#         Number of trials.
+#     :param numpy.ndarray theta0:
+#         Starting point for theta.
+#     :param numpy.ndarray theta_o:
+#         One-step prediction for theta
+#     :param sigma_o:
+#         One-step prediction covariance matrix
+#     :param sigma_o_i:
+#         Inverse one-step prediction covariance matrix
+#     :param bool diag_weight_trick:
+#         if diagonal weight should be used. (Default=False)
+#
+#     :returns:
+#         Tuple containing the mean and covariance of the posterior probability
+#         density, each as a numpy.ndarray.
+#
+#     """
+#
+#     # Convergence limit for the rate
+#     GA_CONVERGENCE = 1e-4
+#     MAX_GA_ITERATIONS = 1000.
+#     # Get number of Neurons
+#     N = X_t.shape[1]
+#     # Initialize iteration counter
+#     iterations = 0
+#     # Solve backward problem without prior
+#     theta_max = backward_problem(y_t, N, 'TAP', diag_weight_trick=False)
+#     # Get Gradient (just prior beacuse the one of llk is zero)
+#     dlpo = -numpy.dot(sigma_o_i, theta_max - theta_o)
+#     # Change of theta
+#     d_th = dlpo
+#     # Search direction
+#     s = d_th
+#     # Get initial eta
+#     eta = numpy.copy(y_t)
+#     # Convergence criterion
+#     max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
+#     # Until rate converged
+#     while max_dlpo > GA_CONVERGENCE and iterations<MAX_GA_ITERATIONS:
+#         # Save old theta
+#         d_th_prev = d_th
+#         # Count iterations
+#         iterations += 1
+#         # Get new theta direction
+#         d_th = dlpo
+#         # Get Beta
+#         beta = max_posterior.compute_beta(d_th, d_th_prev, s, 'HS')
+#         # Update search direction
+#         s = d_th + beta*s
+#         # Update theta by line search
+#         theta_max = mean_field_line_search(theta_max, N, R, s, dlpo, sigma_o_i, eta)
+#         # Get eta by solving forward problem
+#         eta = forward_problem_hessian(theta_max, N, 'TAP')
+#         # Get gradient of posterior
+#         dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
+#         # Get maximal Gradient entry
+#         max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
+#         # If maximal number of iterations is reached break
+#         if iterations == MAX_GA_ITERATIONS:
+#             raise Exception('The Mean Field CG '+\
+#                 'algorithm did not converge before reaching the maximum '+\
+#                 'number iterations.')
+#
+#     # Calculate Fisher info
+#     G = compute_full_G(eta, theta_max, N)
+#     ddlpo = -R*G - sigma_o_i
+#     ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
+#     # Return
+#     return theta_max, -ddlpo_i
 
 
 def mean_field_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight_trick=False):
@@ -1010,6 +1012,6 @@ def mean_field_line_search(theta, N, R, s, dlpo, sigma_o_i, eta):
     # Return
     return theta_new
 
-functions = {'nr': mean_field_nr,
-             'cg': mean_field_cg,
-             'bf': mean_field_bfgs}
+#functions = {'nr': mean_field_nr,
+#             'cg': mean_field_cg,
+#             'bf': mean_field_bfgs}
