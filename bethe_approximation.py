@@ -204,6 +204,7 @@ def update_lambda(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     for i in range(1, N):
         q = (diag_idx[1] + i) % N
         # Update lambda_ij(0)
+        print phi_ij[p, q, :2], -lambda_ij[q, p] - gamma_ij[p, q, numpy.newaxis]
         exp2lambda0 = (numpy.sum(phi_ij[p, q, :2] * \
                                  numpy.exp(-lambda_ij[q, p] - gamma_ij[p, q, numpy.newaxis]), axis=1)) \
                                  /(psi_i[q, 0] * (b_i[q, 0] / psi_i[q, 0]) ** (N - 1) * numpy.exp((N - 1) + \
