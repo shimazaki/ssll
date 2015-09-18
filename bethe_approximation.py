@@ -1,7 +1,7 @@
 __author__ = 'christian'
 
 import numpy
-import max_posterior, mean_field
+import max_posterior, mean_field, energies
 
 
 def construct_fisher_diag(eta, N):
@@ -466,48 +466,56 @@ def compute_eta_BP(theta, N, alpha=.5):
 
 
 def compute_psi_BP(theta, N, alpha=.5):
-    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
+    """ Uses the Ogata-Tanemura Estimator for estimation (Huang, 2001)
 
-    :param numpy.ndarray theta:
-        (d,) dimensional array with natural parameters in it
+    :param numpy.ndarray th0:
+        (1,d) array with theta distribution where psi is known
+    :param float psi0
+        psi corresponding to th0
+    :param th1:
+        thetas for which one wants to compute psi
     :param int N:
-        Number of cells
-    :param float alpha:
-        Step size for message update (default=0.5)
-    :returns:
-        (d,) dimensional array with approximated etas
+        number of cells
+    :param int O:
+        order of interactions
+    :param int K:
+        points of integration
+
+    :returns
+        estimation of psi to th1
+
+    Tries to solve the forward problem at each point and samples if it fails.
     """
-    # Upper triangle indices
-    triu_idx = numpy.triu_indices(N, 1)
-    diag_idx = numpy.diag_indices(N)
-    # First order theta in square matrix form
-    from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
-    theta1 = theta[to_idx]
-    # Second order theta in square matrix form
-    theta2 = numpy.zeros([N, N])
-    theta2[triu_idx] = theta[N:]
-    theta2 += theta2.T
-    # Calculate unnormalized probabilities for message computation
-    psi_i = numpy.exp(theta1)
-    psi_i_ij = numpy.exp(theta1 + theta2)
-    # Actual belief propogation algorithm
-    messages = propagate_beliefs(psi_i, psi_i_ij, N, alpha)
-    # Compute beliefs from messages
-    b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
-    # Get eta vector
-    eta = numpy.empty(theta.shape)
-    eta[:N] = b_i[:,1]
-    eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
-    theta1 = theta[:N]
-    psi_i = numpy.ones([N,2])
-    psi_i[:,1] = numpy.exp(theta1)
-    phi_ij = numpy.ones([N,N,4])
-    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
-    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
-    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
-    phi_ij[diag_idx[0],diag_idx[1],:] = 1
-    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    return -bethe_free
+    K = 5*N
+    th1 = theta
+    th0 = numpy.copy(theta)
+    th0[N:] = 0
+    psi0 = energies.compute_ind_psi(numpy.array([th0[:N]]))[0]
+    # compute difference between th0 and th1
+    dth = th1 - th0
+    # points of integration
+    int_points = numpy.linspace(0,1,K)
+    # array for negative derivatives of Energy function
+    avg_dUs = numpy.empty(K)
+    # iterate over all integration points
+    # iterate over all integration points
+    points_to_sample = []
+    for i, int_point in enumerate(int_points):
+        # theta point that needs to be evaluated
+        th_tmp = th0 + int_point*dth
+        # Sample Data
+        eta = compute_eta_BP(th_tmp, N)
+        # negative derivative of energy function
+        dU = numpy.dot(dth, eta)
+        # compute mean
+        avg_dUs[i] = numpy.mean(dU)
+
+    # weights for trapezoidal intergration rule
+    w = numpy.ones(K)/K
+    w[0] /= K
+    w[-1] /= K
+    # compute estimation of psi
+    return psi0 + numpy.dot(w, avg_dUs)
 
 
 def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
