@@ -593,16 +593,17 @@ def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
         # for x_i = 1
         b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
         b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
-        k0 = numpy.sum(b_ij[:,:,:2], axis=2)/b_i[:,0,numpy.newaxis]
-        k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
+        k_ij = numpy.sum(b_ij, axis=2)
+        b_ij /= k_ij[:,:,numpy.newaxis]
+        #k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
         # normalized second order thetas
-        try:
-            b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
-            b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
-        except:
-            b_ij *= 1e6
-            b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
-            b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
+        #ry:
+        #    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
+        #    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
+        #except:
+        #    b_ij *= 1e6
+        #    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
+        #    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
         # Return
         return b_i, b_ij
     else:
