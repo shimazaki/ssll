@@ -76,6 +76,7 @@ def e_step_filter(emd):
             #emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q.diagonal()
             #tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
             emd.sigma_o[i,:] = emd.sigma_f[i-1,:] + emd.Q.diagonal()
+            emd.sigma_o_inv[i] = 1./emd.sigma_o[i]
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
 
