@@ -16,7 +16,7 @@ def construct_fisher_diag(eta, N):
     return ddllk_diag
 
 
-def compute_eta_CCCP(theta, N):
+def compute_eta_CCCP(theta, N, return_psi=False):
     """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
 
     :param numpy.ndarray theta:
@@ -53,7 +53,10 @@ def compute_eta_CCCP(theta, N):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    return eta
+    if return_psi:
+        return eta, bethe_energy
+    else:
+        return eta
 
 
 def compute_psi_CCCP(theta, N):
@@ -420,7 +423,7 @@ def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     return bethe_E
 
 
-def compute_eta_BP(theta, N, alpha=.5):
+def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
     """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
 
     :param numpy.ndarray theta:
@@ -462,7 +465,10 @@ def compute_eta_BP(theta, N, alpha=.5):
     phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0],diag_idx[1],:] = 1
     bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    return eta
+    if return_psi:
+        return eta, bethe_free
+    else:
+        return eta
 
 
 def compute_psi_BP(theta, N, alpha=.5):
@@ -976,8 +982,8 @@ def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, per
     return log_p
 
 
-def compute_eta_hybrid(theta, N):
+def compute_eta_hybrid(theta, N, return_psi=False ):
     try:
-        return compute_eta_BP(theta, N)
+        return compute_eta_BP(theta, N, return_psi)
     except:
-        return compute_eta_CCCP(theta, N)
+        return compute_eta_CCCP(theta, N, return_psi)
