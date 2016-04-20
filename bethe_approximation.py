@@ -982,8 +982,8 @@ def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, per
     return log_p
 
 
-def compute_eta_hybrid(theta, N, return_psi=False ):
+def compute_eta_hybrid(theta, N, return_psi=False):
     try:
-        return compute_eta_BP(theta, N, return_psi)
+        return compute_eta_BP(theta, N, return_psi=return_psi)
     except:
-        return compute_eta_CCCP(theta, N, return_psi)
+        return compute_eta_CCCP(theta, N, return_psi=return_psi)
