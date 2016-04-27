@@ -125,14 +125,15 @@ def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
     conv_crit = numpy.inf
     bethe = [bethe_E]
-
+    triu_idx = numpy.triu_indices(N, 1)
     while conv_crit > 1e-4:
         # Until convergence update Lagrange multipliers and beliefs
         lambda_ij, gamma_ij = inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
         b_i, b_ij = update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N)
         # Compute Bethe energy
         bethe_E_old = bethe_E
-        bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+        #bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+        bethe_E = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
         bethe.append(bethe_E)
         conv_crit = numpy.absolute((bethe_E_old - bethe_E) / bethe_E_old)
 
@@ -464,7 +465,8 @@ def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
     phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
     phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0],diag_idx[1],:] = 1
-    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    #bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    bethe_free = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
     if return_psi:
         return eta, bethe_free
     else:
