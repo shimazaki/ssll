@@ -37,7 +37,7 @@ import energies
 import bethe_approximation
  
  
-def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=100,
+def run(spikes, order, window=1, map_function='nr', lmbda1=100, lmbda2=200, max_iter=100,
         param_est='exact', param_est_eta='exact'):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
@@ -80,7 +80,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda=200, max_iter=100,
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the EM-data container
-    emd = container.EMData(spikes, order, window, param_est, param_est_eta, map_function, lmbda)
+    emd = container.EMData(spikes, order, window, param_est, param_est_eta, map_function, lmbda1, lmbda2)
     # Solves backward problem. For zero rates in the beginning small number is added
     if emd.order == 2:
         #try:

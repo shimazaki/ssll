@@ -113,7 +113,7 @@ class EMData:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
     def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
-                 lmbda):
+                 lmbda1, lmbda2):
 
         # Record the input parameters
         self.spikes, self.order, self.window = spikes, order, window
@@ -169,7 +169,9 @@ class EMData:
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
         self.F = numpy.identity(self.D)
-        self.Q = 1. / lmbda * numpy.identity(self.D)
+        self.Q = numpy.zeros([self.D, self.D])
+        self.Q[:self.N, :self.N] = 1. / lmbda1 * numpy.identity(self.N)
+        self.Q[self.N:, self.N:] = 1. / lmbda2 * numpy.identity(self.D - self.N)
         self.mllk = numpy.inf
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
