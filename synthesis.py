@@ -28,21 +28,23 @@ from functools import partial
 import transforms
  
  
-def generate_thetas(N, O, T, mu1=-2., sigma1=.1, mu2=0., sigma2=.5, ratio_modulated=1.):
+def generate_thetas(N, O, T, mu1=-2., sigma1=50, mu2=0., sigma2=50, alpha=3., ratio_modulated=1.):
     D = transforms.compute_D(N, O)
     MU = numpy.tile(mu1, (T, D))
     MU[:,N:] = mu2
     # Create covariance matrix
     X = numpy.tile(numpy.arange(T),(T,1))
-    K = .5*numpy.exp( -.5 *.001*(X - X.transpose())**2)
+    K1 = numpy.exp(-(X - X.transpose()) ** 2 / (2. * sigma1 ** 2))
+    K2 = numpy.exp(-(X - X.transpose()) ** 2 / (2. * sigma2 ** 2))
     # Generate Gaussian processes
-    L = numpy.linalg.cholesky(K + 1e-13* numpy.eye(T) )
+    L1 = numpy.linalg.cholesky(K1 + 1e-13 * numpy.eye(T))
+    L2 = numpy.linalg.cholesky(K2 + 1e-13 * numpy.eye(T))
     theta = numpy.empty([T, D])
-    theta[:,:N] = mu1 + numpy.dot(L, sigma1*numpy.random.randn(T, N))
-    theta[:,N:] = mu2 + numpy.dot(L, sigma2*numpy.random.randn(T, D - N))
+    theta[:,:N] = mu1 + numpy.dot(L1, 1./alpha*numpy.random.randn(T, N))
+    theta[:,N:] = mu2 + numpy.dot(L2, 1./alpha*numpy.random.randn(T, D - N))
     num_non_modulated = int(numpy.around((1. - ratio_modulated)*(D - N)))
     non_modulated_idx = random.sample(range(N,D), num_non_modulated)
-    theta[:,non_modulated_idx] = 0.
+    theta[:, non_modulated_idx] = 0.
     return theta
  
  
