@@ -133,7 +133,7 @@ def figure1(data_path = '../Data/'):
     print 'Done'
 
 def figure2and3(data_path = '../Data/'):
-    T, N, O, R = 200, 500, 15, 2
+    R, T, N, O = 200, 500, 15, 2
     f = h5py.File(data_path + 'figure1data.h5', 'r')
     theta = f['data']['theta1'].value
     f.close()
