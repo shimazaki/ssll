@@ -153,8 +153,8 @@ def figure2and3(data_path = '../Data/'):
     f.create_dataset('theta_true', data=theta)
     for fit in fitting_methods:
         g = f.create_group(fit)
-        g.create_dataset('MISE_theta', shape=10)
-        g.create_dataset('MISE_psi', shape=10)
+        g.create_dataset('MISE_theta', shape=[10])
+        g.create_dataset('MISE_psi', shape=[10])
     f.close()
 
 
