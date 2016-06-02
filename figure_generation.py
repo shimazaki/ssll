@@ -68,11 +68,11 @@ def figure1(data_path = '../Data/'):
 
     C_all = C1 + C2
 
-    spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, 2 * N, O, R)
+    spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, 2 * N, O, R, sample_steps=100)
 
     print 'Model and Data generated'
 
-    emd = __init__.run(spikes, O, map_function='cg', param_est='pseudo', param_est_eta='bethe_hybrid', lmbda1=10,
+    emd = __init__.run(spikes, O, map_function='cg', param_est='pseudo', param_est_eta='bethe_hybrid', lmbda1=100,
                    lmbda2=200)
 
     f = h5py.File(data_path + 'figure1data.h5', 'w')
