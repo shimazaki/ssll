@@ -2,18 +2,19 @@ import numpy
 import h5py
 import multiprocessing
 from functools import partial
-import bethe_approximation, synthesis, transforms, __init__
+import bethe_approximation, synthesis, transforms, __init__, mean_field
 
 def get_sampled_eta_psi(i, theta_sampled, N):
     print i
     psi = numpy.empty([100,3])
     eta = numpy.empty([int(N + N*(N-1)/2),100])
+    alpha = [.999,1.,1.001]
     for j in range(100):
-        for k, beta in enumerate([.999,1.,1.001]):
+        for k, a in enumerate(alpha):
             if k == 1:
-                eta[:,j], psi[j,k] = bethe_approximation.compute_eta_hybrid(beta*theta_sampled[i,:,j], int(N), return_psi=True)
+                eta[:,j], psi[j,k] = bethe_approximation.compute_eta_hybrid(a*theta_sampled[i,:,j], int(N), return_psi=True)
             else:
-                psi[j,k] = bethe_approximation.compute_eta_hybrid(beta*theta_sampled[i,:,j], int(N), return_psi=True)[1]
+                psi[j,k] = bethe_approximation.compute_eta_hybrid(a*theta_sampled[i,:,j], int(N), return_psi=True)[1]
     return eta, psi, i
 
 def figure1(data_path = '../Data/'):
@@ -130,3 +131,67 @@ def figure1(data_path = '../Data/'):
     f.close()
 
     print 'Done'
+
+def figure2and3(data_path = '../Data/'):
+    T, N, O, R = 200, 500, 15, 2
+    f = h5py.File(data_path + 'figure1data.h5', 'r')
+    theta = f['data']['theta1'].value
+    f.close()
+
+    transforms.initialise(N, O)
+    psi_true = numpy.empty(T)
+    for i in range(T):
+        psi_true[i] = transforms.compute_psi(theta[i])
+    p = numpy.zeros((T, 2 ** N))
+    for i in range(T):
+        p[i, :] = transforms.compute_p(theta[i, :])
+    # Generate spikes!
+    fitting_methods = ['exact', 'bethe_hybrid', 'mf']
+
+    f = h5py.File(data_path + 'figure2and3data.h5', 'w')
+    f.create_dataset('psi_true', data=psi_true)
+    f.create_dataset('theta_true', data=theta)
+    for fit in fitting_methods:
+        g = f.create_group(fit)
+        g.create_dataset('MISE_theta', shape=10)
+        g.create_dataset('MISE_psi', shape=10)
+    f.close()
+
+
+    for iteration in range(10):
+        print 'Iteration %d' %iteration
+        spikes = synthesis.generate_spikes(p, R, seed=1)
+
+
+        for fit in fitting_methods:
+            if fit == 'exact':
+                emd = __init__.run(spikes, O, map_function='cg', param_est='exact', param_est_eta='exact')
+            else:
+                emd = __init__.run(spikes, O, map_function='cg', param_est='pseudo', param_est_eta=fit)
+
+            psi = numpy.empty(T)
+
+            if fit == 'exact':
+                for i in range(T):
+                    psi[i] = transforms.compute_psi(emd.theta_s[i])
+            elif fit == 'bethe_hybrid':
+                for i in range(T):
+                    psi[i] = bethe_approximation.compute_eta_hybrid(emd.theta_s[i], N, return_psi=1)[1]
+            elif fit == 'mf':
+                for i in range(T):
+                    eta_mf = mean_field.forward_problem(emd.theta_s[i], N, 'TAP')
+                    psi[i] = mean_field.compute_psi(emd.theta_s[i], eta_mf, N)
+
+            mise_theta = numpy.mean((theta - emd.theta_s)**2)
+            mise_psi = numpy.mean((psi_true - psi) ** 2)
+            f = h5py.File(data_path + 'figure2and3data.h5', 'r+')
+            g = f[fit]
+            g['MISE_theta'][iteration] = mise_theta
+            g['MISE_psi'][iteration] = mise_psi
+            if iteration == 0:
+                g.create_dataset('theta', data=emd.theta_s)
+                g.create_dataset('sigma', data=emd.sigma_s)
+                g.create_dataset('psi', data=psi)
+            f.close()
+            print 'Fitted with %s' % fit
+
