@@ -43,6 +43,7 @@ def figure1(data_path = '../Data/'):
     eta1 = numpy.empty(theta1.shape)
     eta2 = numpy.empty(theta2.shape)
     alpha = [.999,1.,1.001]
+    transforms.initialise(N, O)
     for i in range(T):
         for j, a in enumerate(alpha):
             psi1[i, j] = transforms.compute_psi(a * theta1[i])
