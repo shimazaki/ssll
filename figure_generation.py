@@ -504,8 +504,8 @@ def figure4(data_path='../Data/'):
             eta_est[t], psi_est[t] = bethe_approximation.compute_eta_hybrid(emd.theta_s[t], (i+1)*N, return_psi=1)
             psi1 = bethe_approximation.compute_eta_hybrid(.999*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
             psi2 = bethe_approximation.compute_eta_hybrid(.001*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
-            S_est[t] = -numpy.sum(eta_est[t]*emd.theta_s[t]) - psi_est[t]
-            C_est[t] = -(psi1 - 2. * psi_est[t] + psi2) / .001 ** 2
+            S_est[t] = -numpy.sum(eta_est[t]*emd.theta_s[t]) + psi_est[t]
+            C_est[t] = (psi1 - 2. * psi_est[t] + psi2) / .001 ** 2
         S_est /= numpy.log(2)
         C_est /= numpy.log(2)
         population_rate = numpy.mean(numpy.mean(etas[:i+1,:,:N], axis=0), axis=1)
