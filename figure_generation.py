@@ -461,11 +461,11 @@ def figure4(data_path='../Data/'):
 
     f = h5py.File(data_path+'figure4data.h5', 'w')
     g1 = f.create_group('data')
-    g1.create_dataset('thetas', thetas)
-    g1.create_dataset('etas', etas)
-    g1.create_dataset('psi', psi)
-    g1.create_dataset('S', S)
-    g1.create_dataset('C', C)
+    g1.create_dataset('thetas', data=thetas)
+    g1.create_dataset('etas', data=etas)
+    g1.create_dataset('psi', data=psi)
+    g1.create_dataset('S', data=S)
+    g1.create_dataset('C', data=C)
 
     g2 = f.create_group('error')
     g2.create_dataset('MISE_thetas', shape=[num_of_networks])
