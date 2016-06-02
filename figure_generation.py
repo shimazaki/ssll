@@ -4,7 +4,6 @@ import multiprocessing
 from functools import partial
 import bethe_approximation, synthesis, transforms, __init__, mean_field
 from matplotlib import pyplot
-import networkx as nx
 import random
 import itertools
 from scipy.stats.mstats import mquantiles
@@ -138,6 +137,7 @@ def figure1(data_path = '../Data/'):
     print 'Done'
 
 def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
+    import networkx as nx
     N, O = 30, 2
     f = h5py.File(data_path+'figure1data.h5','r')
     # Figure A
