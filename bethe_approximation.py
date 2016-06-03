@@ -53,8 +53,10 @@ def compute_eta_CCCP(theta, N, return_psi=False):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
+    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0], triu_idx[1], 0])) -
+                   numpy.sum(((N - 1) - 1) * numpy.log(b_i[:, 0])))
     if return_psi:
-        return eta, bethe_energy
+        return eta, bethe_free
     else:
         return eta
 
@@ -466,7 +468,7 @@ def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
     phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0],diag_idx[1],:] = 1
     #bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    bethe_free = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
+    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0])))
     if return_psi:
         return eta, bethe_free
     else:
