@@ -438,7 +438,7 @@ def figure4(data_path='../Data/'):
     mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
 
-    num_of_networks = 10
+    num_of_networks = 6
     D = transforms.compute_D(N, O)
     thetas = numpy.empty([num_of_networks, T, D])
     etas = numpy.empty([num_of_networks, T, D])
@@ -515,7 +515,7 @@ def figure4(data_path='../Data/'):
         psi_true = numpy.sum(psi[:(i+1),:], axis=0)
         S_true = numpy.sum(S[:(i + 1), :], axis=0)
         C_true = numpy.sum(C[:(i + 1), :], axis=0)
-        return psi_true, psi_est, C_true, C_est, S_true, S_est
+
         f = h5py.File(data_path + 'figure4data.h5', 'r+')
         f['error']['MISE_thetas'][i] = numpy.mean((theta_all - emd.theta_s)**2)
         f['error']['MISE_population_rate'][i] = numpy.mean((population_rate - population_rate_est) ** 2)
