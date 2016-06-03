@@ -122,9 +122,9 @@ def figure1(data_path = '../Data/'):
     for eta, psi, i in results:
         eta_sampled[i] = eta
         psi_sampled[i] = psi
-    S_sampled = -numpy.sum(eta_sampled*theta_sampled, axis=1) - psi_sampled[:, :, 1]
+    S_sampled = -(numpy.sum(eta_sampled*theta_sampled, axis=1) - psi_sampled[:, :, 1])
     S_sampled /= numpy.log(2)
-    C_sampled = -(psi_sampled[:, :, 0] - 2.*psi_sampled[:, :, 1] + psi_sampled[:, :, 2])/.001**2
+    C_sampled = (psi_sampled[:, :, 0] - 2.*psi_sampled[:, :, 1] + psi_sampled[:, :, 2])/.001**2
     C_sampled /= numpy.log(2)
     g_sampled = f.create_group('sampled_results')
     g_sampled.create_dataset('theta_sampled', data=theta_sampled)
@@ -388,12 +388,13 @@ def figure2and3(data_path = '../Data/'):
         g = f.create_group(fit)
         g.create_dataset('MISE_theta', shape=[10])
         g.create_dataset('MISE_psi', shape=[10])
+        g.create_dataset('psi', shape=[10,T])
     f.close()
 
 
     for iteration in range(10):
         print 'Iteration %d' %iteration
-        spikes = synthesis.generate_spikes(p, R, seed=1)
+        spikes = synthesis.generate_spikes(p, R, seed=None)
 
 
         for fit in fitting_methods:
@@ -424,7 +425,7 @@ def figure2and3(data_path = '../Data/'):
             if iteration == 0:
                 g.create_dataset('theta', data=emd.theta_s)
                 g.create_dataset('sigma', data=emd.sigma_s)
-                g.create_dataset('psi', data=psi)
+            g['psi'][iteration] = psi
             f.close()
             print 'Fitted with %s' % fit
 
@@ -476,6 +477,7 @@ def figure4(data_path='../Data/'):
     f.close()
 
     for i in range(num_of_networks):
+        print 'N=%d' %((i+1)*N)
         D = transforms.compute_D((i + 1)*N, O)
         theta_all = numpy.empty([T, D])
         triu_idx = numpy.triu_indices(N, k=1)
@@ -503,8 +505,8 @@ def figure4(data_path='../Data/'):
         for t in range(T):
             eta_est[t], psi_est[t] = bethe_approximation.compute_eta_hybrid(emd.theta_s[t], (i+1)*N, return_psi=1)
             psi1 = bethe_approximation.compute_eta_hybrid(.999*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
-            psi2 = bethe_approximation.compute_eta_hybrid(.001*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
-            S_est[t] = -numpy.sum(eta_est[t]*emd.theta_s[t]) + psi_est[t]
+            psi2 = bethe_approximation.compute_eta_hybrid(1.001*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
+            S_est[t] = -(numpy.sum(eta_est[t]*emd.theta_s[t]) - psi_est[t])
             C_est[t] = (psi1 - 2. * psi_est[t] + psi2) / .001 ** 2
         S_est /= numpy.log(2)
         C_est /= numpy.log(2)
@@ -513,6 +515,7 @@ def figure4(data_path='../Data/'):
         psi_true = numpy.sum(psi[:(i+1),:], axis=0)
         S_true = numpy.sum(S[:(i + 1), :], axis=0)
         C_true = numpy.sum(C[:(i + 1), :], axis=0)
+        return psi_true, psi_est, C_true, C_est, S_true, S_est
         f = h5py.File(data_path + 'figure4data.h5', 'r+')
         f['error']['MISE_thetas'][i] = numpy.mean((theta_all - emd.theta_s)**2)
         f['error']['MISE_population_rate'][i] = numpy.mean((population_rate - population_rate_est) ** 2)
