@@ -472,6 +472,10 @@ def figure4(data_path='../Data/'):
     g2.create_dataset('MISE_psi', shape=[num_of_networks])
     g2.create_dataset('MISE_S', shape=[num_of_networks])
     g2.create_dataset('MISE_C', shape=[num_of_networks])
+    g2.create_dataset('population_rate', shape=[num_of_networks, T])
+    g2.create_dataset('psi', shape=[num_of_networks, T])
+    g2.create_dataset('S', shape=[num_of_networks, T])
+    g2.create_dataset('C', shape=[num_of_networks, T])
     f.close()
     for i in range(num_of_networks):
         print 'N=%d' %((i+1)*N)
@@ -516,6 +520,10 @@ def figure4(data_path='../Data/'):
         f['error']['MISE_psi'][i] = numpy.mean((psi_est - psi_true) ** 2)
         f['error']['MISE_S'][i] = numpy.mean((S_est - S_true) ** 2)
         f['error']['MISE_C'][i] = numpy.mean((C_est - C_true) ** 2)
+        f['error']['population_rate'][i] = population_rate_est
+        f['error']['psi'][i] = psi_est
+        f['error']['S'][i] = S_est
+        f['error']['C'][i] = C_est
         f.close()
 
     f = h5py.File(data_path + 'figure4data.h5', 'r+')
@@ -526,6 +534,10 @@ def figure4(data_path='../Data/'):
     C = f['data']['C'].value
 
     g2 = f.create_group('error500')
+    g2.create_dataset('population_rate', shape=[num_of_networks, T])
+    g2.create_dataset('psi', shape=[num_of_networks, T])
+    g2.create_dataset('S', shape=[num_of_networks, T])
+    g2.create_dataset('C', shape=[num_of_networks, T])
     g2.create_dataset('MISE_thetas', shape=[num_of_networks])
     g2.create_dataset('MISE_population_rate', shape=[num_of_networks])
     g2.create_dataset('MISE_psi', shape=[num_of_networks])
@@ -583,6 +595,10 @@ def figure4(data_path='../Data/'):
         f['error500']['MISE_psi'][i] = numpy.mean((psi_est - psi_true) ** 2)
         f['error500']['MISE_S'][i] = numpy.mean((S_est - S_true) ** 2)
         f['error500']['MISE_C'][i] = numpy.mean((C_est - C_true) ** 2)
+        f['error500']['population_rate'][i] = population_rate_est
+        f['error500']['psi'][i] = psi_est
+        f['error500']['S'][i] = S_est
+        f['error500']['C'][i] = C_est
         f.close()
 
 
