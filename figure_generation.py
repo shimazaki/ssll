@@ -434,96 +434,89 @@ def figure4(data_path='../Data/'):
 
     N, O, R, T = 10, 2, 200, 500
     num_of_networks = 6
-    # mu = numpy.zeros(T)
-    # x = numpy.arange(1, 401)
-    # mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
-    #            numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
-    #
-    #
-    # D = transforms.compute_D(N, O)
-    # thetas = numpy.empty([num_of_networks, T, D])
-    # etas = numpy.empty([num_of_networks, T, D])
-    # psi = numpy.empty([num_of_networks, T])
-    # S = numpy.empty([num_of_networks, T])
-    # C = numpy.empty([num_of_networks, T])
-    # transforms.initialise(N,O)
-    # for i in range(num_of_networks):
-    #     thetas[i] = synthesis.generate_thetas(N, O, T)
-    #     thetas[i,:,:N] += mu[:,numpy.newaxis]
-    #     for t in range(T):
-    #         p = transforms.compute_p(thetas[i,t])
-    #         etas[i,t] = transforms.compute_eta(p)
-    #         psi[i,t] = transforms.compute_psi(thetas[i,t])
-    #         psi1 = transforms.compute_psi(.999*thetas[i,t])
-    #         psi2 = transforms.compute_psi(1.001 * thetas[i, t])
-    #         C[i,t] = (psi1 - 2. * psi[i, t] + psi2) / .001 ** 2
-    #         S[i,t] = -(numpy.sum(etas[i,t]*thetas[i,t]) - psi[i,t])
-    # C /= numpy.log(2)
-    # S /= numpy.log(2)
-    #
-    # f = h5py.File(data_path+'figure4data.h5', 'w')
-    # g1 = f.create_group('data')
-    # g1.create_dataset('thetas', data=thetas)
-    # g1.create_dataset('etas', data=etas)
-    # g1.create_dataset('psi', data=psi)
-    # g1.create_dataset('S', data=S)
-    # g1.create_dataset('C', data=C)
-    #
-    # g2 = f.create_group('error')
-    # g2.create_dataset('MISE_thetas', shape=[num_of_networks])
-    # g2.create_dataset('MISE_population_rate', shape=[num_of_networks])
-    # g2.create_dataset('MISE_psi', shape=[num_of_networks])
-    # g2.create_dataset('MISE_S', shape=[num_of_networks])
-    # g2.create_dataset('MISE_C', shape=[num_of_networks])
-    # f.close()
-    #
-    # for i in range(num_of_networks):
-    #     print 'N=%d' %((i+1)*N)
-    #     D = transforms.compute_D((i + 1)*N, O)
-    #     theta_all = numpy.empty([T, D])
-    #     triu_idx = numpy.triu_indices(N, k=1)
-    #     triu_idx_all = numpy.triu_indices((i+1)*N, k=1)
-    #
-    #     for j in range(i+1):
-    #         theta_all[:, N*j:(j+1)*N] = thetas[j, :, :N]
-    #
-    #     for t in range(T):
-    #         theta_ij = numpy.zeros([(i + 1) * N, (i + 1) * N])
-    #         for j in range(i + 1):
-    #             theta_ij[triu_idx[0] + j*N, triu_idx[1] + j*N] = thetas[j, t, N:]
-    #
-    #         theta_all[t, (i+1)*N:] = theta_ij[triu_idx_all]
-    #
-    #     spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, (i+1) * N, O, R, sample_steps=10)
-    #     emd = __init__.run(spikes, O, map_function='cg', param_est='pseudo', param_est_eta='bethe_hybrid', lmbda1=100,
-    #                        lmbda2=200)
-    #
-    #     eta_est = numpy.empty(emd.theta_s.shape)
-    #     psi_est = numpy.empty(T)
-    #     S_est = numpy.empty(T)
-    #     C_est = numpy.empty(T)
-    #
-    #     for t in range(T):
-    #         eta_est[t], psi_est[t] = bethe_approximation.compute_eta_hybrid(emd.theta_s[t], (i+1)*N, return_psi=1)
-    #         psi1 = bethe_approximation.compute_eta_hybrid(.999*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
-    #         psi2 = bethe_approximation.compute_eta_hybrid(1.001*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
-    #         S_est[t] = -(numpy.sum(eta_est[t]*emd.theta_s[t]) - psi_est[t])
-    #         C_est[t] = (psi1 - 2. * psi_est[t] + psi2) / .001 ** 2
-    #     S_est /= numpy.log(2)
-    #     C_est /= numpy.log(2)
-    #     population_rate = numpy.mean(numpy.mean(etas[:i+1,:,:N], axis=0), axis=1)
-    #     population_rate_est = numpy.mean(eta_est[:, :(i+1)*N], axis=1)
-    #     psi_true = numpy.sum(psi[:(i+1),:], axis=0)
-    #     S_true = numpy.sum(S[:(i + 1), :], axis=0)
-    #     C_true = numpy.sum(C[:(i + 1), :], axis=0)
-    #
-    #     f = h5py.File(data_path + 'figure4data.h5', 'r+')
-    #     f['error']['MISE_thetas'][i] = numpy.mean((theta_all - emd.theta_s)**2)
-    #     f['error']['MISE_population_rate'][i] = numpy.mean((population_rate - population_rate_est) ** 2)
-    #     f['error']['MISE_psi'][i] = numpy.mean((psi_est - psi_true) ** 2)
-    #     f['error']['MISE_S'][i] = numpy.mean((S_est - S_true) ** 2)
-    #     f['error']['MISE_C'][i] = numpy.mean((C_est - C_true) ** 2)
-    #     f.close()
+    mu = numpy.zeros(T)
+    x = numpy.arange(1, 401)
+    mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
+               numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
+
+    D = transforms.compute_D(N, O)
+    thetas = numpy.empty([num_of_networks, T, D])
+    etas = numpy.empty([num_of_networks, T, D])
+    psi = numpy.empty([num_of_networks, T])
+    S = numpy.empty([num_of_networks, T])
+    C = numpy.empty([num_of_networks, T])
+    transforms.initialise(N,O)
+    for i in range(num_of_networks):
+        thetas[i] = synthesis.generate_thetas(N, O, T)
+        thetas[i,:,:N] += mu[:,numpy.newaxis]
+        for t in range(T):
+            p = transforms.compute_p(thetas[i,t])
+            etas[i,t] = transforms.compute_eta(p)
+            psi[i,t] = transforms.compute_psi(thetas[i,t])
+            psi1 = transforms.compute_psi(.999*thetas[i,t])
+            psi2 = transforms.compute_psi(1.001 * thetas[i, t])
+            C[i,t] = (psi1 - 2. * psi[i, t] + psi2) / .001 ** 2
+            S[i,t] = -(numpy.sum(etas[i,t]*thetas[i,t]) - psi[i,t])
+    C /= numpy.log(2)
+    S /= numpy.log(2)
+    f = h5py.File(data_path+'figure4data.h5', 'w')
+    g1 = f.create_group('data')
+    g1.create_dataset('thetas', data=thetas)
+    g1.create_dataset('etas', data=etas)
+    g1.create_dataset('psi', data=psi)
+    g1.create_dataset('S', data=S)
+    g1.create_dataset('C', data=C)
+    g2 = f.create_group('error')
+    g2.create_dataset('MISE_thetas', shape=[num_of_networks])
+    g2.create_dataset('MISE_population_rate', shape=[num_of_networks])
+    g2.create_dataset('MISE_psi', shape=[num_of_networks])
+    g2.create_dataset('MISE_S', shape=[num_of_networks])
+    g2.create_dataset('MISE_C', shape=[num_of_networks])
+    f.close()
+    for i in range(num_of_networks):
+        print 'N=%d' %((i+1)*N)
+        D = transforms.compute_D((i + 1)*N, O)
+        theta_all = numpy.empty([T, D])
+        triu_idx = numpy.triu_indices(N, k=1)
+        triu_idx_all = numpy.triu_indices((i+1)*N, k=1)
+        for j in range(i+1):
+            theta_all[:, N*j:(j+1)*N] = thetas[j, :, :N]
+            for t in range(T):
+                theta_ij = numpy.zeros([(i + 1) * N, (i + 1) * N])
+                for j in range(i + 1):
+                    theta_ij[triu_idx[0] + j*N, triu_idx[1] + j*N] = thetas[j, t, N:]
+
+            theta_all[t, (i+1)*N:] = theta_ij[triu_idx_all]
+
+        spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, (i+1) * N, O, R, sample_steps=10)
+        emd = __init__.run(spikes, O, map_function='cg', param_est='pseudo', param_est_eta='bethe_hybrid', lmbda1=100,
+                            lmbda2=200)
+
+        eta_est = numpy.empty(emd.theta_s.shape)
+        psi_est = numpy.empty(T)
+        S_est = numpy.empty(T)
+        C_est = numpy.empty(T)
+        for t in range(T):
+            eta_est[t], psi_est[t] = bethe_approximation.compute_eta_hybrid(emd.theta_s[t], (i+1)*N, return_psi=1)
+            psi1 = bethe_approximation.compute_eta_hybrid(.999*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
+            psi2 = bethe_approximation.compute_eta_hybrid(1.001*emd.theta_s[t], (i + 1) * N, return_psi=1)[1]
+            S_est[t] = -(numpy.sum(eta_est[t]*emd.theta_s[t]) - psi_est[t])
+            C_est[t] = (psi1 - 2. * psi_est[t] + psi2) / .001 ** 2
+        S_est /= numpy.log(2)
+        C_est /= numpy.log(2)
+        population_rate = numpy.mean(numpy.mean(etas[:i+1,:,:N], axis=0), axis=1)
+        population_rate_est = numpy.mean(eta_est[:, :(i+1)*N], axis=1)
+        psi_true = numpy.sum(psi[:(i+1),:], axis=0)
+        S_true = numpy.sum(S[:(i + 1), :], axis=0)
+        C_true = numpy.sum(C[:(i + 1), :], axis=0)
+
+        f = h5py.File(data_path + 'figure4data.h5', 'r+')
+        f['error']['MISE_thetas'][i] = numpy.mean((theta_all - emd.theta_s)**2)
+        f['error']['MISE_population_rate'][i] = numpy.mean((population_rate - population_rate_est) ** 2)
+        f['error']['MISE_psi'][i] = numpy.mean((psi_est - psi_true) ** 2)
+        f['error']['MISE_S'][i] = numpy.mean((S_est - S_true) ** 2)
+        f['error']['MISE_C'][i] = numpy.mean((C_est - C_true) ** 2)
+        f.close()
 
     f = h5py.File(data_path + 'figure4data.h5', 'r+')
     thetas = f['data']['thetas'].value
