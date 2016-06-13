@@ -53,53 +53,53 @@ def compute_eta_CCCP(theta, N, return_psi=False):
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0], triu_idx[1], 0])) -
-                   numpy.sum(((N - 1) - 1) * numpy.log(b_i[:, 0])))
+    # bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0], triu_idx[1], 0])) -
+    #                numpy.sum(((N - 1) - 1) * numpy.log(b_i[:, 0])))
     if return_psi:
-        return eta, bethe_free
+        return eta, -bethe_energy
     else:
         return eta
 
 
-def compute_psi_CCCP(theta, N):
-    """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
-
-    :param numpy.ndarray theta:
-        (d,) dimensional array with natural parameters in it
-    :param int N:
-        Number of cells
-    :returns:
-        (d,) dimensional array with approximated etas
-    """
-    triu_idx = numpy.triu_indices(N, 1)
-    diag_idx = numpy.diag_indices(N)
-    # Transform thetas
-    theta1 = theta[:N]
-    theta2 = numpy.zeros([N, N])
-    theta2[triu_idx] = theta[N:]
-    theta2 += theta2.T
-    # Get unnormalized probs
-    psi_i = numpy.ones([N, 2])
-    psi_i[:,1] = numpy.exp(theta1)
-    phi_ij = numpy.ones([N, N, 4])
-    phi_ij[:, :, 1] = numpy.exp(theta1[:, numpy.newaxis])
-    phi_ij[:, :, 2] = numpy.exp(theta1[:, numpy.newaxis].T)
-    phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] + theta1[:, numpy.newaxis].T + theta2)
-    phi_ij[diag_idx[0], diag_idx[1], :] = 1
-    # Initialize beliefs and Lagrange multipliers
-    b_i = .5*numpy.ones([N, 2])
-    b_ij = .25*numpy.ones([N, N, 4])
-    b_ij[diag_idx[0], diag_idx[1], :] = 0
-    lambda_ij = numpy.zeros([N, N, 2])
-    gamma_ij = numpy.zeros([N, N])
-    # Start CCCP
-    eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
-    # Reshape the expectation parameters and return
-    eta = numpy.empty(theta.shape)
-    eta[:N] = eta1[:, 1]
-    eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-    return -bethe_energy
-
+# def compute_psi_CCCP(theta, N):
+#     """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
+#
+#     :param numpy.ndarray theta:
+#         (d,) dimensional array with natural parameters in it
+#     :param int N:
+#         Number of cells
+#     :returns:
+#         (d,) dimensional array with approximated etas
+#     """
+#     triu_idx = numpy.triu_indices(N, 1)
+#     diag_idx = numpy.diag_indices(N)
+#     # Transform thetas
+#     theta1 = theta[:N]
+#     theta2 = numpy.zeros([N, N])
+#     theta2[triu_idx] = theta[N:]
+#     theta2 += theta2.T
+#     # Get unnormalized probs
+#     psi_i = numpy.ones([N, 2])
+#     psi_i[:,1] = numpy.exp(theta1)
+#     phi_ij = numpy.ones([N, N, 4])
+#     phi_ij[:, :, 1] = numpy.exp(theta1[:, numpy.newaxis])
+#     phi_ij[:, :, 2] = numpy.exp(theta1[:, numpy.newaxis].T)
+#     phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] + theta1[:, numpy.newaxis].T + theta2)
+#     phi_ij[diag_idx[0], diag_idx[1], :] = 1
+#     # Initialize beliefs and Lagrange multipliers
+#     b_i = .5*numpy.ones([N, 2])
+#     b_ij = .25*numpy.ones([N, N, 4])
+#     b_ij[diag_idx[0], diag_idx[1], :] = 0
+#     lambda_ij = numpy.zeros([N, N, 2])
+#     gamma_ij = numpy.zeros([N, N])
+#     # Start CCCP
+#     eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
+#     # Reshape the expectation parameters and return
+#     eta = numpy.empty(theta.shape)
+#     eta[:N] = eta1[:, 1]
+#     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
+#     return -bethe_energy
+#
 
 def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Outer loop of CCCP to update beliefs
@@ -128,14 +128,14 @@ def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     conv_crit = numpy.inf
     bethe = [bethe_E]
     triu_idx = numpy.triu_indices(N, 1)
-    while conv_crit > 1e-4:
+    while conv_crit > 1e-5:
         # Until convergence update Lagrange multipliers and beliefs
         lambda_ij, gamma_ij = inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
         b_i, b_ij = update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N)
         # Compute Bethe energy
         bethe_E_old = bethe_E
-        #bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-        bethe_E = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
+        bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+        #bethe_E = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
         bethe.append(bethe_E)
         conv_crit = numpy.absolute((bethe_E_old - bethe_E) / bethe_E_old)
 
@@ -396,7 +396,7 @@ def log_likelihood_CCCP(y_t, theta_f_t, R, N):
         Log likelhood of the observed patterns given the natural parameters,
         as a float.
     """
-    psi_bethe = compute_psi_CCCP(theta_f_t, N)
+    psi_bethe = compute_eta_CCCP(theta_f_t, N, return_psi=1)[1]
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
     return log_p
 
@@ -467,65 +467,65 @@ def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
     phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
     phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0],diag_idx[1],:] = 1
-    #bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0])))
+    bethe_free = -bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
+    #bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0])))
     if return_psi:
         return eta, bethe_free
     else:
         return eta
 
 
-def compute_psi_BP(theta, N, alpha=.5):
-    """ Uses the Ogata-Tanemura Estimator for estimation (Huang, 2001)
-
-    :param numpy.ndarray th0:
-        (1,d) array with theta distribution where psi is known
-    :param float psi0
-        psi corresponding to th0
-    :param th1:
-        thetas for which one wants to compute psi
-    :param int N:
-        number of cells
-    :param int O:
-        order of interactions
-    :param int K:
-        points of integration
-
-    :returns
-        estimation of psi to th1
-
-    Tries to solve the forward problem at each point and samples if it fails.
-    """
-    K = 5*N
-    th1 = theta
-    th0 = numpy.copy(theta)
-    th0[N:] = 0
-    psi0 = energies.compute_ind_psi(numpy.array([th0[:N]]))[0]
-    # compute difference between th0 and th1
-    dth = th1 - th0
-    # points of integration
-    int_points = numpy.linspace(0,1,K)
-    # array for negative derivatives of Energy function
-    avg_dUs = numpy.empty(K)
-    # iterate over all integration points
-    # iterate over all integration points
-    points_to_sample = []
-    for i, int_point in enumerate(int_points):
-        # theta point that needs to be evaluated
-        th_tmp = th0 + int_point*dth
-        # Sample Data
-        eta = compute_eta_BP(th_tmp, N)
-        # negative derivative of energy function
-        dU = numpy.dot(dth, eta)
-        # compute mean
-        avg_dUs[i] = numpy.mean(dU)
-
-    # weights for trapezoidal intergration rule
-    w = numpy.ones(K)/K
-    w[0] /= K
-    w[-1] /= K
-    # compute estimation of psi
-    return psi0 + numpy.dot(w, avg_dUs)
+# def compute_psi_BP(theta, N, alpha=.5):
+#     """ Uses the Ogata-Tanemura Estimator for estimation (Huang, 2001)
+#
+#     :param numpy.ndarray th0:
+#         (1,d) array with theta distribution where psi is known
+#     :param float psi0
+#         psi corresponding to th0
+#     :param th1:
+#         thetas for which one wants to compute psi
+#     :param int N:
+#         number of cells
+#     :param int O:
+#         order of interactions
+#     :param int K:
+#         points of integration
+#
+#     :returns
+#         estimation of psi to th1
+#
+#     Tries to solve the forward problem at each point and samples if it fails.
+#     """
+#     K = 10*N
+#     th1 = theta
+#     th0 = numpy.copy(theta)
+#     th0[N:] = 0
+#     psi0 = energies.compute_ind_psi(numpy.array([th0[:N]]))[0]
+#     # compute difference between th0 and th1
+#     dth = th1 - th0
+#     # points of integration
+#     int_points = numpy.linspace(0,1,K)
+#     # array for negative derivatives of Energy function
+#     avg_dUs = numpy.empty(K)
+#     # iterate over all integration points
+#     # iterate over all integration points
+#     points_to_sample = []
+#     for i, int_point in enumerate(int_points):
+#         # theta point that needs to be evaluated
+#         th_tmp = th0 + int_point*dth
+#         # Sample Data
+#         eta = compute_eta_BP(th_tmp, N)
+#         # negative derivative of energy function
+#         dU = numpy.dot(dth, eta)
+#         # compute mean
+#         avg_dUs[i] = numpy.mean(dU)
+#
+#     # weights for trapezoidal intergration rule
+#     w = numpy.ones(K)/K
+#     w[0] /= K
+#     w[-1] /= K
+#     # compute estimation of psi
+#     return psi0 + numpy.dot(w, avg_dUs)
 
 
 def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
@@ -606,11 +606,15 @@ def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
     if all:
         b_ij = numpy.empty([N,N,4])
         # for x_i = 0
-        b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-        b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*\
+                      numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+        b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T\
+                      *numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
         # for x_i = 1
-        b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-        b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T\
+                      *numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
+        b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]\
+                      /messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
         k_ij = numpy.sum(b_ij, axis=2)
         b_ij /= k_ij[:,:,numpy.newaxis]
         #k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
@@ -704,7 +708,7 @@ def log_likelihood_BP(y_t, theta_f_t, R, N):
         Log likelhood of the observed patterns given the natural parameters,
         as a float.
     """
-    psi_bethe = compute_psi_BP(theta_f_t, N)
+    psi_bethe = compute_eta_BP(theta_f_t, N, return_psi=1)[1]
     log_p = R * (numpy.dot(y_t, theta_f_t) - psi_bethe)
     return log_p
 
