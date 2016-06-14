@@ -27,8 +27,8 @@ def figure1(data_path = '../Data/'):
     x = numpy.arange(1, 401)
     mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
-    theta1 = synthesis.generate_thetas(N, O, T)
-    theta2 = synthesis.generate_thetas(N, O, T)
+    theta1 = synthesis.generate_thetas(N, O, T, mu1=-1.5)
+    theta2 = synthesis.generate_thetas(N, O, T, mu1=-1.5)
     theta1[:, :N] += mu[:, numpy.newaxis]
     theta2[:, :N] += mu[:, numpy.newaxis]
     D = transforms.compute_D(N * 2, O)
@@ -73,7 +73,7 @@ def figure1(data_path = '../Data/'):
 
     C_all = C1 + C2
 
-    spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, 2 * N, O, R, sample_steps=100)
+    spikes = synthesis.generate_spikes_gibbs_parallel(theta_all, 2 * N, O, R, sample_steps=10)
 
     print 'Model and Data generated'
 
@@ -167,7 +167,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax.xaxis.set_ticks_position('bottom')
     ax.set_yticks([.1,.2,.3])
     ax.set_xticks([50,150,300])
-    ax.set_ylabel('Data spike prob.', fontsize=16)
+    ax.set_ylabel('Data $p_{\\mathrm{spike}}$', fontsize=16)
     ax.set_xlabel('Time [AU]', fontsize=16)
     fig.savefig(plot_path + 'spikes.pdf')
 
@@ -303,10 +303,10 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax1.set_xticks([50, 150, 300])
     ax1.yaxis.set_ticks_position('left')
     ax1.xaxis.set_ticks_position('bottom')
-    ax1.set_ylabel('Spike Prob.', fontsize=16)
+    ax1.set_ylabel('$p_{\\mathrm{spike}}$', fontsize=16)
     ax1 = fig.add_subplot(412)
     ax1.set_frame_on(False)
-    ax1.fill_between(range(0, 500), numpy.exp(psi_quantiles[:, 0]), numpy.exp(psi_quantiles[:, 1]), color=psi_color)
+    ax1.fill_between(range(0, 500), numpy.exp(-psi_quantiles[:, 0]), numpy.exp(-psi_quantiles[:, 1]), color=psi_color)
     ax1.plot(range(500), numpy.exp(-psi_true), linewidth=3, color=psi_color * .8)
     # ax1.plot(numpy.exp(-psi_quantiles[:,0]), c=[.5,.5,.5])
     # ax1.plot(, c=[.5,.5,.5])
@@ -328,7 +328,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax1.yaxis.set_ticks_position('left')
     ax1.xaxis.set_ticks_position('bottom')
     # ax1.legend(['Silence', 'Spike'], frameon=0)
-    ax1.set_ylabel('Silence Prob.', fontsize=16)
+    ax1.set_ylabel('$p_{\\mathrm{silence}}$', fontsize=16)
     # Entropy
     ax2 = fig.add_subplot(413)
     ax2.set_frame_on(False)
@@ -344,7 +344,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     # ax2.set_yticks([10,15,20])
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
-    ax2.set_ylabel('Entropy [bits]', fontsize=16)
+    ax2.set_ylabel('$S$ [bit]', fontsize=16)
     # Heat capacity
     ax2 = fig.add_subplot(414)
     ax2.set_frame_on(False)
@@ -359,7 +359,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax2.yaxis.set_ticks_position('left')
     ax2.xaxis.set_ticks_position('bottom')
     ax2.set_xlabel('Time [AU]', fontsize=16)
-    ax2.set_ylabel('Heat capacity [bits]', fontsize=16)
+    ax2.set_ylabel('$C$ [bit]', fontsize=16)
     fig.savefig(plot_path+'energies.pdf', transparent=True)
 
 
