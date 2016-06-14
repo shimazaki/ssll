@@ -447,7 +447,7 @@ def figure4(data_path='../Data/'):
     C = numpy.empty([num_of_networks, T])
     transforms.initialise(N,O)
     for i in range(num_of_networks):
-        thetas[i] = synthesis.generate_thetas(N, O, T)
+        thetas[i] = synthesis.generate_thetas(N, O, T, mu1=-1.5)
         thetas[i,:,:N] += mu[:,numpy.newaxis]
         for t in range(T):
             p = transforms.compute_p(thetas[i,t])
