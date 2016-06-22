@@ -27,8 +27,8 @@ def figure1(data_path = '../Data/'):
     x = numpy.arange(1, 401)
     mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
-    theta1 = synthesis.generate_thetas(N, O, T, mu1=-1.5)
-    theta2 = synthesis.generate_thetas(N, O, T, mu1=-1.5)
+    theta1 = synthesis.generate_thetas(N, O, T, mu1=-2.)
+    theta2 = synthesis.generate_thetas(N, O, T, mu1=-2.)
     theta1[:, :N] += mu[:, numpy.newaxis]
     theta2[:, :N] += mu[:, numpy.newaxis]
     D = transforms.compute_D(N * 2, O)
@@ -447,7 +447,7 @@ def figure4(data_path='../Data/'):
     C = numpy.empty([num_of_networks, T])
     transforms.initialise(N,O)
     for i in range(num_of_networks):
-        thetas[i] = synthesis.generate_thetas(N, O, T, mu1=-1.5)
+        thetas[i] = synthesis.generate_thetas(N, O, T, mu1=-2.)
         thetas[i,:,:N] += mu[:,numpy.newaxis]
         for t in range(T):
             p = transforms.compute_p(thetas[i,t])
