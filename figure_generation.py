@@ -436,7 +436,7 @@ def figure4(data_path='../Data/'):
     num_of_networks = 6
     mu = numpy.zeros(T)
     x = numpy.arange(1, 401)
-    mu[100:] = .6 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
+    mu[100:] = 1. * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
 
     D = transforms.compute_D(N, O)
