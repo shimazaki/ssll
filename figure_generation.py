@@ -22,10 +22,10 @@ def get_sampled_eta_psi(i, theta_sampled, N):
     return eta, psi, i
 
 def figure1(data_path = '../Data/'):
-    N, O, R, T = 15, 2, 250, 500
+    N, O, R, T = 15, 2, 200, 500
     mu = numpy.zeros(T)
     x = numpy.arange(1, 401)
-    mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
+    mu[100:] = .6 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
     theta1 = synthesis.generate_thetas(N, O, T, mu1=-2.)
     theta2 = synthesis.generate_thetas(N, O, T, mu1=-2.)
@@ -165,7 +165,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax.add_artist(pyplot.Line2D((xmin, xmax), (ymin, ymin), color='black', linewidth=3))
     ax.yaxis.set_ticks_position('left')
     ax.xaxis.set_ticks_position('bottom')
-    ax.set_yticks([.1,.2,.3])
+    ax.set_yticks([.1,.2,])
     ax.set_xticks([50,150,300])
     ax.set_ylabel('Data $p_{\\mathrm{spike}}$', fontsize=16)
     ax.set_xlabel('Time [AU]', fontsize=16)
@@ -211,9 +211,9 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
 
     # Figure C
 
-    theta = f['data']['theta_all'][:,[34,71,163]]
-    theta_fit = f['fit']['theta_s'][:,[34,71,163]]
-    sigma_fit = f['fit']['sigma_s'][:,[34,71,163]]
+    theta = f['data']['theta_all'][:,[165, 170, 181]]
+    theta_fit = f['fit']['theta_s'][:,[165, 170, 181]]
+    sigma_fit = f['fit']['sigma_s'][:,[165, 170, 181]]
 
 
     fig = pyplot.figure(figsize=(10, 6))
@@ -292,7 +292,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax1.fill_between(range(0, 500), eta_quantiles[:, 0], eta_quantiles[:, 1], color=eta_color)
     eta_true = 1./ 2.*(numpy.mean(eta1[:, :N1], axis=1) + numpy.mean(eta2[:, :N2], axis=1))
     ax1.fill_between(range(0, 500), eta_quantiles[:, 0], eta_quantiles[:, 1], color=eta_color)
-    ax1.plot(range(500), eta_true, linewidth=3, color=eta_color * .8)
+    ax1.plot(range(500), eta_true, linewidth=4, color=eta_color * .8)
 
     ax1.set_yticks([.1, .2, .3])
     ax1.set_ylim([.09, .35])
@@ -307,7 +307,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax1 = fig.add_subplot(412)
     ax1.set_frame_on(False)
     ax1.fill_between(range(0, 500), numpy.exp(-psi_quantiles[:, 0]), numpy.exp(-psi_quantiles[:, 1]), color=psi_color)
-    ax1.plot(range(500), numpy.exp(-psi_true), linewidth=3, color=psi_color * .8)
+    ax1.plot(range(500), numpy.exp(-psi_true), linewidth=4, color=psi_color * .8)
     # ax1.plot(numpy.exp(-psi_quantiles[:,0]), c=[.5,.5,.5])
     # ax1.plot(, c=[.5,.5,.5])
     # ax1.fill_between(range(0,500),eta_quantiles[:,0], eta_quantiles[:,2], color=eta_color)
@@ -319,7 +319,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     # ax1.plot(numpy.mean(f['eta_true'][:,:15], axis=1),'k', linewidth=3)
     # ax1.plot(numpy.mean(f['eta_true'][:,:15], axis=1) ,c=eta_color,linewidth=2)
     ax1.set_yticks([.01, .02, 0.03])
-    ax1.set_ylim([.0, .03])
+    ax1.set_ylim([.0, .035])
     ymin, ymax = ax1.get_yaxis().get_view_interval()
     xmin, xmax = ax1.get_xaxis().get_view_interval()
     ax1.add_artist(pyplot.Line2D((xmin, xmin), (ymin, ymax), color='black', linewidth=2))
@@ -334,7 +334,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax2.set_frame_on(False)
 
     ax2.fill_between(range(0, 500), S_quantiles[:, 0], S_quantiles[:, 1], color=S_color)
-    ax2.plot(range(500), S_true, linewidth=3, color=S_color * .8)
+    ax2.plot(range(500), S_true, linewidth=4, color=S_color * .8)
     ax2.set_xticks([50, 150, 300])
     ax2.set_yticks([15, 20, 25])
     ymin, ymax = ax2.get_yaxis().get_view_interval()
@@ -349,7 +349,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
     ax2 = fig.add_subplot(414)
     ax2.set_frame_on(False)
     ax2.fill_between(range(0, 500), C_quantiles[:, 0], C_quantiles[:, 1], color=C_color)
-    ax2.plot(range(500), C_true, linewidth=3, color=C_color * .8)
+    ax2.plot(range(500), C_true, linewidth=4, color=C_color * .8)
     ymin, ymax = ax2.get_yaxis().get_view_interval()
     xmin, xmax = ax2.get_xaxis().get_view_interval()
     ax2.add_artist(pyplot.Line2D((xmin, xmin), (ymin, ymax), color='black', linewidth=2))
@@ -366,7 +366,7 @@ def plot_figure1(data_path='../Data/', plot_path='../Plots/'):
 
 
 def figure2and3(data_path = '../Data/'):
-    R, T, N, O = 250, 500, 15, 2
+    R, T, N, O = 200, 500, 15, 2
     f = h5py.File(data_path + 'figure1data.h5', 'r')
     theta = f['data']['theta1'].value
     f.close()
@@ -432,11 +432,11 @@ def figure2and3(data_path = '../Data/'):
 
 def figure4(data_path='../Data/'):
 
-    N, O, R, T = 10, 2, 250, 500
+    N, O, R, T = 10, 2, 200, 500
     num_of_networks = 6
     mu = numpy.zeros(T)
     x = numpy.arange(1, 401)
-    mu[100:] = .8 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
+    mu[100:] = .6 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
 
     D = transforms.compute_D(N, O)
