@@ -25,7 +25,7 @@ def figure1(data_path = '../Data/'):
     N, O, R, T = 15, 2, 200, 500
     mu = numpy.zeros(T)
     x = numpy.arange(1, 401)
-    mu[100:] = .6 * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
+    mu[100:] = 1. * (3. / (2. * numpy.pi * (x/400.*3.) ** 3)) ** .5 * \
                numpy.exp(-3. * ((x/400.*3.) - 1.) ** 2 / (2. * (x/400.*3.)))
     theta1 = synthesis.generate_thetas(N, O, T, mu1=-2.)
     theta2 = synthesis.generate_thetas(N, O, T, mu1=-2.)
