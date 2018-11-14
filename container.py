@@ -200,7 +200,7 @@ class EMData:
         self.F = numpy.identity(self.D)
         self.Q = numpy.zeros([self.D, self.D])
         if type(state_cov) == float or type(state_cov) == int:
-            self.Q = 1. / state_cov * numpy.identity(self.D)
+            self.Q = state_cov * numpy.identity(self.D)
         elif type(state_cov) == numpy.ndarray:
             if state_cov.shape == (self.D, self.D):
                 self.Q = state_cov

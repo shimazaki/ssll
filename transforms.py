@@ -152,7 +152,6 @@ def compute_p(theta):
     global p_map
     # Compute log probabilities
     log_p = p_map.dot(theta)
-    print('ddddddddd',type(p_map),theta, log_p)
 
     # Take exponential and normalise
     p = numpy.exp(log_p)

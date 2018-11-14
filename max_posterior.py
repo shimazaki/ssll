@@ -98,7 +98,7 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     theta_max = theta_0
     # Iterate the gradient ascent algorithm until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
-        print(theta_max)
+        #print(theta_max)
         # Compute the eta of the current theta values
         p = transforms.compute_p(theta_max)
         eta = transforms.compute_eta(p)

@@ -130,10 +130,8 @@ class TestEstimator(unittest.TestCase):
         for order in range(1,O):
             order = order + 1
             for i in itertools.combinations(range(N),order):
-                print(i)
                 D += 1
-        state_cov = 100 * numpy.identity(D)
-        print(state_cov)
+        state_cov = 0.01 * numpy.identity(D)
         emd = run(spikes, O, window=1, map_function='nr', state_cov=state_cov, max_iter=1000,
         param_est='exact', param_est_eta='exact', theta_o = 0, sigma_o = 0.1, mstep=True, show_llk=False)
         # Compute the KL divergence between real and estimated parameters
