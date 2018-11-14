@@ -150,9 +150,10 @@ def compute_p(theta):
         Probability mass as a numpy.ndarray.
     """
     global p_map
-
     # Compute log probabilities
     log_p = p_map.dot(theta)
+    print('ddddddddd',type(p_map),theta, log_p)
+
     # Take exponential and normalise
     p = numpy.exp(log_p)
     p_tmp = p / numpy.sum(p)

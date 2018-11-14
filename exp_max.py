@@ -220,8 +220,9 @@ def m_step_Q(emd):#, stationary):
 
         inv_lmbda = 0
         for i in range(emd.T):
-            A = compute_A(emd.sigma_f[i - 1, :, :], emd.sigma_o[i, :, :], emd.F)
-            lag_one_covariance = numpy.dot(A, emd.sigma_s[i, :])
+            #A = compute_A(emd.sigma_f[i - 1, :, :], emd.sigma_o[i, :, :], emd.F)
+            #lag_one_covariance = numpy.dot(A, emd.sigma_s[i, :])
+            lag_one_covariance = emd.sigma_s_lag[i, :, :]
             term1 = emd.sigma_s[i, :] - numpy.dot(lag_one_covariance, emd.F.T) - \
                     numpy.dot(emd.F, lag_one_covariance.T) + \
                     numpy.dot(numpy.dot(emd.F, emd.sigma_s[i - 1, :]), emd.F.T)
