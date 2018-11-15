@@ -163,7 +163,8 @@ def m_step(emd):#, stationary='None'):
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
     m_step_Q(emd)#, stationary)
-    #m_step_F(emd)
+    if emd.state_ar_0 is not None:
+        m_step_F(emd)
 
 
 def m_step_F(emd):
@@ -207,7 +208,7 @@ def m_step_Q(emd):#, stationary):
 
     inv_lmbda = 0
     if emd.param_est_eta == 'exact':
-
+        '''
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :, :]
             tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
@@ -216,7 +217,7 @@ def m_step_Q(emd):#, stationary):
                          numpy.trace(emd.sigma_s[i - 1, :, :]) + \
                          numpy.dot(tmp, tmp)
         Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
-
+        '''
 
         inv_lmbda = 0
         for i in range(1,emd.T):
@@ -236,9 +237,8 @@ def m_step_Q(emd):#, stationary):
                 C = 1
         emd.Q = inv_lmbda / (emd.T - 1) * C
 
-        print(Q,emd.Q)
-
-        print('')
+        #print(Q,emd.Q)
+        #print('')
     else:
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :]

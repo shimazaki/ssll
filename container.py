@@ -151,10 +151,10 @@ class EMData:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
     def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
-                 state_cov, theta_o, sigma_o):
+                 state_cov, state_ar, theta_o, sigma_o):
 
         # Record the input parameters
-        self.spikes, self.order, self.state_cov_0, self.window = spikes, order, state_cov, window
+        self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window = spikes, order, state_cov, state_ar, window
         T, self.R, self.N = self.spikes.shape
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
@@ -197,7 +197,6 @@ class EMData:
             self.sigma_f = .1*numpy.ones((self.T,self.D))
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
-        self.F = numpy.identity(self.D)
         self.Q = numpy.zeros([self.D, self.D])
         if type(state_cov) == float or type(state_cov) == int:
             self.Q = state_cov * numpy.identity(self.D)
@@ -206,6 +205,14 @@ class EMData:
                 self.Q = state_cov
             else:
                 raise ValueError('The dimensions of the state covariance need to be DxD ')
+        if state_ar is not None:
+            if state_ar.shape == (self.D, self.D):
+                self.F = state_ar
+            else:
+                raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD ')
+        else:
+            self.F = numpy.identity(self.D)
+
         self.mllk = numpy.inf
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf

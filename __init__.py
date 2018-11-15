@@ -62,8 +62,8 @@ import energies
 import bethe_approximation
 
 
-def run(spikes, order, window=1, map_function='nr', state_cov=0.01, max_iter=100,
-        param_est='exact', param_est_eta='exact', stationary='None',\
+def run(spikes, order, window=1, map_function='nr', state_cov=0.01, state_ar=None, max_iter=100,
+        param_est='exact', param_est_eta='exact',\
         theta_o = 0, sigma_o = 0.1, mstep=True):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
@@ -127,7 +127,7 @@ def run(spikes, order, window=1, map_function='nr', state_cov=0.01, max_iter=100
     #    lmbda1, lmbda2 = numpy.inf, numpy.inf
 
     emd = container.EMData(spikes, order, window, param_est, param_est_eta,
-                           map_function, state_cov, theta_o, sigma_o)
+                           map_function, state_cov, state_ar, theta_o, sigma_o)
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
@@ -139,7 +139,7 @@ def run(spikes, order, window=1, map_function='nr', state_cov=0.01, max_iter=100
         # Perform EM
         exp_max.e_step(emd)
         if mstep == True:
-            exp_max.m_step(emd, stationary)
+            exp_max.m_step(emd)
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)
