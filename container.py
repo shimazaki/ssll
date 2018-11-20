@@ -198,16 +198,16 @@ class EMData:
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
         self.Q = numpy.zeros([self.D, self.D])
-        if type(state_cov) == float or type(state_cov) == int:
-            self.Q = state_cov * numpy.identity(self.D)
-        elif type(state_cov) == numpy.ndarray:
-            if state_cov.shape == (self.D, self.D):
-                self.Q = state_cov
+        if type(self.state_cov_0) == float or type(self.state_cov_0) == int:
+            self.Q = self.state_cov_0 * numpy.identity(self.D)
+        elif type(self.state_cov_0) == numpy.ndarray:
+            if self.state_cov_0.shape == (self.D, self.D):
+                self.Q = self.state_cov_0
             else:
                 raise ValueError('The dimensions of the state covariance need to be DxD ')
-        if state_ar is not None:
-            if state_ar.shape == (self.D, self.D):
-                self.F = state_ar
+        if self.state_ar_0 is not None:
+            if self.state_ar_0.shape == (self.D, self.D):
+                self.F = self.state_ar_0
             else:
                 raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD ')
         else:

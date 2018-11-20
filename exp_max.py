@@ -162,7 +162,8 @@ def m_step(emd):#, stationary='None'):
     # Update the initial mean of the one-step-prediction density
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
-    m_step_Q(emd)#, stationary)
+    if emd.state_cov_0 is not None:
+        m_step_Q(emd)#, stationary)
     if emd.state_ar_0 is not None:
         m_step_F(emd)
 
@@ -203,8 +204,6 @@ def m_step_Q(emd):#, stationary):
     :param stationary:
         If 'all' stationary on all thetas is assumed.
     """
-    if not emd.Q.any():
-        return None
 
     inv_lmbda = 0
     if emd.param_est_eta == 'exact':
