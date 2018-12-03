@@ -192,6 +192,13 @@ def m_step_F(emd):
     # Dot the results
     emd.F = numpy.dot(a, numpy.linalg.inv(b))
 
+def m_step_mu(emd):
+    return emd.theta_s[1,:]
+
+def m_step_Sigma(emd):
+    # TODO: incorporate mu
+    Sigma = emd.sigma_s[1,:]
+    return Sigma
 
 def m_step_Q(emd):#, stationary):
     """
@@ -231,10 +238,20 @@ def m_step_Q(emd):#, stationary):
             if type(emd.state_cov_0) == float or type(emd.state_cov_0) == int:
                 inv_lmbda += numpy.trace(term1) + numpy.trace(term2)
                 C = (1 / emd.D) * numpy.identity(emd.D)
+            elif emd.state_cov_0.shape == (emd.D,):
+                inv_lmbda += numpy.diag(numpy.diag(term1 + term2))
+                C = 1
             else:
                 inv_lmbda += term1 + term2
                 C = 1
         emd.Q = inv_lmbda / (emd.T - 1) * C
+        '''
+        if not numpy.allclose(emd.Q,emd.Q.T,atol=10e-3):
+            #print('eigens =', numpy.linalg.eig(emd.Q), "Q", emd.Q)
+            diag_q = numpy.diag(emd.Q)
+            emd.Q = numpy.triu(emd.Q) + numpy.triu(emd.Q).T
+            emd.Q[numpy.diag_indices(emd.D)] = diag_q
+        '''
 
         #print(Q,emd.Q)
         #print('')

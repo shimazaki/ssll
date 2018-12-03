@@ -204,12 +204,18 @@ class EMData:
             if self.state_cov_0.shape == (self.D, self.D):
                 self.Q = self.state_cov_0
             else:
-                raise ValueError('The dimensions of the state covariance need to be DxD ')
+                try:
+                    self.state_cov_0.reshape(self.D)
+                except ValueError:
+                    raise ValueError('The dimensions of the state covariance need to be DxD or a vector')
+                else:
+                    self.Q = numpy.diag(self.state_cov_0)
+
         if self.state_ar_0 is not None:
             if self.state_ar_0.shape == (self.D, self.D):
                 self.F = self.state_ar_0
             else:
-                raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD ')
+                raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD')
         else:
             self.F = numpy.identity(self.D)
 

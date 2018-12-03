@@ -46,7 +46,7 @@ import pseudo_likelihood
 # SEE BOTTOM OF FILE
 
 # Parameters for gradient-ascent methods of MAP estimation
-MAX_GA_ITERATIONS = 500
+MAX_GA_ITERATIONS = 5000
 GA_CONVERGENCE = 1e-4
 
 def run(emd, t):

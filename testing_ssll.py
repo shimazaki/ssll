@@ -134,8 +134,9 @@ class TestEstimator(unittest.TestCase):
         state_cov = 0.01 * numpy.identity(D)
         state_ar = numpy.identity(D)
 
-        emd = run(spikes, O, window=1, map_function='nr', state_cov=state_cov, state_ar=state_ar, max_iter=1000,
+        emd = run(spikes, O, window=1, map_function='nr', state_cov=numpy.diag(state_cov), state_ar=None, max_iter=1000,
         param_est='exact', param_est_eta='exact', theta_o = 0, sigma_o = 0.1, mstep=True, show_llk=False)
+
         # Compute the KL divergence between real and estimated parameters
         kld = klic(theta, emd.theta_s, emd.N)
         # Check that KL divergence is OK
