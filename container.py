@@ -174,7 +174,11 @@ class EMData:
         self.T, self.D = self.y.shape
         assert self.T == T / window
         # Initialise one-step-prediction- filtered- smoothed-density means
-        self.theta_o = numpy.ones((self.T,self.D)) * theta_o
+        if type(theta_o) == int or type(theta_o) == float:
+            self.theta_o = numpy.ones((self.T,self.D)) * theta_o
+        else:
+            self.theta_o = numpy.zeros((self.T, self.D))
+            self.theta_o[0] = theta_o
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
 

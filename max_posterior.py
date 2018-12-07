@@ -113,7 +113,8 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
         ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps*\
                                    numpy.identity(eta.shape[0]))
         # Update Theta
-        theta_max -= numpy.dot(ddlpo_i, dlpo)
+        epsilon = 1 / numpy.sqrt(eta.shape[0])
+        theta_max -= 1 * numpy.dot(ddlpo_i, dlpo)
         # Update the look guard
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
         # Count iterations

@@ -96,15 +96,24 @@ def e_step_filter(emd):
         # Computation for exact case with full covariance matrix
         if emd.param_est_eta == 'exact':
             tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
-            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
+            #print('Q symetric: ',numpy.allclose(emd.Q,emd.Q.T,rtol=1e-10))
+            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T)
+            #print(numpy.allclose(emd.sigma_o[i,:,:],emd.sigma_o[i,:,:].T,rtol=1e12),numpy.allclose(emd.Q, emd.Q.T,rtol=1e-16))
+
+            emd.sigma_o[i, :, :] = emd.sigma_o[i, :, :] + emd.Q
+            c = numpy.log(numpy.linalg.det(emd.sigma_o[i, :, :]))
+            c = numpy.log(numpy.linalg.det(emd.sigma_f[i-1, :, :]))
+
             # Compute inverse of one-step prediction covariance
             emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
+            c = numpy.log(numpy.linalg.det(emd.sigma_o_inv[i, :, :]))
         # Computation for approximate case with diagonal covariance matrix
         else:
             emd.sigma_o[i,:] = emd.sigma_f[i-1,:] + emd.Q.diagonal()
             emd.sigma_o_inv[i] = 1./emd.sigma_o[i]
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
+        b = numpy.log(numpy.linalg.det(emd.sigma_f[i, :, :]))
 
 def e_step_smooth(emd):
     """
@@ -191,14 +200,8 @@ def m_step_F(emd):
              numpy.outer(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
     # Dot the results
     emd.F = numpy.dot(a, numpy.linalg.inv(b))
+    #emd.F = (emd.F + emd.F.T) / 2
 
-def m_step_mu(emd):
-    return emd.theta_s[1,:]
-
-def m_step_Sigma(emd):
-    # TODO: incorporate mu
-    Sigma = emd.sigma_s[1,:]
-    return Sigma
 
 def m_step_Q(emd):#, stationary):
     """
@@ -245,13 +248,8 @@ def m_step_Q(emd):#, stationary):
                 inv_lmbda += term1 + term2
                 C = 1
         emd.Q = inv_lmbda / (emd.T - 1) * C
-        '''
-        if not numpy.allclose(emd.Q,emd.Q.T,atol=10e-3):
-            #print('eigens =', numpy.linalg.eig(emd.Q), "Q", emd.Q)
-            diag_q = numpy.diag(emd.Q)
-            emd.Q = numpy.triu(emd.Q) + numpy.triu(emd.Q).T
-            emd.Q[numpy.diag_indices(emd.D)] = diag_q
-        '''
+        emd.Q = (emd.Q + emd.Q.T) / 2
+
 
         #print(Q,emd.Q)
         #print('')
