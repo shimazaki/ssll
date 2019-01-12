@@ -34,6 +34,15 @@ Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
 
 ---
 
+This code was extended to enable users to optimize the autoregressive parameter
+and noise covariance (a scalar or a diagonal and full matrix) in a state model.
+
+Copyright (C) 2019
+
+Author of the extensions: Magalie Tatischeff (magalietati@gmail.com)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or

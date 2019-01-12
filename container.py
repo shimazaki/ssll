@@ -33,6 +33,15 @@ Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
 
 ---
 
+This code was extended to enable users to optimize the autoregressive parameter
+and noise covariance (a scalar or a diagonal and full matrix) in a state model.
+
+Copyright (C) 2019
+
+Author of the extensions: Magalie Tatischeff (magalietati@gmail.com)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -84,10 +93,10 @@ class EMData:
         A function from max_posterior.py or pseudo_likelihood.py
         that returns an estimate of the posterior distribution of natural
         parameters for a given timestep.
-    :param float lmbda1:
-        Inverse coefficient on the identity matrix of the initial
+    :param float state_cov:
+        Covariance matrix of the state
         state-transition covariance matrix for the first order theta parameters.
-    :param float lmbda2:
+    :param float state_ar:
         Inverse coefficient on the identity matrix of the initial
         state-transition covariance matrix for the second order theta parameters.
     :param numpy.ndarray theta_o:
@@ -201,6 +210,8 @@ class EMData:
             self.sigma_f = .1*numpy.ones((self.T,self.D))
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
+
+        # Initialize noise covariance matrix in a state model
         self.Q = numpy.zeros([self.D, self.D])
         if type(self.state_cov_0) == float or type(self.state_cov_0) == int:
             self.Q = self.state_cov_0 * numpy.identity(self.D)
@@ -215,6 +226,7 @@ class EMData:
                 else:
                     self.Q = numpy.diag(self.state_cov_0)
 
+        # Initialize autoregressive parameters in a state model
         if self.state_ar_0 is not None:
             if self.state_ar_0.shape == (self.D, self.D):
                 self.F = self.state_ar_0
