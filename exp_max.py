@@ -21,6 +21,17 @@ Copyright (C) 2016
 Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
                            Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
+---
+
+This code was extended to enable users to optimize the autoregressive parameter
+and noise covariance (a scalar or a diagonal and full matrix) in a state model.
+
+Copyright (C) 2019
+
+Author of the extensions: Magalie Tatischeff (magalietati@gmail.com)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -97,15 +108,24 @@ def e_step_filter(emd):
         # Computation for exact case with full covariance matrix
         if emd.param_est_eta == 'exact':
             tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
-            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
+            #print('Q symetric: ',numpy.allclose(emd.Q,emd.Q.T,rtol=1e-10))
+            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T)
+            #print(numpy.allclose(emd.sigma_o[i,:,:],emd.sigma_o[i,:,:].T,rtol=1e12),numpy.allclose(emd.Q, emd.Q.T,rtol=1e-16))
+
+            emd.sigma_o[i, :, :] = emd.sigma_o[i, :, :] + emd.Q
+            c = numpy.log(numpy.linalg.det(emd.sigma_o[i, :, :]))
+            c = numpy.log(numpy.linalg.det(emd.sigma_f[i-1, :, :]))
+
             # Compute inverse of one-step prediction covariance
             emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
+            c = numpy.log(numpy.linalg.det(emd.sigma_o_inv[i, :, :]))
         # Computation for approximate case with diagonal covariance matrix
         else:
             emd.sigma_o[i,:] = emd.sigma_f[i-1,:] + emd.Q.diagonal()
             emd.sigma_o_inv[i] = 1./emd.sigma_o[i]
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
+        b = numpy.log(numpy.linalg.det(emd.sigma_f[i, :, :]))
 
 def e_step_smooth(emd):
     """
@@ -148,7 +168,7 @@ def e_step_smooth(emd):
             emd.sigma_s_lag[i+1] = numpy.dot(A, numpy.diag(emd.sigma_s[i+1])).diagonal()
 
 
-def m_step(emd, stationary='None'):
+def m_step(emd):#, stationary='None'):
     """
     Computes the optimised hyperparameters of the natural parameters of the
     posterior distributions over time. `Q' is the covariance matrix of the
@@ -163,8 +183,10 @@ def m_step(emd, stationary='None'):
     # Update the initial mean of the one-step-prediction density
     emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
-    m_step_Q(emd, stationary)
-    #m_step_F(emd)
+    if emd.state_cov_0 is not None:
+        m_step_Q(emd)#, stationary)
+    if emd.state_ar_0 is not None:
+        m_step_F(emd)
 
 
 def m_step_F(emd):
@@ -190,9 +212,10 @@ def m_step_F(emd):
              numpy.outer(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
     # Dot the results
     emd.F = numpy.dot(a, numpy.linalg.inv(b))
+    #emd.F = (emd.F + emd.F.T) / 2
 
 
-def m_step_Q(emd, stationary):
+def m_step_Q(emd):#, stationary):
     """
     Computes the optimised state-transition covariance hyperparameters `Q' of
     the natural parameters of the posterior distributions over time. Here
@@ -203,8 +226,10 @@ def m_step_Q(emd, stationary):
     :param stationary:
         If 'all' stationary on all thetas is assumed.
     """
+
     inv_lmbda = 0
     if emd.param_est_eta == 'exact':
+        '''
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :, :]
             tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
@@ -212,7 +237,34 @@ def m_step_Q(emd, stationary):
                          2 * numpy.trace(lag_one_covariance) + \
                          numpy.trace(emd.sigma_s[i - 1, :, :]) + \
                          numpy.dot(tmp, tmp)
-        emd.Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
+        Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
+        '''
+
+        inv_lmbda = 0
+        for i in range(1,emd.T):
+            #A = compute_A(emd.sigma_f[i - 1, :, :], emd.sigma_o[i, :, :], emd.F)
+            #lag_one_covariance = numpy.dot(A, emd.sigma_s[i, :])
+            lag_one_covariance = emd.sigma_s_lag[i, :, :]
+            term1 = emd.sigma_s[i, :] - numpy.dot(lag_one_covariance, emd.F.T) - \
+                    numpy.dot(emd.F, lag_one_covariance.T) + \
+                    numpy.dot(numpy.dot(emd.F, emd.sigma_s[i - 1, :]), emd.F.T)
+            tmp = emd.theta_s[i, :] - numpy.dot(emd.F, emd.theta_s[i - 1, :])
+            term2 = numpy.dot(tmp.reshape(emd.D, 1), tmp.reshape(1, emd.D))
+            if type(emd.state_cov_0) == float or type(emd.state_cov_0) == int:
+                inv_lmbda += numpy.trace(term1) + numpy.trace(term2)
+                C = (1 / emd.D) * numpy.identity(emd.D)
+            elif emd.state_cov_0.shape == (emd.D,):
+                inv_lmbda += numpy.diag(numpy.diag(term1 + term2))
+                C = 1
+            else:
+                inv_lmbda += term1 + term2
+                C = 1
+        emd.Q = inv_lmbda / (emd.T - 1) * C
+        emd.Q = (emd.Q + emd.Q.T) / 2
+
+
+        #print(Q,emd.Q)
+        #print('')
     else:
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :]
@@ -223,8 +275,6 @@ def m_step_Q(emd, stationary):
                          numpy.dot(tmp, tmp)
         emd.Q = inv_lmbda / emd.D / (emd.T - 1) * \
                 numpy.identity(emd.D)
-    if stationary == 'all':
-        emd.Q = numpy.zeros(emd.Q.shape)
 
 
 def m_step_Q2(emd, stationary):

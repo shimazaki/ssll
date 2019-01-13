@@ -47,7 +47,7 @@ import pseudo_likelihood
 # SEE BOTTOM OF FILE
 
 # Parameters for gradient-ascent methods of MAP estimation
-MAX_GA_ITERATIONS = 500
+MAX_GA_ITERATIONS = 5000
 GA_CONVERGENCE = 1e-4
 
 def run(emd, t):
@@ -99,6 +99,7 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     theta_max = theta_0
     # Iterate the gradient ascent algorithm until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
+        #print(theta_max)
         # Compute the eta of the current theta values
         p = transforms.compute_p(theta_max)
         eta = transforms.compute_eta(p)
@@ -113,7 +114,8 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
         ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps*\
                                    numpy.identity(eta.shape[0]))
         # Update Theta
-        theta_max -= numpy.dot(ddlpo_i, dlpo)
+        epsilon = 1 / numpy.sqrt(eta.shape[0])
+        theta_max -= 1 * numpy.dot(ddlpo_i, dlpo)
         # Update the look guard
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
         # Count iterations

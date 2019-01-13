@@ -34,6 +34,15 @@ Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
 
 ---
 
+This code was extended to enable users to optimize the autoregressive parameter
+and noise covariance (a scalar or a diagonal and full matrix) in a state model.
+
+Copyright (C) 2019
+
+Author of the extensions: Magalie Tatischeff (magalietati@gmail.com)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -63,9 +72,8 @@ import energies
 import bethe_approximation
 
 
-def run(spikes, order, window=1, map_function='nr', lmbda1=100,
-        lmbda2=100, max_iter=100,
-        param_est='exact', param_est_eta='exact', stationary='None',\
+def run(spikes, order, window=1, map_function='nr', state_cov=0.01, state_ar=None, max_iter=100,
+        param_est='exact', param_est_eta='exact',\
         theta_o = 0, sigma_o = 0.1, mstep=True):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
@@ -125,11 +133,11 @@ def run(spikes, order, window=1, map_function='nr', lmbda1=100,
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the EM-data container
-    if stationary == 'all':
-        lmbda1, lmbda2 = numpy.inf, numpy.inf
+    #if stationary == 'all':
+    #    lmbda1, lmbda2 = numpy.inf, numpy.inf
 
     emd = container.EMData(spikes, order, window, param_est, param_est_eta,
-                           map_function, lmbda1, lmbda2, theta_o, sigma_o)
+                           map_function, state_cov, state_ar, theta_o, sigma_o)
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
@@ -141,7 +149,7 @@ def run(spikes, order, window=1, map_function='nr', lmbda1=100,
         # Perform EM
         exp_max.e_step(emd)
         if mstep == True:
-            exp_max.m_step(emd, stationary)
+            exp_max.m_step(emd)
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)

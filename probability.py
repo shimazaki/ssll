@@ -111,11 +111,14 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, period=None):
     # Iterate over each timestep and compute...
     a, b = 0, 0
     for i in range(period[0], period[1]):
+
+        #print(min(numpy.linalg.eigvals(sigma_f[i,:,:])),min(numpy.linalg.eigvals(sigma_o_inv[i,:,:])))
         a += log_likelihood(y[i,:], theta_f[i,:], R)
         theta_d = theta_f[i,:] - theta_o[i,:]
         b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
         b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
              numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+
     log_p = a + b / 2
 
     return log_p

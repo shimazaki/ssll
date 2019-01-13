@@ -31,8 +31,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-
-
 import numpy
 import mean_field
 import synthesis
@@ -48,7 +46,7 @@ def get_energies(emd):
     N, O = emd.N, emd.order
     theta = emd.theta_s
     eta, emd.eta_sampled = compute_eta(theta, N, O)
-    psi, emd.psi_sampled = compute_psi(theta, N, O)
+    psi = compute_psi(theta, N, O)
     eta1 = eta[:,:N]
     theta1 = compute_ind_theta(eta1)
     psi1 = compute_ind_psi(theta1)

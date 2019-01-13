@@ -33,6 +33,15 @@ Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
 
 ---
 
+This code was extended to enable users to optimize the autoregressive parameter
+and noise covariance (a scalar or a diagonal and full matrix) in a state model.
+
+Copyright (C) 2019
+
+Author of the extensions: Magalie Tatischeff (magalietati@gmail.com)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -85,10 +94,10 @@ class EMData:
         A function from max_posterior.py or pseudo_likelihood.py
         that returns an estimate of the posterior distribution of natural
         parameters for a given timestep.
-    :param float lmbda1:
-        Inverse coefficient on the identity matrix of the initial
+    :param float state_cov:
+        Covariance matrix of the state
         state-transition covariance matrix for the first order theta parameters.
-    :param float lmbda2:
+    :param float state_ar:
         Inverse coefficient on the identity matrix of the initial
         state-transition covariance matrix for the second order theta parameters.
     :param numpy.ndarray theta_o:
@@ -152,10 +161,10 @@ class EMData:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
     def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
-                 lmbda1, lmbda2, theta_o, sigma_o):
+                 state_cov, state_ar, theta_o, sigma_o):
 
         # Record the input parameters
-        self.spikes, self.order, self.window = spikes, order, window
+        self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window = spikes, order, state_cov, state_ar, window
         T, self.R, self.N = self.spikes.shape
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
@@ -175,7 +184,11 @@ class EMData:
         self.T, self.D = self.y.shape
         assert self.T == T / window
         # Initialise one-step-prediction- filtered- smoothed-density means
-        self.theta_o = numpy.ones((self.T,self.D)) * theta_o
+        if type(theta_o) == int or type(theta_o) == float:
+            self.theta_o = numpy.ones((self.T,self.D)) * theta_o
+        else:
+            self.theta_o = numpy.zeros((self.T, self.D))
+            self.theta_o[0] = theta_o
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
 
@@ -198,10 +211,31 @@ class EMData:
             self.sigma_f = .1*numpy.ones((self.T,self.D))
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
-        self.F = numpy.identity(self.D)
+
+        # Initialize noise covariance matrix in a state model
         self.Q = numpy.zeros([self.D, self.D])
-        self.Q[:self.N, :self.N] = 1. / lmbda1 * numpy.identity(self.N)
-        self.Q[self.N:, self.N:] = 1. / lmbda2 * numpy.identity(self.D - self.N)
+        if type(self.state_cov_0) == float or type(self.state_cov_0) == int:
+            self.Q = self.state_cov_0 * numpy.identity(self.D)
+        elif type(self.state_cov_0) == numpy.ndarray:
+            if self.state_cov_0.shape == (self.D, self.D):
+                self.Q = self.state_cov_0
+            else:
+                try:
+                    self.state_cov_0.reshape(self.D)
+                except ValueError:
+                    raise ValueError('The dimensions of the state covariance need to be DxD or a vector')
+                else:
+                    self.Q = numpy.diag(self.state_cov_0)
+
+        # Initialize autoregressive parameters in a state model
+        if self.state_ar_0 is not None:
+            if self.state_ar_0.shape == (self.D, self.D):
+                self.F = self.state_ar_0
+            else:
+                raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD')
+        else:
+            self.F = numpy.identity(self.D)
+
         self.mllk = numpy.inf
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
