@@ -32,18 +32,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 import numpy
 
 
 def construct_fisher_diag(eta, N):
-    eta1 = eta[:N]
-    eta2 = eta[N:]
-    ddllk_diag = numpy.empty(eta.shape)
-    ddllk_diag[:N] = eta1 - eta1**2
-    eta1_outer = numpy.outer(eta1, eta1)
-    triu_idx = numpy.triu_indices(N, 1)
-    ddllk_diag[N:] = eta2 - eta1_outer[triu_idx]
     ddllk_diag = eta - eta**2
     return ddllk_diag
 

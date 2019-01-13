@@ -127,7 +127,7 @@ def forward_problem_hessian(theta, N):
     # Solve self-consistent equations and calculate approximation of
     # fisher matrix
     iter_num = 0
-    while conv > 1e-4 and iter_num < 500:
+    while conv > 1e-4 and iter_num < 5000:
         deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2,
                                   expansion='TAP')
         Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2,
@@ -137,7 +137,7 @@ def forward_problem_hessian(theta, N):
         iter_num += 1
         eta_max[eta_max <= 0.] = numpy.spacing(1)
         eta_max[eta_max >= 1.] = 1. - numpy.spacing(1)
-        if iter_num == 500:
+        if iter_num == 5000:
             raise Exception('Self consistent equations could not be solved!')
 
     G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N],

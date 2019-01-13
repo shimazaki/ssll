@@ -20,6 +20,19 @@ Copyright (C) 2016
 Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
                            Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
+---
+
+This code was updated to enable the user to specify the mean and the
+covariance of the prior and to enable or disable the hyperparameters
+optimization (m-step).
+
+Copyright (C) 2018
+
+Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
+                       Hideaki Shimazaki (h.shimazaki@kyoto-u.ac.jp)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -78,6 +91,10 @@ class EMData:
     :param float lmbda2:
         Inverse coefficient on the identity matrix of the initial
         state-transition covariance matrix for the second order theta parameters.
+    :param numpy.ndarray theta_o:
+        Prior mean at the first time bin (one-step predictor)
+    :param numpy.ndarray sigma_o:
+        Prior covariance at the first time bin (one-step predictor)
 
     :ivar numpy.ndarray spikes:
         Reference to the input spikes.
@@ -135,7 +152,7 @@ class EMData:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
     def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
-                 lmbda1, lmbda2):
+                 lmbda1, lmbda2, theta_o, sigma_o):
 
         # Record the input parameters
         self.spikes, self.order, self.window = spikes, order, window
@@ -158,7 +175,7 @@ class EMData:
         self.T, self.D = self.y.shape
         assert self.T == T / window
         # Initialise one-step-prediction- filtered- smoothed-density means
-        self.theta_o = numpy.zeros((self.T,self.D))
+        self.theta_o = numpy.ones((self.T,self.D)) * theta_o
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
 
@@ -167,17 +184,17 @@ class EMData:
         if param_est == 'exact':
             I = [numpy.identity(self.D) for i in range(self.T)]
             I = numpy.vstack(I).reshape((self.T,self.D,self.D))
-            self.sigma_o = .1 * I
-            self.sigma_o_inv = 1./.1 * I
+            self.sigma_o = sigma_o * I
+            self.sigma_o_inv = numpy.linalg.inv(self.sigma_o)
             del I
             # Intialise autoregressive and transition probability hyperparameters
             self.sigma_f = numpy.copy(self.sigma_o)
             self.sigma_s = numpy.copy(self.sigma_o)
             self.sigma_s_lag = numpy.copy(self.sigma_o)
-        # For approximate term initialize only the diagonal of the convariances
+        # For approximate term initialize only the diagonal of the covariances
         else:
-            self.sigma_o = .1*numpy.ones((self.T,self.D))
-            self.sigma_o_inv = 1./.1*numpy.ones((self.T,self.D))
+            self.sigma_o = sigma_o * numpy.ones((self.T,self.D))
+            self.sigma_o_inv = 1./ sigma_o * numpy.ones((self.T,self.D))
             self.sigma_f = .1*numpy.ones((self.T,self.D))
             self.sigma_s = .1*numpy.ones((self.T,self.D))
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))

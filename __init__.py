@@ -21,6 +21,19 @@ Copyright (C) 2016
 Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
                            Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
+---
+
+This code was updated to enable the user to specify the mean and the
+covariance of the prior and to enable or disable the hyperparameters
+optimization (m-step).
+
+Copyright (C) 2018
+
+Authors of the update: Jimmy Gaudreault (jimmy.gaudreault@polymtl.ca)
+                       Hideaki Shimazaki (h.shimazaki@kyoto-u.ac.jp)
+
+---
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -52,7 +65,8 @@ import bethe_approximation
 
 def run(spikes, order, window=1, map_function='nr', lmbda1=100,
         lmbda2=100, max_iter=100,
-        param_est='exact', param_est_eta='exact', stationary='None'):
+        param_est='exact', param_est_eta='exact', stationary='None',\
+        theta_o = 0, sigma_o = 0.1, mstep=True):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -92,6 +106,13 @@ def run(spikes, order, window=1, map_function='nr', lmbda1=100,
     :param stationary:
         To fit stationary model. Set 'all' to have stationary thetas. (
         Default='None')
+    :param numpy.ndarray theta_o:
+        Prior mean at the first time bin (one-step predictor)
+    :param numpy.ndarray sigma_o:
+        Prior covariance at the first time bin (one-step predictor)
+    :param boolean mstep:
+        The m-step of the EM algorithm is performed only if this parameter
+        is true. (Default='True')
 
     :returns:
         Results encapsulated in a container.EMData object, containing the
@@ -108,26 +129,19 @@ def run(spikes, order, window=1, map_function='nr', lmbda1=100,
         lmbda1, lmbda2 = numpy.inf, numpy.inf
 
     emd = container.EMData(spikes, order, window, param_est, param_est_eta,
-                           map_function, lmbda1, lmbda2)
-    # Solves backward problem. For zero rates in the beginning small
-    # number is added
-    if emd.order == 2:
-
-        y_init = numpy.mean(emd.y, axis=0)
-        y_init[y_init == 0] = numpy.spacing(1)
-
-        emd.theta_o[0][:emd.N] = energies.compute_ind_theta(y_init[:emd.N])
+                           map_function, lmbda1, lmbda2, theta_o, sigma_o)
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > exp_max.CONVERGED):
-        print 'EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
+        print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
                                                               emd.convergence,
-                                                              exp_max.CONVERGED)
+                                                              exp_max.CONVERGED))
         # Perform EM
         exp_max.e_step(emd)
-        exp_max.m_step(emd, stationary)
+        if mstep == True:
+            exp_max.m_step(emd, stationary)
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)

@@ -170,7 +170,7 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
             try:
                 calc = numpy.less_equal(fs[:,s_i], 709)
             except FloatingPointError:
-                print numpy.amax(fs)
+                print(numpy.amax(fs))
             etas = numpy.ones(fs.shape[0])
             etas[calc] = numpy.exp(fs[calc,s_i])/(1.+numpy.exp(fs[calc,s_i]))
             # Calculate derivative of conditional rate
@@ -540,7 +540,7 @@ def compute_cond_eta(theta, t):
     try:
         calc = numpy.less_equal(fs, 709)
     except FloatingPointError:
-        print numpy.amax(fs)
+        print(numpy.amax(fs))
     etas = numpy.ones(fs.shape)
     etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
     return numpy.mean(etas, axis=0)

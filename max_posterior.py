@@ -67,6 +67,7 @@ def run(emd, t):
     R = emd.R
     # Initial values of natural parameters
     theta_0 = emd.theta_s[t,:]
+    #theta_0 = numpy.zeros(emd.theta_s[t,:].shape)
     # Mean and covariance of one-step prediction density
     theta_o = emd.theta_o[t,:]
     sigma_o = emd.sigma_o[t]

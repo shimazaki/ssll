@@ -37,6 +37,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+
 # Set time (milliseconds), number of trials, and number of cells
 T, R, N = 500, 100, 2
 # Set the interaction order

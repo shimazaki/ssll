@@ -45,7 +45,22 @@ import max_posterior
 
 CONVERGED = 1e-4
 
+def compute_A(sigma_t0, sigma_t1, F):
+    """
+    Computes the smoothing parameter A.
+    :param numpy.ndarray sigma_t0:
+        Covariance of the theta distribution for timestep t.
+    :param numpy.ndarray sigma_t1:
+        Covariance of the theta distribution for timestep t+1.
+    :param numpy.ndarray F:
+        Autoregressive parameter of state transisions, of dimensions (D, D).
+    :returns:
+        Smoothing parameter A as a numpy.ndarray.
+    """
+    a = numpy.dot(sigma_t0, F.T)
+    A = numpy.dot(a, numpy.linalg.inv(sigma_t1))
 
+    return A
 
 def e_step(emd):
     """
@@ -91,7 +106,6 @@ def e_step_filter(emd):
             emd.sigma_o_inv[i] = 1./emd.sigma_o[i]
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
-
 
 def e_step_smooth(emd):
     """
@@ -147,7 +161,7 @@ def m_step(emd, stationary='None'):
         If 'all' stationary on all thetas is assumed.
     """
     # Update the initial mean of the one-step-prediction density
-    emd.theta_o[0, :] = emd.theta_s[0, :]
+    emd.theta_o[0,:] = emd.theta_s[0,:]
     # Compute the state-transition hyperparameter
     m_step_Q(emd, stationary)
     #m_step_F(emd)
@@ -170,9 +184,9 @@ def m_step_F(emd):
     b = numpy.zeros((emd.D, emd.D))
     # Sum partial results over each timestep
     for i in range(1, emd.T):
-        a += emd.sigma_s_lag[i,:,:] +\
+        a += emd.sigma_s_lag[i] +\
              numpy.outer(emd.theta_s[i,:], emd.theta_s[i-1,:])
-        b += emd.sigma_s[i-1,:,:] +\
+        b += emd.sigma_s[i-1] +\
              numpy.outer(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
     # Dot the results
     emd.F = numpy.dot(a, numpy.linalg.inv(b))

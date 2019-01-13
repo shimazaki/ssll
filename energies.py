@@ -181,16 +181,13 @@ def compute_psi(theta, N, O, R=1000):
             theta0[:,N:] = 0
             psi0 = compute_ind_psi(theta0[:,:N])
             for i in range(T):
-                psi[i], sampled = ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
-                # save bin if sampled
-                if sampled:
-                    bins_sampled.append(i)
+                psi[i] = ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
         # else approximate
         else:
             transforms.initialise(N, 2)
             for i in range(T):
                 psi[i] = transforms.compute_psi(theta[i])
-    return psi, bins_sampled
+    return psi
 
 
 def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):

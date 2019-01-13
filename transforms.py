@@ -211,12 +211,12 @@ def compute_y(spikes, order, window):
     # Get spike-matrix metadata
     T, R, N = spikes.shape
     # Bin spikes
-    spikes = spikes.reshape((T / window, window, R, N))
+    spikes = spikes.reshape((int(T / window), window, R, N))
     spikes = spikes.any(axis=1)
     # Compute each n-choose-k subset of cell IDs up to `order'
     subsets = enumerate_subsets(N, order)
     # Set up the output array
-    y = numpy.zeros((T / window, len(subsets)))
+    y = numpy.zeros((int(T / window), len(subsets)))
     # Iterate over each subset
     for i in range(len(subsets)):
         # Select the cells that are in the subset
