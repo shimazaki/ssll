@@ -158,7 +158,7 @@ class TestEstimator(unittest.TestCase):
             # Add time-varying components for some neurons
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N + 1)
-            cells = random.sample(numpy.arange(N), n_random)
+            cells = numpy.random.choice(numpy.arange(N), n_random)
             for i in xrange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
@@ -185,7 +185,7 @@ class TestEstimator(unittest.TestCase):
             # Add time-varying components for some neurons
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N / 2)
-            cells = random.sample(numpy.arange(N), n_random)
+            cells = numpy.random.choice(numpy.arange(N), n_random)
             for i in xrange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
@@ -196,7 +196,7 @@ class TestEstimator(unittest.TestCase):
                     self.wave(A, f, phi, self.T * 1e-3)
             # Add time-varying components for some interactions
             n_random = numpy.random.randint(0, D - N)
-            interactions = random.sample(numpy.arange(N, D), n_random)
+            interactions = numpy.random.choice(numpy.arange(N, D), n_random)
             for i in xrange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
@@ -222,7 +222,7 @@ class TestEstimator(unittest.TestCase):
             # Add time-varying components for some neurons
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N / 2)
-            cells = random.sample(numpy.arange(N), n_random)
+            cells = numpy.random.choice(numpy.arange(N), n_random)
             for i in xrange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
@@ -233,7 +233,7 @@ class TestEstimator(unittest.TestCase):
                     self.wave(A, f, phi, self.T * 1e-3)
             # Add time-varying components for some interactions
             n_random = numpy.random.randint(0, D - N)
-            interactions = random.sample(numpy.arange(N, D), n_random)
+            interactions = numpy.random.choice(numpy.arange(N, D), n_random)
             for i in xrange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
