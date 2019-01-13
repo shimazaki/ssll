@@ -1,4 +1,36 @@
-__author__ = 'christian'
+"""
+Some useful functions.
+
+---
+
+This code implements approximate inference methods for State-Space Analysis of
+Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012). It is an extension of
+the existing code from repository <https://github.com/tomxsharp/ssll> (For
+Matlab Code refer to <http://github.com/shimazaki/dynamic_corr>). We
+acknowledge Thomas Sharp for providing the code for exact inference.
+
+In this library are additional methods provided to perform the State-Space
+Analysis approximately. This includes pseudolikelihood, TAP, and Bethe
+approximations. For details see: <http://arxiv.org/abs/1607.08840>
+
+Copyright (C) 2016
+
+Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
+                           Hideaki Shimazaki (shimazaki@brain.riken.jp)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
 
 
 import numpy
@@ -249,11 +281,42 @@ def compute_entropy(theta, eta, psi, O):
     return S
 
 def compute_dkl(eta2, theta2, psi2, theta1, psi1, N):
+    """ Computes Kullback Leibler Divergence between pairwise and independent
+    model.
+
+    :param numpy.ndarray eta2:
+        (t, d) array containing expectations of the pairwise model.
+    :param numpy.ndarray  theta2:
+        (t,d) array containing theta parameters of the pairwise model
+    :param numpy.ndarray  psi2:
+        (t) array containing the log partition values of pairwise model.
+    :param numpy.ndarray  theta1:
+        (t,c) array containing theta parameters of the independent model
+    :param numpy.ndarray  psi1:
+        (t) array containing log partition values for the independent model
+    :param int N:
+        number of cells
+
+    :return:
+        (t) array with Kullback Leibler Divergen
+    """
     dtheta = numpy.copy(theta2)
     dtheta[:,:N] = theta2[:,:N] - theta1
     dkl = numpy.sum(eta2*dtheta, axis=1) - (psi2 - psi1)
     return dkl
 
 def compute_likelihood(y, theta, psi, R):
+    """ Computes the likelihood of data for a model
+
+    :param numpy.ndarray y:
+        (t,d) array containing empirical expectations of data
+    :param numpy.ndarray theta:
+        (t,d) array containing theta parameters of model
+    :param numpy.ndarray psi:
+        (t) array of log partition function
+    :param int R:
+        number of trials
+    :return:
+    """
     llk = R*(numpy.sum(y*theta, axis=1) - psi)
     return llk

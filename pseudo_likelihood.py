@@ -1,4 +1,38 @@
-__author__ = 'Christian Donner'
+"""
+This file contains all methods that are concerned with the pseudolikelood
+approximation.
+
+---
+
+This code implements approximate inference methods for State-Space Analysis of
+Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012). It is an extension of
+the existing code from repository <https://github.com/tomxsharp/ssll> (For
+Matlab Code refer to <http://github.com/shimazaki/dynamic_corr>). We
+acknowledge Thomas Sharp for providing the code for exact inference.
+
+In this library are additional methods provided to perform the State-Space
+Analysis approximately. This includes pseudolikelihood, TAP, and Bethe
+approximations. For details see: <http://arxiv.org/abs/1607.08840>
+
+Copyright (C) 2016
+
+Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
+                           Hideaki Shimazaki (shimazaki@brain.riken.jp)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 
 import numpy
 import max_posterior
@@ -14,9 +48,9 @@ time_bin = -1
 
 
 def compute_Fx_s(X, O):
-    """ 
-    Constructs F(x_s=1, x_\s), feature vectors of interactions up to the 
-    'O'th order from observed patterns for conditional likelihood model. 
+    """
+    Constructs F(x_s=1, x_\s), feature vectors of interactions up to the
+    'O'th order from observed patterns for conditional likelihood model.
 
     :param numpy.array X:
         Two dimensional (r, c) binary array, where the first dimension is runs
@@ -57,17 +91,17 @@ def compute_Fx_s(X, O):
 
 def compute_Fx(X, O):
     """
-    Construct feature vectors of interactions up to the 'O'th order from 
-    pattern data. 
+    Construct feature vectors of interactions up to the 'O'th order from
+    pattern data.
 
     :param numpy.array X:
-        (r, c) binary array, where the first dimension are runs (trials) 
+        (r, c) binary array, where the first dimension are runs (trials)
         and second cells.
     :param int O:
         Order of interactions
 
     :returns Fx:
-        (r, D) matrix of feature vectors, where D is the model 
+        (r, D) matrix of feature vectors, where D is the model
         dimension.
     """
     # Get spike-matrix metadata
@@ -88,7 +122,8 @@ def compute_Fx(X, O):
     return Fx
 
 
-def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
+def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
+                  param_est_eta='bethe_hybrid'):
     """ Newton-Raphson method with pseudo-log-likelihood as objective function.
 
     :param numpy.ndarray X:
@@ -132,8 +167,6 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_e
             # Calculate sum of active thetas
             fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
             # Calculate conditional rate
-            #tmp = numpy.exp(fs[:, s_i])
-            #etas = tmp / (1 + tmp)
             try:
                 calc = numpy.less_equal(fs[:,s_i], 709)
             except FloatingPointError:
@@ -182,7 +215,8 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_e
     return theta_max, -ddlpo_i
 
 
-def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
+def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
+              param_est_eta='bethe_hybrid'):
     """ Fits due to non linear conjugate gradient, where Pseudolikelihood is the
      objective function.
 
@@ -251,8 +285,8 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
         # Set new search direction
         s = d_th + beta * s
         # Perform line search in this direction
-        theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo, sigma_o_i,
-                                           etas, theta_o)
+        theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo,
+                                            sigma_o_i, etas, theta_o)
         # Calculate the new gradient and conditional rates
         dllk, etas = pseudo_dllk(theta_max, X_t, fs)
 
@@ -282,7 +316,8 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='
     return theta_max, -ddlpo_i
 
 
-def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, param_est_eta='bethe_hybrid'):
+def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
+                param_est_eta='bethe_hybrid'):
     """ Fits due to Broyden-Fletcher-Goldfarb-Shanno algorithm, where
     Pseudolikelihood is the objective function.
 
@@ -426,7 +461,8 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
 
 def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     """ Performs the line search for pseudo-log-likelihood as objective
-    function by quadratic approximation at current theta.
+    function by quadratic approximation at current theta, but does more than one
+    step.
 
     :param numpy.ndarray theta:
         (d,) natural parameters
@@ -465,8 +501,9 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
         detas = etas*(1-etas)
         # Project one-step covariance matrix on search direction
         sigma_o_i_s = numpy.dot(s, numpy.dot(sigma_o_i, s))
-        # Compute projection of pseudo-log-likelihood Hessian on search direction
-        ddlpo_s = numpy.tensordot(detas*Fx_s_s, Fx_s_s, ((1,0),(1,0))) + sigma_o_i_s
+        # Compute projection of pseudologlikelihood Hessian on search direction
+        ddlpo_s = numpy.tensordot(detas*Fx_s_s, Fx_s_s, ((1,0),(1,0))) +\
+                  sigma_o_i_s
         # Compute how much the step should be along search direction
         alpha = dlpo_s/ddlpo_s
         # Update sum of active thetas
@@ -531,8 +568,6 @@ def pseudo_dllk(theta, X, fs):
     calc = numpy.less_equal(fs, 709)
     etas = numpy.ones(fs.shape)
     etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
-    #etas[skip_calc] = 1.
-    #etas = tmp / (1 + tmp)
     # Iterate over all cells
     for s_i in range(N):
         # Add gradient for each cell
@@ -572,66 +607,6 @@ def pseudo_ddllk(etas, D):
     return ddllk
 
 
-def pseudo_log_marginal(emd, period=None):
-    """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
-
-    This is just a wrapper function for `log_marginal_raw`. It unpacks data
-    from the EMD container pbject and calls that function.
-
-    :param container.EMData emd:
-        All data pertaining to the EM algorithm.
-    :param period tuple:
-        Timestep range over which to compute probability.
-
-    :returns:
-        Log marginal probability of the synchrony estimate as a float.
-    """
-    # Unwrap the parameters and call the raw function
-    log_p = pseudo_log_marginal_raw(emd.theta_f, emd.theta_o, emd.sigma_f,
-                                    emd.sigma_o_inv, emd.spikes, emd.R, period)
-
-    return log_p
-
-def pseudo_log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, X, R,
-                            period=None):
-    """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
-
-    From within SSLL, this function should be accessed by calling
-    `log_marginal` with the EMD container as a parameter. This raw function is
-    designed to be called from outside SSLL, when a complete EMD container
-    might not be available.
-
-    See the container.py for a full description of the parameter properties.
-
-    :param period tuple:
-        Timestep range over which to compute probability.
-
-    :returns:
-        Log marginal probability of the synchrony estimate as a float.
-    """
-    if period == None: period = (0, theta_f.shape[0])
-    # Initialise
-    log_p = 0
-    # Iterate over each timestep and compute...
-    a, b = 0, 0
-    for i in range(period[0], period[1]):
-        a += pseudo_log_likelihood(X[i,:,:], theta_f[i,:], i)
-        theta_d = theta_f[i,:] - theta_o[i,:]
-        b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        A = numpy.dot(sigma_f[i,:,:], sigma_o_inv[i,:,:])
-        L = numpy.linalg.cholesky(A)
-        b += 2*numpy.sum(numpy.log(numpy.diag(L)))
-    log_p = a + b / 2
-
-    return log_p
-
-
 def pseudo_log_likelihood(X_t, theta, t):
     """ Computes the pseudo-log-likelihood for data and theta
 
@@ -667,26 +642,3 @@ compute_eta = {'mf': mean_field.forward_problem_hessian,
                'bethe_BP': bethe_approximation.compute_eta_BP,
                'bethe_CCCP': bethe_approximation.compute_eta_CCCP,
                'bethe_hybrid': bethe_approximation.compute_eta_hybrid}
-
-if __name__ == '__main__':
-    N, O, T, R = 10, 2, 1, 1000
-    import synthesis
-    import pylab
-    import time
-    D = transforms.compute_D(N, O)
-    thetas = synthesis.generate_thetas(N, O, T)
-    time_bin = 0
-    t1 = time.clock()
-    spikes = synthesis.generate_spikes_gibbs(thetas, N, O, R)
-    print('sampling done in %f s' %(time.clock() - t1))
-    theta_0 = numpy.zeros(D)
-    compute_Fx_s(spikes, O)
-    t1 = time.clock()
-    theta_o = numpy.ones(theta_0.shape[0])*1.
-    sigma_o_i = numpy.diag(numpy.ones(D))*0.
-    theta_max, sigma = pseudo_cg(spikes[time_bin], R, theta_0, theta_o, 0,
-                                 sigma_o_i)
-    print('fitting done in %f s' %(time.clock() - t1))
-    #pylab.plot(thetas[0],theta_max_h, 'bo')
-    pylab.plot(thetas[0],theta_max, 'k.')
-    pylab.show()

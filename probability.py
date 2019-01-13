@@ -4,8 +4,20 @@ hyperparameters.
 
 ---
 
-State-Space Analysis of Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012)
-Copyright (C) 2014  Thomas Sharp (thomas.sharp@riken.jp)
+This code implements approximate inference methods for State-Space Analysis of
+Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012). It is an extension of
+the existing code from repository <https://github.com/tomxsharp/ssll> (For
+Matlab Code refer to <http://github.com/shimazaki/dynamic_corr>). We
+acknowledge Thomas Sharp for providing the code for exact inference.
+
+In this library are additional methods provided to perform the State-Space
+Analysis approximately. This includes pseudolikelihood, TAP, and Bethe
+approximations. For details see: <http://arxiv.org/abs/1607.08840>
+
+Copyright (C) 2016
+
+Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
+                           Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +32,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+
 import numpy
 import pdb
 

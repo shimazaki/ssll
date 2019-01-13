@@ -1,7 +1,39 @@
-__author__ = 'christian'
+"""
+This file contains all methods that are concerned with the Bethe approximation.
+
+---
+
+This code implements approximate inference methods for State-Space Analysis of
+Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012). It is an extension of
+the existing code from repository <https://github.com/tomxsharp/ssll> (For
+Matlab Code refer to <http://github.com/shimazaki/dynamic_corr>). We
+acknowledge Thomas Sharp for providing the code for exact inference.
+
+In this library are additional methods provided to perform the State-Space
+Analysis approximately. This includes pseudolikelihood, TAP, and Bethe
+approximations. For details see: <http://arxiv.org/abs/1607.08840>
+
+Copyright (C) 2016
+
+Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
+                           Hideaki Shimazaki (shimazaki@brain.riken.jp)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 
 import numpy
-import max_posterior, mean_field, energies
 
 
 def construct_fisher_diag(eta, N):
@@ -17,12 +49,16 @@ def construct_fisher_diag(eta, N):
 
 
 def compute_eta_CCCP(theta, N, return_psi=False):
-    """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
+    """ CCCP Algorithm to find solution for Bethe free energy
+    [Yuille, 2002 Neural Comp.]
 
     :param numpy.ndarray theta:
         (d,) dimensional array with natural parameters in it
     :param int N:
         Number of cells
+    :param bool return_psi:
+        If true the appoximation log partition function is returned in addition
+        (Default=False)
     :returns:
         (d,) dimensional array with approximated etas
     """
@@ -39,7 +75,8 @@ def compute_eta_CCCP(theta, N, return_psi=False):
     phi_ij = numpy.ones([N, N, 4])
     phi_ij[:, :, 1] = numpy.exp(theta1[:, numpy.newaxis])
     phi_ij[:, :, 2] = numpy.exp(theta1[:, numpy.newaxis].T)
-    phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] + theta1[:, numpy.newaxis].T + theta2)
+    phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] +
+                                theta1[:, numpy.newaxis].T + theta2)
     phi_ij[diag_idx[0], diag_idx[1], :] = 1
     # Initialize beliefs and Lagrange multipliers
     b_i = .5*numpy.ones([N, 2])
@@ -48,11 +85,13 @@ def compute_eta_CCCP(theta, N, return_psi=False):
     lambda_ij = numpy.zeros([N, N, 2])
     gamma_ij = numpy.zeros([N, N])
     # Start CCCP
-    eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
+    eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij,
+                                          gamma_ij, N)
     # Reshape the expectation parameters and return
     eta = numpy.empty(theta.shape)
     eta[:N] = eta1[:, 1]
     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
+    # Instead of the Bethe energy one could just use psi=-log(p(0))
     # bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0], triu_idx[1], 0])) -
     #                numpy.sum(((N - 1) - 1) * numpy.log(b_i[:, 0])))
     if return_psi:
@@ -61,55 +100,18 @@ def compute_eta_CCCP(theta, N, return_psi=False):
         return eta
 
 
-# def compute_psi_CCCP(theta, N):
-#     """ CCCP Algorithm to find solution for Bethe free energy [Yuille, 2002 Neural Comp.]
-#
-#     :param numpy.ndarray theta:
-#         (d,) dimensional array with natural parameters in it
-#     :param int N:
-#         Number of cells
-#     :returns:
-#         (d,) dimensional array with approximated etas
-#     """
-#     triu_idx = numpy.triu_indices(N, 1)
-#     diag_idx = numpy.diag_indices(N)
-#     # Transform thetas
-#     theta1 = theta[:N]
-#     theta2 = numpy.zeros([N, N])
-#     theta2[triu_idx] = theta[N:]
-#     theta2 += theta2.T
-#     # Get unnormalized probs
-#     psi_i = numpy.ones([N, 2])
-#     psi_i[:,1] = numpy.exp(theta1)
-#     phi_ij = numpy.ones([N, N, 4])
-#     phi_ij[:, :, 1] = numpy.exp(theta1[:, numpy.newaxis])
-#     phi_ij[:, :, 2] = numpy.exp(theta1[:, numpy.newaxis].T)
-#     phi_ij[:, :, 3] = numpy.exp(theta1[:, numpy.newaxis] + theta1[:, numpy.newaxis].T + theta2)
-#     phi_ij[diag_idx[0], diag_idx[1], :] = 1
-#     # Initialize beliefs and Lagrange multipliers
-#     b_i = .5*numpy.ones([N, 2])
-#     b_ij = .25*numpy.ones([N, N, 4])
-#     b_ij[diag_idx[0], diag_idx[1], :] = 0
-#     lambda_ij = numpy.zeros([N, N, 2])
-#     gamma_ij = numpy.zeros([N, N])
-#     # Start CCCP
-#     eta1, eta2, bethe_energy = outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
-#     # Reshape the expectation parameters and return
-#     eta = numpy.empty(theta.shape)
-#     eta[:N] = eta1[:, 1]
-#     eta[N:] = eta2[triu_idx[0], triu_idx[1], 3]
-#     return -bethe_energy
-#
-
 def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Outer loop of CCCP to update beliefs
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
     :param numpy.ndarray b_ij:
-        [c,c,4] array with second order beliefs for pair patterns (0,0),(1,0),(0,1) and (1,1)
+        [c,c,4] array with second order beliefs for pair patterns
+        (0,0),(1,0),(0,1) and (1,1)
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param numpy.ndarray lambda_ij:
@@ -130,12 +132,13 @@ def outer_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     triu_idx = numpy.triu_indices(N, 1)
     while conv_crit > 1e-5:
         # Until convergence update Lagrange multipliers and beliefs
-        lambda_ij, gamma_ij = inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N)
+        lambda_ij, gamma_ij = inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij,
+                                         gamma_ij, N)
         b_i, b_ij = update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N)
         # Compute Bethe energy
         bethe_E_old = bethe_E
+        # Compute bethe free energy
         bethe_E = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-        #bethe_E = numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0]))
         bethe.append(bethe_E)
         conv_crit = numpy.absolute((bethe_E_old - bethe_E) / bethe_E_old)
 
@@ -146,11 +149,14 @@ def inner_loop(b_i, b_ij, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Inner loop of CCCP to find lagrange multipliers
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
     :param numpy.ndarray b_ij:
-        [c,c,4] array with second order beliefs for pair patterns (0,0),(1,0),(0,1) and (1,1)
+        [c,c,4] array with second order beliefs for pair patterns
+        (0,0),(1,0),(0,1) and (1,1)
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param numpy.ndarray lambda_ij:
@@ -185,9 +191,11 @@ def update_lambda(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Update lambdas.
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param numpy.ndarray lambda_ij:
@@ -230,7 +238,8 @@ def update_gamma(phi_ij, lambda_ij, N):
     """ Update gammas.
 
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray lambda_ij:
         [c,c,2] array with lagrange multipliers for conditions sum_j(b_ij)=b_i
     :param int N:
@@ -259,9 +268,11 @@ def update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Update beliefs.
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param numpy.ndarray lambda_ij:
@@ -279,8 +290,10 @@ def update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     lmbd_tmp[:, :, 1] = lambda_ij[:, :, 0] + lambda_ij[:, :, 1].T
     lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
     lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
-    b_ij_new = phi_ij * numpy.exp(-1. - lmbd_tmp - gamma_ij[:, :, numpy.newaxis])
-    b_i_new = psi_i * numpy.exp(-1. + (N - 1.) + numpy.sum(lambda_ij, axis=0)) * (b_i / psi_i) ** (N - 1)
+    b_ij_new = phi_ij * numpy.exp(-1. - lmbd_tmp -
+                                  gamma_ij[:, :, numpy.newaxis])
+    b_i_new = psi_i * numpy.exp(-1. + (N - 1.) + numpy.sum(lambda_ij, axis=0)) \
+              * (b_i / psi_i) ** (N - 1)
 
     return b_i_new, b_ij_new
 
@@ -289,10 +302,12 @@ def compute_dual_energy(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     """ Update dual energy (maximized by inner loop)
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
 
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for
+        pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param numpy.ndarray lambda_ij:
@@ -313,21 +328,22 @@ def compute_dual_energy(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
     lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
     # Compute dual energy
-    dual_energy = -numpy.sum(phi_ij * numpy.exp(-1. - lmbd_tmp - gamma_ij[:, :, numpy.newaxis]))
+    dual_energy = -numpy.sum(phi_ij * numpy.exp(-1. - lmbd_tmp -
+                                                gamma_ij[:, :, numpy.newaxis]))
     dual_energy -= numpy.sum(
-        psi_i * numpy.exp(-1. + (N - 1.) + numpy.sum(lambda_ij, axis=0)) * (b_i / psi_i) ** (N - 1))
+        psi_i * numpy.exp(-1. + (N - 1.) + numpy.sum(lambda_ij, axis=0)) *
+        (b_i / psi_i) ** (N - 1))
     dual_energy -= numpy.sum(gamma_ij)
     return dual_energy
 
 
 def log_marginal_CCCP(emd, period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike-pattern rates
+    by Bethe approximation (CCCP).
 
-    This is just a wrapper function for `log_marginal_raw`. It unpacks data
-    from the EMD container pbject and calls that function.
+    This is just a wrapper function for `log_marginal_raw_CCCP`. It unpacks data
+    from the EMD container object and calls that function.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
@@ -338,22 +354,20 @@ def log_marginal_CCCP(emd, period=None):
         Log marginal probability of the synchrony estimate as a float.
     """
     # Unwrap the parameters and call the raw function
-    log_p = log_marginal_raw_CCCP(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
-        emd.y, emd.R, emd.N, period)
+    log_p = log_marginal_raw_CCCP(emd.theta_f, emd.theta_o, emd.sigma_f,
+                                  emd.sigma_o_inv, emd.y, emd.R, emd.N, period)
 
     return log_p
 
 
-def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N,
+                          period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike
+    pattern rates by Bethe approximation (CCCP).
 
     From within SSLL, this function should be accessed by calling
-    `log_marginal` with the EMD container as a parameter. This raw function is
-    designed to be called from outside SSLL, when a complete EMD container
-    might not be available.
+    `log_marginal_CCCP` with the EMD container as a parameter.
 
     See the container.py for a full description of the parameter properties.
 
@@ -381,7 +395,7 @@ def log_marginal_raw_CCCP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, perio
 
 
 def log_likelihood_CCCP(y_t, theta_f_t, R, N):
-    """ Computes the log-likelihood with Bethe approximation
+    """ Computes the log-likelihood with Bethe approximation (CCCP).
 
     :param numpy.ndarray y_t:
         Frequency of observed patterns for one timestep.
@@ -405,11 +419,14 @@ def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     """ Compute Bethe energy. (Minimized by outer loop)
 
     :param numpy.ndarray b_i:
-        [c,2] array with first order beliefs for silence in [:,0] and firing in [:,1]
+        [c,2] array with first order beliefs for silence in [:,0] and firing in
+        [:,1]
     :param numpy.ndarray b_ij:
-        [c,c,4] array with second order beliefs for pair patterns (0,0),(1,0),(0,1) and (1,1)
+        [c,c,4] array with second order beliefs for pair patterns
+        (0,0),(1,0),(0,1) and (1,1)
     :param numpy.ndarray phi_ij:
-        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij) for pair patterns
+        [c,c,4] array with exp(theta_i x_i + theta_j x_j + theta_ij x_ij)
+        for pair patterns
     :param numpy.ndarray psi_i:
         [c,4] array with exp(theta_i x_i) for x_i = 0 and 1
     :param int N:
@@ -421,13 +438,16 @@ def bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N):
     """
     triu_idx = numpy.triu_indices(N, 1)
     # Compute Bethe energy
-    bethe_E = numpy.sum(b_ij[triu_idx] * (numpy.log(b_ij[triu_idx]) - numpy.log(phi_ij[triu_idx]))) \
-              - ((N - 1.) - 1.) * numpy.sum(b_i * (numpy.log(b_i) - numpy.log(psi_i)))
+    bethe_E = numpy.sum(b_ij[triu_idx] * (numpy.log(b_ij[triu_idx]) -
+                                          numpy.log(phi_ij[triu_idx]))) \
+              - ((N - 1.) - 1.) * numpy.sum(b_i * (numpy.log(b_i) -
+                                                   numpy.log(psi_i)))
     return bethe_E
 
 
 def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
-    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
+    """ Computes the expectation parameters for given theta according to Bethe
+    approximation and belief propagation
 
     :param numpy.ndarray theta:
         (d,) dimensional array with natural parameters in it
@@ -459,73 +479,13 @@ def compute_eta_BP(theta, N, alpha=.5, return_psi=False):
     eta = numpy.empty(theta.shape)
     eta[:N] = b_i[:,1]
     eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
-    theta1 = theta[:N]
-    psi_i = numpy.ones([N,2])
-    psi_i[:,1] = numpy.exp(theta1)
-    phi_ij = numpy.ones([N,N,4])
-    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
-    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
-    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
-    phi_ij[diag_idx[0],diag_idx[1],:] = 1
-    #bethe_free = -bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0],triu_idx[1],0])) - numpy.sum(((N-1)-1)*numpy.log(b_i[:,0])))
+    # Psi
+    bethe_free = -(numpy.sum(numpy.log(b_ij[triu_idx[0], triu_idx[1], 0])) -
+                   numpy.sum(((N-1)-1)*numpy.log(b_i[:, 0])))
     if return_psi:
         return eta, bethe_free
     else:
         return eta
-
-
-# def compute_psi_BP(theta, N, alpha=.5):
-#     """ Uses the Ogata-Tanemura Estimator for estimation (Huang, 2001)
-#
-#     :param numpy.ndarray th0:
-#         (1,d) array with theta distribution where psi is known
-#     :param float psi0
-#         psi corresponding to th0
-#     :param th1:
-#         thetas for which one wants to compute psi
-#     :param int N:
-#         number of cells
-#     :param int O:
-#         order of interactions
-#     :param int K:
-#         points of integration
-#
-#     :returns
-#         estimation of psi to th1
-#
-#     Tries to solve the forward problem at each point and samples if it fails.
-#     """
-#     K = 10*N
-#     th1 = theta
-#     th0 = numpy.copy(theta)
-#     th0[N:] = 0
-#     psi0 = energies.compute_ind_psi(numpy.array([th0[:N]]))[0]
-#     # compute difference between th0 and th1
-#     dth = th1 - th0
-#     # points of integration
-#     int_points = numpy.linspace(0,1,K)
-#     # array for negative derivatives of Energy function
-#     avg_dUs = numpy.empty(K)
-#     # iterate over all integration points
-#     # iterate over all integration points
-#     points_to_sample = []
-#     for i, int_point in enumerate(int_points):
-#         # theta point that needs to be evaluated
-#         th_tmp = th0 + int_point*dth
-#         # Sample Data
-#         eta = compute_eta_BP(th_tmp, N)
-#         # negative derivative of energy function
-#         dU = numpy.dot(dth, eta)
-#         # compute mean
-#         avg_dUs[i] = numpy.mean(dU)
-#
-#     # weights for trapezoidal intergration rule
-#     w = numpy.ones(K)/K
-#     w[0] /= K
-#     w[-1] /= K
-#     # compute estimation of psi
-#     return psi0 + numpy.dot(w, avg_dUs)
 
 
 def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
@@ -540,7 +500,8 @@ def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
     :param float alpha:
         Step size for message update (default=0.5)
     :return
-        (c,c,2) dimensional array with messages from cells to each other about their states
+        (c,c,2) dimensional array with messages from cells to each other about
+        their states
     """
 
     # Initialize messages
@@ -557,11 +518,15 @@ def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
         # Marginalize over message sending neurons
         sum_log_messages = numpy.sum(log_messages, axis=0)
         # Compute new messages for neurons being silent
-        new_messages[:,:,0] = psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
-                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T)
+        new_messages[:,:,0] = psi_i*numpy.exp(
+            sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(
+            sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T)
         # Compute new messages for neurons firing
-        new_messages[:,:,1] = psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
-                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T)
+        new_messages[:,:,1] = psi_i_ij*numpy.exp(
+            sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
+                                        + numpy.exp(
+            sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T)
         # Compute normalization
         k = numpy.sum(new_messages, axis=2)
         new_messages = new_messages/k[:,:,numpy.newaxis]
@@ -582,15 +547,20 @@ def propagate_beliefs(psi_i, psi_i_ij, N, alpha=.5):
 
 def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
     """
+    Calculates the beliefs.
 
     :param numpy.ndarray messages:
-        (c,c,2) dimensional array with messages from cells to each other about their states
+        (c,c,2) dimensional array with messages from cells to each other about
+        their states
     :param numpy.ndarray theta1:
         (c,c) array with theta_i in rows
     :param numpy.ndarray theta2:
         (c,c) array with theta_ij
     :param int N:
         Number of cells
+    :param bool all:
+        If true first and second order beliefs are returned. Else only
+        first order. (Default=True)
 
     :return:
         (c,2) array containing the belief that  and (c,c,4) array that for pairs
@@ -606,27 +576,25 @@ def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
     if all:
         b_ij = numpy.empty([N,N,4])
         # for x_i = 0
-        b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T*\
-                      numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-        b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T\
-                      *numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        b_ij[:,:,0] = numpy.prod(messages[:,:,0], axis=0)[:,numpy.newaxis]/\
+                      messages[:,:,0].T * numpy.prod(messages[:,:,0],axis=0)[
+                                         numpy.newaxis,:]/messages[:,:,0]
+        b_ij[:,:,1] = numpy.exp(theta1.T)*numpy.prod(
+            messages[:,:,0], axis=0)[:,numpy.newaxis]/messages[:,:,0].T\
+                      *numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/\
+                      messages[:,:,1]
         # for x_i = 1
-        b_ij[:,:,2] = numpy.exp(theta1)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]/messages[:,:,1].T\
-                      *numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,:]/messages[:,:,0]
-        b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2)*numpy.prod(messages[:,:,1], axis=0)[:,numpy.newaxis]\
-                      /messages[:,:,1].T*numpy.prod(messages[:,:,1],axis=0)[numpy.newaxis,:]/messages[:,:,1]
+        b_ij[:,:,2] = numpy.exp(theta1) * numpy.prod(messages[:,:,1], axis=0)[
+                                         :,numpy.newaxis]/messages[:,:,1].T\
+                      * numpy.prod(messages[:,:,0],axis=0)[numpy.newaxis,
+                        :]/messages[:,:,0]
+        b_ij[:,:,3] = numpy.exp(theta1 + theta1.T + theta2) * numpy.prod(
+            messages[:,:,1], axis=0)[:,numpy.newaxis]\
+                      /messages[:,:,1].T *numpy.prod(messages[:,:,1],axis=0)[
+                                          numpy.newaxis,:]/messages[:,:,1]
         k_ij = numpy.sum(b_ij, axis=2)
         b_ij /= k_ij[:,:,numpy.newaxis]
-        #k1 = numpy.sum(b_ij[:,:,2:], axis=2)/b_i[:,1,numpy.newaxis]
-        # normalized second order thetas
-        #ry:
-        #    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
-        #    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
-        #except:
-        #    b_ij *= 1e6
-        #    b_ij[:,:,:2] /= k0[:,:,numpy.newaxis]
-        #    b_ij[:,:,2:] /= k1[:,:,numpy.newaxis]
-        # Return
+
         return b_i, b_ij
     else:
         return b_i
@@ -634,12 +602,11 @@ def compute_beliefs_BP(messages, theta1, theta2, N, all=True):
 
 def log_marginal_BP(emd, period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike
+    pattern rates by Bethe approximation (Belief propagation).
 
-    This is just a wrapper function for `log_marginal_raw`. It unpacks data
-    from the EMD container pbject and calls that function.
+    This is just a wrapper function for `log_marginal_raw_BP`. It unpacks data
+    from the EMD container object and calls that function.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
@@ -650,22 +617,20 @@ def log_marginal_BP(emd, period=None):
         Log marginal probability of the synchrony estimate as a float.
     """
     # Unwrap the parameters and call the raw function
-    log_p = log_marginal_raw_BP(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
-        emd.y, emd.R, emd.N, period)
+    log_p = log_marginal_raw_BP(emd.theta_f, emd.theta_o, emd.sigma_f,
+                                emd.sigma_o_inv, emd.y, emd.R, emd.N, period)
 
     return log_p
 
 
-def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N,
+                        period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike
+    pattern rates by Bethe approximation (Belief propagation).
 
     From within SSLL, this function should be accessed by calling
-    `log_marginal` with the EMD container as a parameter. This raw function is
-    designed to be called from outside SSLL, when a complete EMD container
-    might not be available.
+    `log_marginal_BP` with the EMD container as a parameter.
 
     See the container.py for a full description of the parameter properties.
 
@@ -693,7 +658,8 @@ def log_marginal_raw_BP(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=
 
 
 def log_likelihood_BP(y_t, theta_f_t, R, N):
-    """ Computes the log-likelihood with Bethe approximation
+    """ Computes the log-likelihood with Bethe approximation  (Belief
+    propagation).
 
     :param numpy.ndarray y_t:
         Frequency of observed patterns for one timestep.
@@ -713,229 +679,13 @@ def log_likelihood_BP(y_t, theta_f_t, R, N):
     return log_p
 
 
-def conjugate_gradient_BP(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, diag_weight_trick=False):
-    """ Conjugate Gradient algorithm with TAP approximation.
-
-    :param numpy.ndarray y_t:
-        (d,) dimensional vector with empirical rates of data.
-    :param numpy.ndarray X_t:
-        (r,c) dimensional array with spike trains for each trial and each cell.
-    :param int R:
-        Number of trials.
-    :param numpy.ndarray theta0:
-        Starting point for theta.
-    :param numpy.ndarray theta_o:
-        One-step prediction for theta
-    :param sigma_o:
-        One-step prediction covariance matrix
-    :param sigma_o_i:
-        Inverse one-step prediction covariance matrix
-    :param bool diag_weight_trick:
-        if diagonal weight should be used. (Default=False)
-
-    :returns:
-        Tuple containing the mean and covariance of the posterior probability
-        density, each as a numpy.ndarray.
-
-    """
-
-    # Convergence limit for the rate
-    GA_CONVERGENCE = 1e-4
-    MAX_GA_ITERATIONS = 1000.
-    # Get number of Neurons
-    N = X_t.shape[1]
-    # Initialize iteration counter
-    iterations = 0
-    # get eta
-    theta_max = theta_0
-    theta_max[:N] = -3.
-    eta = compute_eta_BP(theta_max, N)[0]
-    # Get Gradient (just prior beacuse the one of llk is zero)
-    dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
-    # Change of theta
-    d_th = dlpo
-    # Search direction
-    s = d_th
-    # Get initial eta
-    eta = numpy.copy(y_t)
-    # Convergence criterion
-    max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
-    # Until rate converged
-    while max_dlpo > GA_CONVERGENCE and iterations<MAX_GA_ITERATIONS:
-        # Save old theta
-        d_th_prev = d_th
-        # Count iterations
-        iterations += 1
-        # Get new theta direction
-        d_th = dlpo
-        # Get Beta
-        beta = max_posterior.compute_beta(d_th, d_th_prev, s, 'HS')
-        # Update search direction
-        s = d_th + beta*s
-        # Update theta by line search
-        theta_max = line_search_BP(theta_max, N, R, s, dlpo, sigma_o_i, eta)
-        # Get eta by solving forward problem
-        eta = compute_eta_BP(theta_max, N)[0]
-        # Get gradient of posterior
-        dlpo = R*(y_t - eta) - numpy.dot(sigma_o_i, theta_max - theta_o)
-        # Get maximal Gradient entry
-        max_dlpo = numpy.amax(numpy.absolute(dlpo))/R
-        # If maximal number of iterations is reached break
-        if iterations == MAX_GA_ITERATIONS:
-            raise Exception('The Mean Field CG '+\
-                'algorithm did not converge before reaching the maximum '+\
-                'number iterations.')
-
-    # Calculate Fisher info
-    G = mean_field.compute_full_G(eta, theta_max, N)
-    ddlpo = -R*G - sigma_o_i
-    ddlpo_i = numpy.linalg.inv(ddlpo + 1e-13*numpy.identity(ddlpo.shape[0]))
-    # Return
-    return theta_max, -ddlpo_i
-
-def line_search_BP(theta, N, R, s, dlpo, sigma_o_i, eta):
-    """ Performs the line search for TAP.
-
-    :param numpy.ndarray theta:
-        (d,) natural parameters
-    :param int R:
-        Number of trials
-    :param numpy.ndarray s:
-        (d,) search direction
-    :param numpy.ndarray dlpo:
-        (d,) derivative of posterior
-    :param numpy.ndarray sigma_o_i:
-        (d,d) inverse of one-step covariance
-    :param numpy.ndarray eta:
-        (d,) all expectation parameters eta
-
-    :returns:
-        (d,) numpy.ndarray with optimal theta
-    """
-    # Project posterior gradient on search direction
-    dlpo_s = numpy.dot(dlpo.T, s)
-    # Get Fisher info py TAP approximation
-    # G = compute_fisher_info_from_eta_TAP(eta, theta, N)
-    G = mean_field.compute_full_G(eta, theta, N)
-    # Get Hessian
-    ddlpo = -R*G - sigma_o_i
-    # Project Hessian on search direction
-    ddlpo_s = numpy.dot(s, numpy.dot(ddlpo,s))
-    # Compute how much the step should be along search direction
-    alpha = -dlpo_s/ddlpo_s
-    # Update theta
-    theta_new = theta + alpha*s
-    # Return
-    return theta_new
-
-
-def compute_eta_rBP(theta, N, alpha=.5):
-    """ Computes the expectation parameters for given theta according to Bethe approximation and belief propagation
-
-    :param numpy.ndarray theta:
-        (d,) dimensional array with natural parameters in it
-    :param int N:
-        Number of cells
-    :param float alpha:
-        Step size for message update (default=0.5)
-    :returns:
-        (d,) dimensional array with approximated etas
-    """
-    # Upper triangle indices
-    triu_idx = numpy.triu_indices(N, 1)
-    diag_idx = numpy.diag_indices(N)
-    # First order theta in square matrix form
-    from_idx, to_idx = numpy.meshgrid(numpy.arange(N), numpy.arange(N))
-    theta1 = theta[to_idx]
-    # Second order theta in square matrix form
-    theta2 = numpy.zeros([N, N])
-    theta2[triu_idx] = theta[N:]
-    theta2 += theta2.T
-    # Calculate unnormalized probabilities for message computation
-    psi_i = numpy.exp(theta1)
-    psi_i_ij = numpy.exp(theta1 + theta2)
-    # Actual belief propogation algorithm
-    messages = propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha)
-    # Compute beliefs from messages
-    b_i, b_ij = compute_beliefs_BP(messages, theta1, theta2, N)
-    # Get eta vector
-    eta = numpy.empty(theta.shape)
-    eta[:N] = b_i[:,1]
-    eta[N:] = b_ij[triu_idx[0],triu_idx[1],3]
-    theta1 = theta[:N]
-    psi_i = numpy.ones([N,2])
-    psi_i[:,1] = numpy.exp(theta1)
-    phi_ij = numpy.ones([N,N,4])
-    phi_ij[:,:,1] = numpy.exp(theta1[:,numpy.newaxis])
-    phi_ij[:,:,2] = numpy.exp(theta1[:,numpy.newaxis].T)
-    phi_ij[:,:,3] = numpy.exp(theta1[:,numpy.newaxis] + theta1[:,numpy.newaxis].T + theta2)
-    phi_ij[diag_idx[0],diag_idx[1],:] = 1
-    bethe_free = bethe_free_energy(b_i, b_ij, psi_i, phi_ij, N)
-    return eta, -bethe_free
-
-
-def propagate_beliefs_rBP(psi_i, psi_i_ij, N, theta1, theta2, alpha=.5):
-    """ Actual belief propagation algorithm [Yedidia, 2001]
-
-    :param numpy.ndarray psi_i:
-        (c,) dimensional array with exp(theta_i)
-    :param numpy.ndarray psi_i_ij:
-        (c,c) dimensional array with exp(theta_i + theta_ij)
-    :param int N:
-        Number of cells
-    :param float alpha:
-        Step size for message update (default=0.5)
-    :return
-        (c,c,2) dimensional array with messages from cells to each other about their states
-    """
-
-    # Initialize messages
-    messages = numpy.ones([N,N,2])
-    # Initialize convergence criteria
-    message_difference = numpy.inf
-    iter_num = 0
-    gamma = 0
-    while message_difference > 1e-10:# and iter_num <= 2000:
-        if iter_num % 100 == 0:
-            gamma += .001
-        b_i = compute_beliefs_BP(messages, theta1, theta2, N, all=False)
-        # Initialize matrix for updated messages
-        new_messages = numpy.ones([N,N,2])
-        # Compute log of old messages
-        log_messages = numpy.log(messages)
-        # Marginalize over message sending neurons
-        sum_log_messages = numpy.sum(log_messages, axis=0)
-        # Compute new messages for neurons being silent
-        new_messages[:,:,0] = b_i[:,0,numpy.newaxis].T**gamma*(psi_i*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
-                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis] - log_messages[:, :, 0].T))
-        # Compute new messages for neurons firing
-        new_messages[:,:,1] = b_i[:,1,numpy.newaxis].T**gamma*(psi_i_ij*numpy.exp(sum_log_messages[:, 1, numpy.newaxis] - log_messages[:, :, 1].T)\
-                                        + numpy.exp(sum_log_messages[:, 0, numpy.newaxis]-log_messages[:, :, 0].T))
-        # Compute normalization
-        k = numpy.sum(new_messages, axis=2)
-        new_messages = new_messages/k[:,:,numpy.newaxis]
-        # Maximal change in messages
-        message_difference = numpy.amax(numpy.absolute(messages - new_messages))
-        # Normalize and update messages
-        M = (1. - alpha)*messages + alpha*new_messages
-        k = numpy.sum(M, axis=2)
-        messages = M/k[:, :, numpy.newaxis]
-        iter_num += 1
-        # Raise exception if not converged
-        #if iter_num == 1000:
-        #    raise Exception('BP algorithm did not converge!')
-
-    # Return messages
-    return messages
-
 def log_marginal_hybrid(emd, period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike
+    pattern rates by Bethe approximation (hybrid).
 
-    This is just a wrapper function for `log_marginal_raw`. It unpacks data
-    from the EMD container pbject and calls that function.
+    This is just a wrapper function for `log_marginal_raw_hybrid`. It unpacks
+    data from the EMD container object and calls that function.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
@@ -946,22 +696,21 @@ def log_marginal_hybrid(emd, period=None):
         Log marginal probability of the synchrony estimate as a float.
     """
     # Unwrap the parameters and call the raw function
-    log_p = log_marginal_raw_hybrid(emd.theta_f, emd.theta_o, emd.sigma_f, emd.sigma_o_inv,
-        emd.y, emd.R, emd.N, period)
+    log_p = log_marginal_raw_hybrid(emd.theta_f, emd.theta_o, emd.sigma_f,
+                                    emd.sigma_o_inv, emd.y, emd.R, emd.N,
+                                    period)
 
     return log_p
 
 
-def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, period=None):
+def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N,
+                            period=None):
     """
-    Computes the log marginal probability of the observed spike-pattern rates
-    by marginalising over the natural-parameter distributions. See equation 45
-    of the source paper for details.
+    Computes the approximate log marginal probability of the observed spike
+    pattern rates by Bethe approximation (hybrid).
 
     From within SSLL, this function should be accessed by calling
-    `log_marginal` with the EMD container as a parameter. This raw function is
-    designed to be called from outside SSLL, when a complete EMD container
-    might not be available.
+    `log_marginal_hybrid` with the EMD container as a parameter.
 
     See the container.py for a full description of the parameter properties.
 
@@ -991,6 +740,18 @@ def log_marginal_raw_hybrid(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, N, per
 
 
 def compute_eta_hybrid(theta, N, return_psi=False):
+    """ Function to get eta from the hybrid method.
+
+    :param numpy.ndarray theta:
+        (d,) dimensional vector containing theta parameters
+    :param int N:
+        Number of cells.
+    :param bool return_psi:
+        If true approximated psi is returned in addition. (Default=False)
+    :return:
+        (d,) dimensional vector with approximated eta parameters, and psi if
+        indicated before
+    """
     try:
         return compute_eta_BP(theta, N, return_psi=return_psi)
     except:

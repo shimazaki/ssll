@@ -1,10 +1,24 @@
 """
 Classes for encapsulating data used in the expectation maximisation algorithm.
 
+Changes to the original code to incorporate approximations
+
 ---
 
-State-Space Analysis of Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012)
-Copyright (C) 2014  Thomas Sharp (thomas.sharp@riken.jp)
+This code implements approximate inference methods for State-Space Analysis of
+Spike Correlations (Shimazaki et al. PLoS Comp Bio 2012). It is an extension of
+the existing code from repository <https://github.com/tomxsharp/ssll> (For
+Matlab Code refer to <http://github.com/shimazaki/dynamic_corr>). We
+acknowledge Thomas Sharp for providing the code for exact inference.
+
+In this library are additional methods provided to perform the State-Space
+Analysis approximately. This includes pseudolikelihood, TAP, and Bethe
+approximations. For details see: <http://arxiv.org/abs/1607.08840>
+
+Copyright (C) 2016
+
+Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
+                           Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +33,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+
 import numpy
 import pdb
 
@@ -46,16 +61,23 @@ class EMData:
         pairwise, 3 = triplet-wise...
     :param int window:
         Bin-width for counting spikes, in milliseconds.
+    :param str param_est:
+        Parameter whether exact likelihood ('exact') or pseudo likelihood
+        ('pseudo') should be used
+    :param str param_est_eta:
+        Eta parameters are either calculated exactly ('exact'), by mean
+        field TAP approximation ('TAP'), or Bethe approximation (belief
+        propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid')
     :param function map_function:
         A function from max_posterior.py or pseudo_likelihood.py
         that returns an estimate of the posterior distribution of natural
         parameters for a given timestep.
-    :param function marg_llk_fun:
-        A function that returns the marginal log-likelihood or pseudo-log-
-        likelihood.
-    :param float lmdbda:
-        Coefficient on the identity matrix of the initial state-transition
-        covariance matrix.
+    :param float lmbda1:
+        Inverse coefficient on the identity matrix of the initial
+        state-transition covariance matrix for the first order theta parameters.
+    :param float lmbda2:
+        Inverse coefficient on the identity matrix of the initial
+        state-transition covariance matrix for the second order theta parameters.
 
     :ivar numpy.ndarray spikes:
         Reference to the input spikes.
@@ -139,17 +161,7 @@ class EMData:
         self.theta_o = numpy.zeros((self.T,self.D))
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
-        # Initialize array for estimated rate
-        #self.eta = numpy.zeros((self.T,self.D))
-        # Initialize arrays for Energies
-        #self.psi = numpy.zeros((self.T))
-        #self.U1 = numpy.zeros((self.T))
-        #self.U2 = numpy.zeros((self.T))
-        #self.S1 = numpy.zeros((self.T))
-        #self.S2 = numpy.zeros((self.T))
-        #self.S_ratio = numpy.zeros((self.T))
-        #self.psi_sampled = None
-        #self.eta_sampled = None
+
 
         # Initialise covariances of the same (an I-matrix for each timestep)
         if param_est == 'exact':
@@ -158,10 +170,11 @@ class EMData:
             self.sigma_o = .1 * I
             self.sigma_o_inv = 1./.1 * I
             del I
+            # Intialise autoregressive and transition probability hyperparameters
             self.sigma_f = numpy.copy(self.sigma_o)
             self.sigma_s = numpy.copy(self.sigma_o)
             self.sigma_s_lag = numpy.copy(self.sigma_o)
-            # Intialise autoregressive and transition probability hyperparameters
+        # For approximate term initialize only the diagonal of the convariances
         else:
             self.sigma_o = .1*numpy.ones((self.T,self.D))
             self.sigma_o_inv = 1./.1*numpy.ones((self.T,self.D))
@@ -176,6 +189,7 @@ class EMData:
         # Metadata about EM algorithm execution
         self.iterations, self.convergence = 0, numpy.inf
 
+# Different approximations of the marginal log likelihood
 log_marginal_functions = {'exact': probability.log_marginal,
                           'mf': mean_field.log_marginal,
                           'bethe_BP': bethe_approximation.log_marginal_BP,
