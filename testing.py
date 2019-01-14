@@ -91,7 +91,7 @@ def klic(p_theta, q_theta, N):
 class TestEstimator(unittest.TestCase):
 
     def setUp(self):
-        self.T = 500
+        self.T = 200
         self.R = 50
         self.theta_base = -3.
         self.spike_seed = 1
@@ -169,6 +169,7 @@ class TestEstimator(unittest.TestCase):
                     self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
             self.run_ssll(theta, N, 1)
+        print('Log marginal likelihood = %.6f (expected)' % -14859.126789)
 
 
     def test_2_so_variable(self):
@@ -206,6 +207,7 @@ class TestEstimator(unittest.TestCase):
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
             self.run_ssll(theta, N, 2)
+        print('Log marginal likelihood = %.6f (expected)' % -16147.780358)
 
 
     def test_3_to_variable(self):
@@ -243,6 +245,7 @@ class TestEstimator(unittest.TestCase):
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
             self.run_ssll(theta, N, 3)
+        print('Log marginal likelihood = %.6f (expected)' % -14868.366383)
 
 
     def test_4_so_variable_gradient_methods(self):
@@ -255,11 +258,14 @@ class TestEstimator(unittest.TestCase):
         # Conjugate Gradient
         tc = time.time()
         self.run_ssll(theta, N, O, map_fun='cg')
+        print('Log marginal likelihood = %.6f (expected)' % -30794.432502)
         print('cg in %f s' %(time.time() - tc))
         # BFGS
         tc = time.time()
         self.run_ssll(theta, N, O, map_fun='bf')
+        print('Log marginal likelihood = %.6f (expected)' % -30794.161785)
         print('bfgs in %f s' %(time.time() - tc))
+
 
 
     def test_5_so_variable_pseudolikelihood(self):
@@ -272,10 +278,12 @@ class TestEstimator(unittest.TestCase):
         # Conjugate Gradient
         tc = time.time()
         self.run_ssll(theta, N, O, map_fun='cg', param_est_val='pseudo', param_est_eta='bethe_hybrid')
+        print('Log marginal likelihood = %.6f (expected)' % -31033.278135)
         print('cg in %f s' %(time.time() - tc))
         # BFGS
         tc = time.time()
         self.run_ssll(theta, N, O, map_fun='bf', param_est_val='pseudo', param_est_eta='bethe_hybrid')
+        print('Log marginal likelihood = %.6f (expected)' % -31031.979689)
         print('bfgs in %f s' %(time.time() - tc))
 
     def wave(self, A, f, phi, T):

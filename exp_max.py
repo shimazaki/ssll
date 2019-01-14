@@ -108,13 +108,7 @@ def e_step_filter(emd):
         # Computation for exact case with full covariance matrix
         if emd.param_est_eta == 'exact':
             tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
-            #print('Q symetric: ',numpy.allclose(emd.Q,emd.Q.T,rtol=1e-10))
-            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T)
-            #print(numpy.allclose(emd.sigma_o[i,:,:],emd.sigma_o[i,:,:].T,rtol=1e12),numpy.allclose(emd.Q, emd.Q.T,rtol=1e-16))
-
-            emd.sigma_o[i, :, :] = emd.sigma_o[i, :, :] + emd.Q
-            c = numpy.log(numpy.linalg.det(emd.sigma_o[i, :, :]))
-            c = numpy.log(numpy.linalg.det(emd.sigma_f[i-1, :, :]))
+            emd.sigma_o[i,:,:] = numpy.dot(tmp, emd.F.T) + emd.Q
 
             # Compute inverse of one-step prediction covariance
             emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
@@ -125,7 +119,6 @@ def e_step_filter(emd):
             emd.sigma_o_inv[i] = 1./emd.sigma_o[i]
         # Get MAP estimate of filter density
         emd.theta_f[i,:], emd.sigma_f[i,:] = max_posterior.run(emd, i)
-        b = numpy.log(numpy.linalg.det(emd.sigma_f[i, :, :]))
 
 def e_step_smooth(emd):
     """
