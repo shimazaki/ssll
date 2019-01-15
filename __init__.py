@@ -158,4 +158,5 @@ def run(spikes, order, window=1, map_function='nr', state_cov=0.01, state_ar=Non
         emd.iterations += 1
         emd.convergence = (lmp - lmc) / lmp
 
+    print('Log marginal likelihood = %.6f' % (emd.mllk))
     return emd

@@ -39,7 +39,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # Set time (milliseconds), number of trials, and number of cells
-T, R, N = 500, 100, 2
+T, R, N = 500, 200, 2
 # Set the interaction order
 O = 2
 
@@ -72,7 +72,7 @@ import numpy
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-emd = __init__.run(spikes, O, map_function='nr', lmbda1=200, lmbda2=200,)
+emd = __init__.run(spikes, O, map_function='nr')
 
 
 # ----- PLOTTING -----
