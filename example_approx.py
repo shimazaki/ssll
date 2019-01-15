@@ -71,12 +71,12 @@ spikes = synthesis.generate_spikes_gibbs(theta, N, O, R, pre_n=100,
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm with pseudo likelihood, bethe approximation!
-emd = __init__.run(spikes, O, map_function='cg',
-                   param_est='pseudo', param_est_eta='bethe_hybrid')
+#emd = __init__.run(spikes, O, map_function='cg',
+#                   param_est='pseudo', param_est_eta='bethe_hybrid')
 
 # Run the algorithm with pseudo likelihood, TAP approximation!
-# emd = __init__.run(spikes, O, map_function='cg', lmbda1=200, lmbda2=200,
-#                    param_est='pseudo', param_est_eta='mf')
+emd = __init__.run(spikes, O, map_function='cg',
+                   param_est='pseudo', param_est_eta='mf')
 
 
 # ----- PLOTTING -----

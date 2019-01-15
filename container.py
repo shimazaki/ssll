@@ -88,12 +88,13 @@ class EMData:
         ('pseudo') should be used
     :param str param_est_eta:
         Eta parameters are either calculated exactly ('exact'), by mean
-        field TAP approximation ('TAP'), or Bethe approximation (belief
+        field TAP approximation ('mf'), or Bethe approximation (belief
         propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid')
     :param function map_function:
-        A function from max_posterior.py or pseudo_likelihood.py
-        that returns an estimate of the posterior distribution of natural
-        parameters for a given timestep.
+        An optimziation algorithm in max_posterior.py or pseudo_likelihood.py
+        that returns MAP estimates of the posterior distribution of natural
+        parameters for a given timestep. The following options are allowed:
+        'nr': newton_raphson, 'cg': conjugate_gradient, 'bf': bfgs.
     :param float state_cov:
         Covariance matrix of the state
         state-transition covariance matrix for the first order theta parameters.
