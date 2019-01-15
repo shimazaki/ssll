@@ -146,6 +146,7 @@ class TestEstimator(unittest.TestCase):
             self.plot(theta, emd.theta_s, emd.sigma_s, emd.y, kld, emd.N, emd.T,
                 emd.D)
         self.assertFalse(numpy.any(kld[50:-50] > .05)) # change from .01
+        return emd
 
 
     def test_1_fo_varying(self):
@@ -168,8 +169,11 @@ class TestEstimator(unittest.TestCase):
                 theta[:,idx] = self.theta_base + \
                     self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssll(theta, N, 1)
-        print('Log marginal likelihood = %.6f (expected)' % -14859.126789)
+            emd = self.run_ssll(theta, N, 1)
+        # Check the consistency with the expected result.
+        expected_mllk = -14859.126789
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
 
     def test_2_so_variable(self):
@@ -206,9 +210,11 @@ class TestEstimator(unittest.TestCase):
                 idx = interactions[i]
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssll(theta, N, 2)
-        print('Log marginal likelihood = %.6f (expected)' % -16147.780358)
-
+            emd = self.run_ssll(theta, N, 2)
+        # Check the consistency with the expected result.
+        expected_mllk = -16147.780358
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
     def test_3_to_variable(self):
         print("Test Third-Order Time-Varying Interactions.")
@@ -244,47 +250,61 @@ class TestEstimator(unittest.TestCase):
                 idx = interactions[i]
                 theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
             # Run the actual test
-            self.run_ssll(theta, N, 3)
-        print('Log marginal likelihood = %.6f (expected)' % -14868.366383)
-
+            emd = self.run_ssll(theta, N, 3)
+        # Check the consistency with the expected result.
+        expected_mllk = -14868.366383
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
     def test_4_so_variable_gradient_methods(self):
-        print("Test Gradient Algorithms (N=8, O=2, Time-Varying Interactions).")
+        print("Test Gradient Algorithms (N=6, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
-        N, O = 8, 2
+        N, O = 6, 2
         # Create time-varying theta parameters
         theta = synthesis.generate_thetas(N, O, self.T)
         # Run the algorithm!
         # Conjugate Gradient
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='cg')
-        print('Log marginal likelihood = %.6f (expected)' % -30794.432502)
+        emd = self.run_ssll(theta, N, O, map_fun='cg')
+        expected_mllk = -23763.730890
         print('cg in %f s' %(time.time() - tc))
+        # Check the consistency with the expected result.
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         # BFGS
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='bf')
-        print('Log marginal likelihood = %.6f (expected)' % -30794.161785)
+        emd = self.run_ssll(theta, N, O, map_fun='bf')
         print('bfgs in %f s' %(time.time() - tc))
-
+        # Check the consistency with the expected result.
+        expected_mllk = -23763.650657
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
 
     def test_5_so_variable_pseudolikelihood(self):
-        print("Test Psuedolikelihood Algorithm (N=8, O=2, Time-Varying Interactions).")
+        print("Test Psuedolikelihood Algorithm (N=6, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
-        N, O = 8, 2
+        N, O = 6, 2
         # Create time-varying theta parameters
         theta = synthesis.generate_thetas(N, O, self.T)
         # Run the algorithm!
         # Conjugate Gradient
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='cg', param_est_val='pseudo', param_est_eta='bethe_hybrid')
-        print('Log marginal likelihood = %.6f (expected)' % -31033.278135)
+        emd = self.run_ssll(theta, N, O, map_fun='cg', param_est_val='pseudo', param_est_eta='bethe_hybrid')
+        # Check the consistency with the expected result.
+        expected_mllk = -23904.422925
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('cg in %f s' %(time.time() - tc))
         # BFGS
         tc = time.time()
-        self.run_ssll(theta, N, O, map_fun='bf', param_est_val='pseudo', param_est_eta='bethe_hybrid')
-        print('Log marginal likelihood = %.6f (expected)' % -31031.979689)
+        emd = self.run_ssll(theta, N, O, map_fun='bf', param_est_val='pseudo', param_est_eta='bethe_hybrid')
+        # Check the consistency with the expected result.
+        expected_mllk = -23903.796611
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
+
 
     def wave(self, A, f, phi, T):
         rng = numpy.arange(0, T, 1e-3)
