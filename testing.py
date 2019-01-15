@@ -73,7 +73,7 @@ def klic(p_theta, q_theta, N):
     fx = transforms.enumerate_patterns(N)
     # Compute divergence for each timestep
     kld = numpy.zeros(T)
-    for i in xrange(T):
+    for i in numpy.arange(T):
         # Compute normalisations for current timestep
         phi_q = transforms.compute_psi(q_theta[i,:])
         phi_p = transforms.compute_psi(p_theta[i,:])
@@ -103,7 +103,7 @@ class TestEstimator(unittest.TestCase):
         fig, ax = pylab.subplots(3, 1)
         colours = ['b', 'g', 'r', 'c', 'm', 'y']
         # Plot smoothed densities
-        for i in xrange(D):
+        for i in numpy.arange(D):
             # Plot original theta values
             ax[0].plot(theta_a[:, i], ls='--', c=colours[i%len(colours)])
             # Plot data-estimated theta values
@@ -132,7 +132,7 @@ class TestEstimator(unittest.TestCase):
         transforms.initialise(N, O)
         # Compute probability from theta values
         p = numpy.zeros((self.T, 2**N))
-        for i in xrange(self.T):
+        for i in numpy.arange(self.T):
             p[i,:] = transforms.compute_p(theta[i,:])
         # Generate spikes according to those probabilities
         spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
@@ -149,17 +149,17 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_1_fo_varying(self):
-        print "Test First-Order Time-Varying Interactions."
+        print("Test First-Order Time-Varying Interactions.")
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(4):
-            print N
+            print(N)
             # Create a regular set of theta parameters for each timestep
             theta = numpy.ones((self.T, N)) * self.theta_base
             # Add time-varying components for some neurons
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N + 1)
             cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in xrange(n_random):
+            for i in numpy.arange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
                 A = numpy.random.uniform(2)
@@ -173,10 +173,10 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_2_so_variable(self):
-        print "Test Second-Order Time-Varying Interactions."
+        print("Test Second-Order Time-Varying Interactions.")
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(1, 4):
-            print N
+            print(N)
             # Compute dimensionality of natural-parameter distribution
             D = transforms.compute_D(N, 2)
             # Create a regular set of theta parameters for each timestep
@@ -187,7 +187,7 @@ class TestEstimator(unittest.TestCase):
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N / 2)
             cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in xrange(n_random):
+            for i in numpy.arange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
                 A = numpy.random.uniform(2)
@@ -198,7 +198,7 @@ class TestEstimator(unittest.TestCase):
             # Add time-varying components for some interactions
             n_random = numpy.random.randint(0, D - N)
             interactions = numpy.random.choice(numpy.arange(N, D), n_random)
-            for i in xrange(n_random):
+            for i in numpy.arange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
                 A = numpy.random.uniform(1, 2)
@@ -211,10 +211,10 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_3_to_variable(self):
-        print "Test Third-Order Time-Varying Interactions."
+        print("Test Third-Order Time-Varying Interactions.")
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(2, 4):
-            print N
+            print(N)
             # Compute dimensionality of natural-parameter distribution
             D = transforms.compute_D(N, 3)
             # Create a regular set of theta parameters for each timestep
@@ -225,7 +225,7 @@ class TestEstimator(unittest.TestCase):
             numpy.random.seed(self.wave_seed)
             n_random = numpy.random.randint(0, N / 2)
             cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in xrange(n_random):
+            for i in numpy.arange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
                 A = numpy.random.uniform(2)
@@ -236,7 +236,7 @@ class TestEstimator(unittest.TestCase):
             # Add time-varying components for some interactions
             n_random = numpy.random.randint(0, D - N)
             interactions = numpy.random.choice(numpy.arange(N, D), n_random)
-            for i in xrange(n_random):
+            for i in numpy.arange(n_random):
                 # Draw random phase, amplitude and frequency
                 phi = numpy.random.uniform(0, 2 * numpy.pi)
                 A = numpy.random.uniform(1, 2)
@@ -249,7 +249,7 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_4_so_variable_gradient_methods(self):
-        print "Test Gradient Algorithms (N=8, O=2, Time-Varying Interactions)."
+        print("Test Gradient Algorithms (N=8, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
         N, O = 8, 2
         # Create time-varying theta parameters
@@ -269,7 +269,7 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_5_so_variable_pseudolikelihood(self):
-        print "Test Psuedolikelihood Algorithm (N=8, O=2, Time-Varying Interactions)."
+        print("Test Psuedolikelihood Algorithm (N=8, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
         N, O = 8, 2
         # Create time-varying theta parameters
