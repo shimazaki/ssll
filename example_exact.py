@@ -72,10 +72,18 @@ import numpy
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-state_cov_0 = list([0.01,0.01]) #list([[0.01],[0]])
-#state_cov_0 = 0.01*numpy.ones(emd.D)
-emd = __init__.run(spikes, O, map_function='cg', state_cov=state_cov_0)
+emd = __init__.run(spikes, O)
+# Changing MAP estimation method to Newton-Raphson from Deafult Conjugate gradient.
+emd = __init__.run(spikes, O, map_function='nr')
 
+# Obtain stationary model
+#emd = __init__.run(spikes, O, state_cov=0)
+# Optimize the first-order and interaction parameters differently.
+#emd = __init__.run(spikes, O, state_cov=list([0.01,0.01]))
+# Optimize a diagonal of the state covariance.
+#emd = __init__.run(spikes, O, state_cov=0.01*numpy.ones(emd.D))
+# Optimize a full matrix of the state covariance.
+#emd = __init__.run(spikes, O, state_cov=0.01*numpy.identity(emd.D))
 
 # ----- PLOTTING -----
 # Global module
