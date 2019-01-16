@@ -127,7 +127,7 @@ class TestEstimator(unittest.TestCase):
         pylab.show()
 
 
-    def run_ssll(self, theta, N, O, map_fun='nr',
+    def run_ssll(self, theta, N, O, map_fun='cg',
             state_cov_val=0.01, state_ar_val=None,
             param_est_val='exact', param_est_eta='exact'):
         # Initialise the library for computing pattern probabilities
@@ -174,7 +174,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 1)
         # Check the consistency with the expected result.
-        expected_mllk = -8452.482447 #-14859.126789 for N=8
+        expected_mllk = -8452.478499#-8452.482447(nr) #-14859.126789 for N=8
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -215,7 +215,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 2)
         # Check the consistency with the expected result.
-        expected_mllk = -7864.041432 #-16147.780358 for N=8
+        expected_mllk = -7864.054227# -7864.041432(nr) #-16147.780358 for N=8
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -256,7 +256,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 3)
         # Check the consistency with the expected result.
-        expected_mllk = -5407.093169 #-7863.064477 for N=4
+        expected_mllk = -5407.079611 #-5407.093169(nr) #-7863.064477 for N=4
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -272,7 +272,7 @@ class TestEstimator(unittest.TestCase):
         # A diagonal covariance matrix
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.ones(D))
-        expected_mllk = -15756.710376
+        expected_mllk = -15756.710216 #-15756.710376(nr)
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
@@ -281,7 +281,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.identity(D))
         # Check the consistency with the expected result.
-        expected_mllk = -15755.308031
+        expected_mllk = -15755.307139#-15755.308031(nr)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('full cov in %f s' %(time.time() - tc))
@@ -289,7 +289,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_ar_val=1.*numpy.identity(D))
         # Check the consistency with the expected result.
-        expected_mllk = -15702.129070
+        expected_mllk = -15702.132130 #-15702.129070(nr)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('autoreg in %f s' %(time.time() - tc))

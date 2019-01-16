@@ -72,7 +72,7 @@ import energies
 import bethe_approximation
 
 
-def run(spikes, order, window=1, map_function='nr', \
+def run(spikes, order, window=1, map_function='cg', \
         state_cov=0.01, state_ar=None, max_iter=100,
         param_est='exact', param_est_eta='exact',\
         theta_o = 0, sigma_o = 0.1, mstep=True):
