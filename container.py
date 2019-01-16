@@ -102,9 +102,9 @@ class EMData:
         Inverse coefficient on the identity matrix of the initial
         state-transition covariance matrix for the second order theta parameters.
     :param numpy.ndarray theta_o:
-        Prior mean at the first time bin (one-step predictor)
+        Prior mean at the first time bin (one-step predictor).
     :param numpy.ndarray sigma_o:
-        Prior covariance at the first time bin (one-step predictor)
+        Prior covariance at the first time bin (one-step predictor).
 
     :ivar numpy.ndarray spikes:
         Reference to the input spikes.
@@ -215,6 +215,15 @@ class EMData:
             self.sigma_s_lag = .1*numpy.ones((self.T,self.D))
 
         # Initialize noise covariance matrix in a state model
+        if type(self.state_cov_0) == list:
+            if len(self.state_cov_0) == 1:
+                self.state_cov_0 = self.state_cov_0[0]
+            elif len(self.state_cov_0) > 1:
+                tmp = numpy.zeros(self.D)
+                tmp[:self.N] = self.state_cov_0[0] * numpy.ones(self.N)
+                tmp[self.N:] = self.state_cov_0[1] * numpy.ones(self.D-self.N)
+                self.state_cov_0 = tmp
+
         self.Q = numpy.zeros([self.D, self.D])
         if type(self.state_cov_0) == float or type(self.state_cov_0) == int:
             self.Q = self.state_cov_0 * numpy.identity(self.D)

@@ -234,6 +234,8 @@ def m_step_Q(emd):#, stationary):
         '''
 
         inv_lmbda = 0
+        inv_lmbda1 = 0
+        inv_lmbda2 = 0
         for i in range(1,emd.T):
             #A = compute_A(emd.sigma_f[i - 1, :, :], emd.sigma_o[i, :, :], emd.F)
             #lag_one_covariance = numpy.dot(A, emd.sigma_s[i, :])
@@ -243,15 +245,30 @@ def m_step_Q(emd):#, stationary):
                     numpy.dot(numpy.dot(emd.F, emd.sigma_s[i - 1, :]), emd.F.T)
             tmp = emd.theta_s[i, :] - numpy.dot(emd.F, emd.theta_s[i - 1, :])
             term2 = numpy.dot(tmp.reshape(emd.D, 1), tmp.reshape(1, emd.D))
-            if type(emd.state_cov_0) == float or type(emd.state_cov_0) == int:
-                inv_lmbda += numpy.trace(term1) + numpy.trace(term2)
-                C = (1. / emd.D) * numpy.identity(emd.D)
-            elif emd.state_cov_0.shape == (emd.D,):
-                inv_lmbda += numpy.diag(numpy.diag(term1 + term2))
-                C = 1.
+
+            if type(emd.state_cov_0) == list:
+                if len(self.state_cov_0) == 1:
+                    inv_lambda += numpy.trace(term1) + numpy.trace(term2)
+                    C = (1. / emd.D) * numpy.identity(emd.D)
+                if len(emd.state_cov_0) > 1:
+                    inv_lmbda1 += numpy.trace(term1[:emd.N,:emd.N])
+                    inv_lmbda2 += numpy.trace(term2[emd.N:,emd.N:])
+                    C = numpy.zeros((emd.D,emd.D))
+                    if emd.state_cov_0[0] != 0:
+                        C[:emd.N, :emd.N] = inv_lmbda1 / emd.N *numpy.identity(emd.N)
+                    if emd.state_cov_0[1] != 0:
+                        C[emd.N:,emd.N:] = inv_lmbda2 / (emd.D - emd.N) *\
+                                           numpy.identity(emd.D - emd.N)
             else:
-                inv_lmbda += term1 + term2
-                C = 1.
+                if type(emd.state_cov_0) == float or type(emd.state_cov_0) == int:
+                    inv_lmbda += numpy.trace(term1) + numpy.trace(term2)
+                    C = (1. / emd.D) * numpy.identity(emd.D)
+                elif emd.state_cov_0.shape == (emd.D,):
+                    inv_lmbda += numpy.diag(numpy.diag(term1 + term2))
+                    C = 1.
+                else:
+                    inv_lmbda += term1 + term2
+                    C = 1.
         emd.Q = inv_lmbda / (emd.T - 1) * C
         emd.Q = (emd.Q + emd.Q.T) / 2
 

@@ -39,7 +39,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # Set time (milliseconds), number of trials, and number of cells
-T, R, N = 500, 200, 2
+T, R, N = 500, 200, 8
 # Set the interaction order
 O = 2
 
@@ -72,7 +72,9 @@ import numpy
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-emd = __init__.run(spikes, O, map_function='nr')
+state_cov_0 = list([0.01,0.01]) #list([[0.01],[0]])
+#state_cov_0 = 0.01*numpy.ones(emd.D)
+emd = __init__.run(spikes, O, map_function='cg', state_cov=state_cov_0)
 
 
 # ----- PLOTTING -----
@@ -82,14 +84,15 @@ import pylab
 # Set up an output figure
 fig, ax = pylab.subplots(2, 1, sharex=True)
 # Plot underlying theta traces
+
 ax[0].plot(theta[:,0], c='b', linestyle='--')
 ax[0].plot(theta[:,1], c='r', linestyle='--')
-ax[1].plot(theta[:,2], c='g', linestyle='--')
+ax[1].plot(theta[:,N], c='g', linestyle='--')
 
 # Plot estimated theta traces
 ax[0].plot(emd.theta_s[:,0], c='b')
 ax[0].plot(emd.theta_s[:,1], c='r')
-ax[1].plot(emd.theta_s[:,2], c='g')
+ax[1].plot(emd.theta_s[:,N], c='g')
 
 # Set labels
 ax[0].set_title('Second order interaction between two cells')
