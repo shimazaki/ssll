@@ -250,7 +250,7 @@ def bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
              numpy.dot(dlpo_diff, numpy.dot(ddlpo_i_e, dlpo_diff.T)))*\
             numpy.outer(d_theta, d_theta)
         b = numpy.inner(d_theta, dlpo_diff)**2
-        c = numpy.dot(ddlpo_i_e, numpy.outer(dlpo_diff, d_theta)) + \
+        c = numpy.dot(ddlpo_i_e, numpy.outer(dlpo_diff, d_theta)) +\
             numpy.outer(d_theta, numpy.inner(dlpo_diff, ddlpo_i_e))
         d = dlpo_diff_dth
         ddlpo_i_e += (a/b - c/d)
@@ -338,7 +338,7 @@ def line_search(theta_max, y, R, p, s, dlpo, theta_o, sigma_o_i):
         # Project eta on search direction
         eta_s = numpy.dot(p_map_s, p)
         # Project fisher information on search direction
-        s_G_s = R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) + \
+        s_G_s = R*(numpy.dot(p_map_s, p*p_map_s) - eta_s**2) +\
                 numpy.dot(s, sigma_o_i_s)
         # Compute log posterior gradient projected on s
         dllk_s = R*(y_s - eta_s)

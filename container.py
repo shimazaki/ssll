@@ -85,11 +85,11 @@ class EMData:
         Bin-width for counting spikes, in milliseconds.
     :param str param_est:
         Parameter whether exact likelihood ('exact') or pseudo likelihood
-        ('pseudo') should be used
+        ('pseudo') should be used.
     :param str param_est_eta:
         Eta parameters are either calculated exactly ('exact'), by mean
         field TAP approximation ('mf'), or Bethe approximation (belief
-        propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid')
+        propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid').
     :param function map_function:
         An optimziation algorithm in max_posterior.py or pseudo_likelihood.py
         that returns MAP estimates of the posterior distribution of natural
@@ -165,7 +165,8 @@ class EMData:
                  state_cov, state_ar, theta_o, sigma_o):
 
         # Record the input parameters
-        self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window = spikes, order, state_cov, state_ar, window
+        self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
+            = spikes, order, state_cov, state_ar, window
         T, self.R, self.N = self.spikes.shape
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
@@ -224,7 +225,8 @@ class EMData:
                 try:
                     self.state_cov_0.reshape(self.D)
                 except ValueError:
-                    raise ValueError('The dimensions of the state covariance need to be DxD or a vector')
+                    raise ValueError('The dimensions of the state covariance\
+                                        need to be DxD or a vector')
                 else:
                     self.Q = numpy.diag(self.state_cov_0)
 
@@ -233,7 +235,8 @@ class EMData:
             if self.state_ar_0.shape == (self.D, self.D):
                 self.F = self.state_ar_0
             else:
-                raise ValueError('The dimensions of the state autogregressive hyperparameter need to be DxD')
+                raise ValueError('The dimensions of the state autogregressive\
+                                    hyperparameter need to be DxD')
         else:
             self.F = numpy.identity(self.D)
 

@@ -127,7 +127,7 @@ class TestEstimator(unittest.TestCase):
         pylab.show()
 
 
-    def run_ssll(self, theta, N, O, map_fun='nr',
+    def run_ssll(self, theta, N, O, map_fun='cg',
             state_cov_val=0.01, state_ar_val=None,
             param_est_val='exact', param_est_eta='exact'):
         # Initialise the library for computing pattern probabilities

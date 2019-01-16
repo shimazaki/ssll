@@ -226,9 +226,9 @@ def m_step_Q(emd):#, stationary):
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :, :]
             tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
-            inv_lmbda += numpy.trace(emd.sigma_s[i, :, :]) - \
-                         2 * numpy.trace(lag_one_covariance) + \
-                         numpy.trace(emd.sigma_s[i - 1, :, :]) + \
+            inv_lmbda += numpy.trace(emd.sigma_s[i, :, :]) -\
+                         2 * numpy.trace(lag_one_covariance) +\
+                         numpy.trace(emd.sigma_s[i - 1, :, :]) +\
                          numpy.dot(tmp, tmp)
         Q = inv_lmbda / emd.D / (emd.T - 1) * numpy.identity(emd.D)
         '''
@@ -238,8 +238,8 @@ def m_step_Q(emd):#, stationary):
             #A = compute_A(emd.sigma_f[i - 1, :, :], emd.sigma_o[i, :, :], emd.F)
             #lag_one_covariance = numpy.dot(A, emd.sigma_s[i, :])
             lag_one_covariance = emd.sigma_s_lag[i, :, :]
-            term1 = emd.sigma_s[i, :] - numpy.dot(lag_one_covariance, emd.F.T) - \
-                    numpy.dot(emd.F, lag_one_covariance.T) + \
+            term1 = emd.sigma_s[i, :] - numpy.dot(lag_one_covariance, emd.F.T) -\
+                    numpy.dot(emd.F, lag_one_covariance.T) +\
                     numpy.dot(numpy.dot(emd.F, emd.sigma_s[i - 1, :]), emd.F.T)
             tmp = emd.theta_s[i, :] - numpy.dot(emd.F, emd.theta_s[i - 1, :])
             term2 = numpy.dot(tmp.reshape(emd.D, 1), tmp.reshape(1, emd.D))
@@ -262,11 +262,11 @@ def m_step_Q(emd):#, stationary):
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :]
             tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
-            inv_lmbda += numpy.sum(emd.sigma_s[i]) - \
-                         2 * numpy.sum(lag_one_covariance) + \
-                         numpy.sum(emd.sigma_s[i - 1]) + \
+            inv_lmbda += numpy.sum(emd.sigma_s[i]) -\
+                         2 * numpy.sum(lag_one_covariance) +\
+                         numpy.sum(emd.sigma_s[i - 1]) +\
                          numpy.dot(tmp, tmp)
-        emd.Q = inv_lmbda / emd.D / (emd.T - 1) * \
+        emd.Q = inv_lmbda / emd.D / (emd.T - 1) *\
                 numpy.identity(emd.D)
 
 
@@ -300,7 +300,8 @@ def m_step_Q2(emd, stationary):
 
         emd.Q[:emd.N,:emd.N] = inv_lmbda1 / emd.N / (emd.T - 1) * numpy.identity(emd.N)
         if emd.order > 1:
-            emd.Q[emd.N:,emd.N:] = inv_lmbda2 / (emd.D - emd.N) / (emd.T - 1) * numpy.identity(emd.D - emd.N)
+            emd.Q[emd.N:,emd.N:] = inv_lmbda2 / (emd.D - emd.N) / (emd.T - 1)\
+                                   * numpy.identity(emd.D - emd.N)
 
         if stationary == 'all':
             emd.Q[:, :] = 0
@@ -310,19 +311,19 @@ def m_step_Q2(emd, stationary):
             # Loading saved lag-one smoother
             lag_one_covariance = emd.sigma_s_lag[i, :]
             tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
-            inv_lmbda1 += numpy.sum(emd.sigma_s[i, :emd.N]) - \
-                          2 * numpy.sum(lag_one_covariance[:emd.N]) + \
-                          numpy.sum(emd.sigma_s[i - 1, :emd.N]) + \
+            inv_lmbda1 += numpy.sum(emd.sigma_s[i, :emd.N]) -\
+                          2 * numpy.sum(lag_one_covariance[:emd.N]) +\
+                          numpy.sum(emd.sigma_s[i - 1, :emd.N]) +\
                           numpy.inner(tmp[:emd.N], tmp[:emd.N])
-            inv_lmbda2 += numpy.sum(emd.sigma_s[i, emd.N:]) - \
-                          2 * numpy.sum(lag_one_covariance[emd.N:]) + \
-                          numpy.sum(emd.sigma_s[i - 1, emd.N:]) + \
+            inv_lmbda2 += numpy.sum(emd.sigma_s[i, emd.N:]) -\
+                          2 * numpy.sum(lag_one_covariance[emd.N:]) +\
+                          numpy.sum(emd.sigma_s[i - 1, emd.N:]) +\
                           numpy.inner(tmp[emd.N:], tmp[emd.N:])
 
-        emd.Q[:emd.N, :emd.N] = inv_lmbda1 / emd.N / (emd.T - 1) * \
+        emd.Q[:emd.N, :emd.N] = inv_lmbda1 / emd.N / (emd.T - 1) *\
                                 numpy.identity(emd.N)
         if emd.order > 1:
-            emd.Q[emd.N:, emd.N:] = inv_lmbda2 / (emd.D - emd.N) / \
+            emd.Q[emd.N:, emd.N:] = inv_lmbda2 / (emd.D - emd.N) /\
                                     (emd.T - 1) * numpy.identity(emd.D - emd.N)
         if stationary == 'all':
             emd.Q[:] = 0
