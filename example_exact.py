@@ -39,7 +39,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # Set time (milliseconds), number of trials, and number of cells
-T, R, N = 500, 200, 8
+T, R, N = 500, 200, 6
 # Set the interaction order
 O = 2
 
@@ -74,12 +74,14 @@ import __init__ # From outside this folder, this would be 'import ssll'
 # Run the algorithm!
 emd = __init__.run(spikes, O)
 # Changing MAP estimation method to Newton-Raphson from Deafult Conjugate gradient.
-emd = __init__.run(spikes, O, map_function='nr')
+#emd = __init__.run(spikes, O, max_posterior='nr')
 
 # Obtain stationary model
 #emd = __init__.run(spikes, O, state_cov=0)
 # Optimize the first-order and interaction parameters differently.
 #emd = __init__.run(spikes, O, state_cov=list([0.01,0.01]))
+# Obtian time-dependent first order with costant pairwise instarctions.
+#emd = __init__.run(spikes, O, state_cov=list([0.01,0]))
 # Optimize a diagonal of the state covariance.
 #emd = __init__.run(spikes, O, state_cov=0.01*numpy.ones(emd.D))
 # Optimize a full matrix of the state covariance.
