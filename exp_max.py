@@ -52,6 +52,7 @@ import pdb
 import probability
 import transforms
 import max_posterior
+import pseudo_likelihood
 
 
 CONVERGED = 1e-4
@@ -90,6 +91,15 @@ def e_step(emd):
     e_step_filter(emd)
     # Compute the 'backward' smooth density
     e_step_smooth(emd)
+
+    # Compute expectation parameters
+    for i in range(1, emd.T): 
+        if emd.param_est_eta == 'exact':
+            p = transforms.compute_p(emd.theta_s[i,:])
+            emd.eta_s[i,:] = transforms.compute_eta(p)
+        else:
+            emd.eta_s[i,:] = pseudo_likelihood.compute_eta[emd.param_est_eta](emd.theta_s[i,:], emd.N)
+
 
 
 def e_step_filter(emd):

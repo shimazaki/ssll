@@ -155,6 +155,7 @@ def run(spikes, order, window=1, map_function='cg', \
         lmp = lmc
         lmc = emd.marg_llk(emd)
         emd.mllk = lmc
+
         # Update EM algorithm metadata
         emd.iterations += 1
         emd.convergence = (lmp - lmc) / lmp

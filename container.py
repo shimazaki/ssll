@@ -161,8 +161,7 @@ class EMData:
     :ivar float convergence:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
-    def __init__(self, spikes, order, window, param_est, param_est_eta, map_function,
-                 state_cov, state_ar, theta_o, sigma_o):
+    def __init__(self, spikes, order, window, param_est, param_est_eta, map_function, state_cov, state_ar, theta_o, sigma_o):
 
         # Record the input parameters
         self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
@@ -194,6 +193,8 @@ class EMData:
         self.theta_f = numpy.zeros((self.T,self.D))
         self.theta_s = numpy.zeros((self.T,self.D))
 
+        # Initialise smoothed expectation parameters
+        self.eta_s = numpy.zeros((self.T,self.D))
 
         # Initialise covariances of the same (an I-matrix for each timestep)
         if param_est == 'exact':
