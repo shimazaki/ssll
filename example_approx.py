@@ -54,8 +54,6 @@ import transforms
 # Create underlying time-varying theta parameters as Gaussian processes
 theta = synthesis.generate_thetas(N, O, T)
 
-
-
 # Generate spikes by Gibbs sampling!
 # Sample steps: How many samples are dropped to make them independent
 # Pre_n: Determines how many samples are used for the burn in phase

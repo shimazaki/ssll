@@ -55,8 +55,6 @@ import max_posterior
 import pseudo_likelihood
 
 
-CONVERGED = 1e-4
-
 def compute_A(sigma_t0, sigma_t1, F):
     """
     Computes the smoothing parameter A.

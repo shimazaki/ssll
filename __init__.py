@@ -72,10 +72,10 @@ import energies
 import bethe_approximation
 
 
-def run(spikes, order, window=1, map_function='cg', \
+def run(spikes, order=2, window=1, map_function='cg', \
         state_cov=0.01, state_ar=None, max_iter=100,
         param_est='exact', param_est_eta='exact',\
-        theta_o = 0, sigma_o = 0.1, mstep=True):
+        theta_o=0, sigma_o=0.1, mstep=True):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -143,10 +143,10 @@ def run(spikes, order, window=1, map_function='cg', \
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
     # Iterate the EM algorithm until convergence or failure
-    while (emd.iterations < max_iter) and (emd.convergence > exp_max.CONVERGED):
+    while (emd.iterations < max_iter) and (emd.convergence > emd.CONVERGED):
         print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
                                                               emd.convergence,
-                                                              exp_max.CONVERGED))
+                                                              emd.CONVERGED))
         # Perform EM
         exp_max.e_step(emd)
         if mstep == True:

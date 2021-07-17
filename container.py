@@ -66,6 +66,12 @@ import bethe_approximation
 import max_posterior
 import probability
 
+# Different approximations of the marginal log likelihood
+log_marginal_functions = {'exact': probability.log_marginal,
+                          'mf': mean_field.log_marginal,
+                          'bethe_BP': bethe_approximation.log_marginal_BP,
+                          'bethe_CCCP': bethe_approximation.log_marginal_CCCP,
+                          'bethe_hybrid': bethe_approximation.log_marginal_hybrid}
 
 class EMData:
     """
@@ -177,13 +183,20 @@ class EMData:
         self.param_est_theta = param_est
         self.param_est_eta = param_est_eta
 
+        # Parameters for EM algorithm iterations
         self.marg_llk = log_marginal_functions[param_est_eta]
+        self.mllk = numpy.inf
+        self.iterations = 0
+        self.CONVERGED = 1e-4
+        self.convergence = numpy.inf
+
         # Compute the `sample' spike-train interactions from the input spikes
         self.y = transforms.compute_y(self.spikes, self.order, self.window)
+        
         # Count timesteps, trials, cells and interaction dimensions
-
         self.T, self.D = self.y.shape
         assert self.T == T / window
+
         # Initialise one-step-prediction- filtered- smoothed-density means
         if type(theta_o) == int or type(theta_o) == float:
             self.theta_o = numpy.ones((self.T,self.D)) * theta_o
@@ -249,14 +262,3 @@ class EMData:
                                     hyperparameter need to be DxD')
         else:
             self.F = numpy.identity(self.D)
-
-        self.mllk = numpy.inf
-        # Metadata about EM algorithm execution
-        self.iterations, self.convergence = 0, numpy.inf
-
-# Different approximations of the marginal log likelihood
-log_marginal_functions = {'exact': probability.log_marginal,
-                          'mf': mean_field.log_marginal,
-                          'bethe_BP': bethe_approximation.log_marginal_BP,
-                          'bethe_CCCP': bethe_approximation.log_marginal_CCCP,
-                          'bethe_hybrid': bethe_approximation.log_marginal_hybrid}
