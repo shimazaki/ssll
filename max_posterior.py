@@ -42,9 +42,10 @@ import transforms
 import pseudo_likelihood
 
 # Named function pointers to MAP estimators
-functions = {'nr': newton_raphson,
-             'cg': conjugate_gradient,
-             'bf': bfgs}
+#functions = {'nr': newton_raphson,
+#             'cg': conjugate_gradient,
+#             'bf': bfgs}
+# SEE BOTTOM OF FILE
 
 # Parameters for gradient-ascent methods of MAP estimation
 MAX_GA_ITERATIONS = 5000
@@ -375,3 +376,9 @@ def compute_beta(df, dfp, s=None, which='PR'):
             return 0
         beta = -float(numpy.dot(df, (df - dfp)) / numpy.dot(s, (df - dfp)))
     return numpy.amax([0, beta])
+
+
+# Named function pointers to MAP estimators
+functions = {'nr': newton_raphson,
+             'cg': conjugate_gradient,
+             'bf': bfgs}
