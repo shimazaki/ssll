@@ -177,7 +177,8 @@ class EMData:
             transforms.initialise(self.N, self.order)
             self.max_posterior = max_posterior.functions[map_function]
         elif param_est == 'pseudo':
-            pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
+            #pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
+            pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order)
             self.max_posterior = pseudo_likelihood.functions[map_function]
 
         self.param_est_theta = param_est

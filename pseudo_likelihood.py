@@ -41,6 +41,8 @@ import transforms
 import mean_field
 import bethe_approximation
 
+from multiprocessing import Pool
+from functools import partial
 
 MAX_GA_ITERATIONS = 5000
 Fx_s = None
@@ -53,13 +55,14 @@ def compute_Fx_s(X, O):
     'O'th order from observed patterns for conditional likelihood model.
 
     :param numpy.array X:
-        Two dimensional (r, c) binary array, where the first dimension is runs
-        (trials) and the second is the number of cells.
+        Three dimensional (t, r, c) binary array, where the first dimension is time bin, 
+        the second is runs (trials) and the third is the number of cells.
     :param int O:
         Order of interactions.
 
     :returns Fx_s:
-        (r, D) sparse matrix, where D is the model dimension.
+        A list composed of (r, D) sparse matrix, where D is the model dimension.
+        The list size is the number of bins.
     """
     T, R, N = X.shape
     # Compute each n-choose-k subset of cell IDs up to the 'O'th order
@@ -72,23 +75,36 @@ def compute_Fx_s(X, O):
     for i in range(T):
         # Initialize list
         Fx_s.append([])
-        # Get spike data
         # For each cell
         for s in range(N):
-            # Get spike data
-            Xtmp = X[i,:,:].copy()
-            # Set current cell to 1
-            Xtmp[:,s] = 1
-            # Compute Fx with cell active
-            Fx1 = compute_Fx(Xtmp, subsets)
-            # Get spike data again
-            Xtmp = X[i,:,:].copy()
-            # Sett current cell to 0
-            Xtmp[:,s] = 0
-            # Compute Fx for cell inactive
-            Fx2 = compute_Fx(Xtmp, subsets)
-            # Create sparse matrix of difference in active and inactive Fx
-            Fx_s[i].append(sparse.coo_matrix(Fx1 - Fx2))
+            Fx_s[i].append(compute_Fx_s_t(i, X, s, subsets))
+
+
+def compute_Fx_s_t(neuron, X, time, subsets):
+    """
+    Constructs the sparse matrix F(x_s=1, x_\s) at time t for neuron s.
+    : param numpy.array Xt:
+        Two dimensional (r, c) binary array, where the first dimension is runs
+        (trials) and the second is the number of cells.
+    : returns (r,D) sparse feature matrix at time t, where D is the model
+        dimension.
+    """
+    s = neuron
+    # Get spike data
+    Xtmp = X[time,:,:].copy()
+    # Set current cell to 1
+    Xtmp[:,s] = 1
+    # Compute Fx with cell active
+    Fx1 = compute_Fx(Xtmp, subsets)
+    # Get spike data again
+    Xtmp = X[time,:,:].copy()
+    # Sett current cell to 0
+    Xtmp[:,s] = 0
+    # Compute Fx for cell inactive
+    Fx2 = compute_Fx(Xtmp, subsets)
+    # Create sparse matrix of difference in active and inactive Fx
+
+    return sparse.coo_matrix(Fx1 - Fx2)
 
 
 def compute_Fx(X, subsets):
@@ -114,12 +130,50 @@ def compute_Fx(X, subsets):
     for i in range(len(subsets)):
         # Select the cells that are in the subset
         sp = X[:,subsets[i]]
-        # Find the timesteps in which all subset-cells spike coincidentally
+        # Find the trials in which all subset-cells spike coincidentally
         spc = sp.sum(axis=1) == len(subsets[i])
         # Save the observed spike pattern
         Fx[i,:] = spc
 
     return Fx
+
+
+def compute_Fx_s_parallel(X, O):
+    """
+    Constructs F(x_s=1, x_\s), feature vectors of interactions up to the
+    'O'th order from observed patterns for conditional likelihood model.
+
+    :param numpy.array X:
+        Three dimensional (t, r, c) binary array, where the first dimension is time bin, 
+        the second is runs (trials) and the third is the number of cells.
+    :param int O:
+        Order of interactions.
+
+    :returns Fx_s:
+        A list composed of (r, D) sparse matrix, where D is the model dimension.
+        The list size is the number of bins.
+    """
+    T, R, N = X.shape
+    # Compute each n-choose-k subset of cell IDs up to the 'O'th order
+    subsets = transforms.enumerate_subsets(N, O)
+    # Initialize Fx_s
+    global Fx_s
+    # List of lists (for each time bin) of sparse matrices (for each cell)
+    Fx_s = []
+    # For each time bin
+    for i in range(T):
+        # Initialize list
+        Fx_s.append([])
+        # For each cell
+        #for s in range(N):
+        #    Fx_s[i].append(compute_Fx_s_t(X, i, s, subsets))
+        # Parallel computation of the features
+        num_proc = 8
+        pool = Pool()
+        results = pool.map(partial(compute_Fx_s_t, X=X, time=i, subsets=subsets), iterable=range(N))
+        pool.close()
+        for j in results:
+            Fx_s[i].append(j)
 
 
 def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
