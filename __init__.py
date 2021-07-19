@@ -110,7 +110,7 @@ def run(spikes, order=2, window=1, map_function='cg', \
         ('pseudo') should be used
     :param str param_est_eta:
         Eta parameters are either calculated exactly ('exact'), by mean
-        field TAP approximation ('TAP'), or Bethe approximation (belief
+        field TAP approximation ('mf'), or Bethe approximation (belief
         propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid')
     :param stationary:
         To fit stationary model. Set 'all' to have stationary thetas. (
