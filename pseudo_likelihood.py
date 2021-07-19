@@ -62,6 +62,8 @@ def compute_Fx_s(X, O):
         (r, D) sparse matrix, where D is the model dimension.
     """
     T, R, N = X.shape
+    # Compute each n-choose-k subset of cell IDs up to the 'O'th order
+    subsets = transforms.enumerate_subsets(N, O)
     # Initialize Fx_s
     global Fx_s
     # List of lists (for each time bin) of sparse matrices (for each cell)
@@ -78,18 +80,18 @@ def compute_Fx_s(X, O):
             # Set current cell to 1
             Xtmp[:,s] = 1
             # Compute Fx with cell active
-            Fx1 = compute_Fx(Xtmp, O)
+            Fx1 = compute_Fx(Xtmp, subsets)
             # Get spike data again
             Xtmp = X[i,:,:].copy()
             # Sett current cell to 0
             Xtmp[:,s] = 0
             # Compute Fx for cell inactive
-            Fx2 = compute_Fx(Xtmp, O)
+            Fx2 = compute_Fx(Xtmp, subsets)
             # Create sparse matrix of difference in active and inactive Fx
             Fx_s[i].append(sparse.coo_matrix(Fx1 - Fx2))
 
 
-def compute_Fx(X, O):
+def compute_Fx(X, subsets):
     """
     Construct feature vectors of interactions up to the 'O'th order from
     pattern data.
@@ -106,8 +108,6 @@ def compute_Fx(X, O):
     """
     # Get spike-matrix metadata
     R, N = X.shape
-    # Compute each n-choose-k subset of cell IDs up to the 'O'th order
-    subsets = transforms.enumerate_subsets(N, O)
     # Set up the output array
     Fx = numpy.zeros((len(subsets),R))
     # Iterate over each subset
