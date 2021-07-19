@@ -41,7 +41,7 @@ import transforms
 import mean_field
 import bethe_approximation
 
-from multiprocessing import Pool
+import multiprocessing
 from functools import partial
 
 MAX_GA_ITERATIONS = 5000
@@ -77,10 +77,10 @@ def compute_Fx_s(X, O):
         Fx_s.append([])
         # For each cell
         for s in range(N):
-            Fx_s[i].append(compute_Fx_s_t(i, X, s, subsets))
+            Fx_s[i].append(compute_Fx_s_t(s, X[i,:,:], subsets))
 
 
-def compute_Fx_s_t(neuron, X, time, subsets):
+def compute_Fx_s_t(neuron, Xt, subsets):
     """
     Constructs the sparse matrix F(x_s=1, x_\s) at time t for neuron s.
     : param numpy.array Xt:
@@ -91,13 +91,13 @@ def compute_Fx_s_t(neuron, X, time, subsets):
     """
     s = neuron
     # Get spike data
-    Xtmp = X[time,:,:].copy()
+    Xtmp = Xt.copy()
     # Set current cell to 1
     Xtmp[:,s] = 1
     # Compute Fx with cell active
     Fx1 = compute_Fx(Xtmp, subsets)
     # Get spike data again
-    Xtmp = X[time,:,:].copy()
+    Xtmp = Xt.copy()
     # Sett current cell to 0
     Xtmp[:,s] = 0
     # Compute Fx for cell inactive
@@ -143,6 +143,8 @@ def compute_Fx_s_parallel(X, O):
     Constructs F(x_s=1, x_\s), feature vectors of interactions up to the
     'O'th order from observed patterns for conditional likelihood model.
 
+    This is a parallelization version of compute_Fx_s.
+
     :param numpy.array X:
         Three dimensional (t, r, c) binary array, where the first dimension is time bin, 
         the second is runs (trials) and the third is the number of cells.
@@ -160,18 +162,18 @@ def compute_Fx_s_parallel(X, O):
     global Fx_s
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
+    # Setting multiprocessing
+    proc_num = multiprocessing.cpu_count()
+    proc_num = min(N,proc_num)
     # For each time bin
     for i in range(T):
         # Initialize list
         Fx_s.append([])
-        # For each cell
-        #for s in range(N):
-        #    Fx_s[i].append(compute_Fx_s_t(X, i, s, subsets))
-        # Parallel computation of the features
-        num_proc = 8
-        pool = Pool()
-        results = pool.map(partial(compute_Fx_s_t, X=X, time=i, subsets=subsets), iterable=range(N))
+        # Parallel computation of features over the cells      
+        pool = multiprocessing.Pool(proc_num)
+        results = pool.map(partial(compute_Fx_s_t, Xt=X[i,:,:], subsets=subsets), iterable=range(N))
         pool.close()
+        # Assining the results
         for j in results:
             Fx_s[i].append(j)
 

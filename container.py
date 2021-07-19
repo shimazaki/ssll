@@ -176,10 +176,23 @@ class EMData:
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
             self.max_posterior = max_posterior.functions[map_function]
+
+            # Compute the sufficient statistics for the model from the input spikes
+            self.y = transforms.compute_y(self.spikes, self.order, self.window)
+            # Count timesteps, trials, cells and interaction dimensions
+            self.T, self.D = self.y.shape
+            assert self.T == T / window
+
         elif param_est == 'pseudo':
             #pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
             pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order)
             self.max_posterior = pseudo_likelihood.functions[map_function]
+
+            # Compute the sufficient statistics for the model from the input spikes
+            self.y = transforms.compute_y(self.spikes, self.order, self.window)
+            # Count timesteps, trials, cells and interaction dimensions
+            self.T, self.D = self.y.shape
+            assert self.T == T / window
 
         self.param_est_theta = param_est
         self.param_est_eta = param_est_eta
@@ -189,14 +202,7 @@ class EMData:
         self.mllk = numpy.inf
         self.iterations = 0
         self.CONVERGED = 1e-4
-        self.convergence = numpy.inf
-
-        # Compute the `sample' spike-train interactions from the input spikes
-        self.y = transforms.compute_y(self.spikes, self.order, self.window)
-        
-        # Count timesteps, trials, cells and interaction dimensions
-        self.T, self.D = self.y.shape
-        assert self.T == T / window
+        self.convergence = numpy.inf       
 
         # Initialise one-step-prediction- filtered- smoothed-density means
         if type(theta_o) == int or type(theta_o) == float:
