@@ -289,7 +289,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_ar_val=1.*numpy.identity(D))
         # Check the consistency with the expected result.
-        expected_mllk = -14657.372317#-15702.129070(nr)
+        expected_mllk = -14657.372317
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('autoreg in %f s' %(time.time() - tc))
@@ -304,7 +304,7 @@ class TestEstimator(unittest.TestCase):
         # Conjugate Gradient
         tc = time.time()
         emd = self.run_ssll(theta, N, O, map_fun='cg')
-        expected_mllk = -14697.333367#-15757.562531
+        expected_mllk = -14697.333367
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
@@ -313,7 +313,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, map_fun='bf')
         # Check the consistency with the expected result.
-        expected_mllk = -14697.274427#-15757.526111
+        expected_mllk = -14697.274427
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
@@ -331,16 +331,16 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='cg',
                             param_est_val='pseudo', param_est_eta='mf')
         # Check the consistency with the expected result.
-        expected_mllk = -14574.741419#-15817.274481 #-23904.422925 for N=6
+        expected_mllk = -14574.741419
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('cg in %f s' %(time.time() - tc))
-        # CG Bethe_bybrid
+        # BFGS Bethe_bybrid
         tc = time.time()
-        emd = self.run_ssll(theta, N, O, map_fun='cg',
+        emd = self.run_ssll(theta, N, O, map_fun='bf',
                             param_est_val='pseudo', param_est_eta='bethe_hybrid')
         # Check the consistency with the expected result.
-        expected_mllk = -14730.599572#-15817.274481 #-23903.796611 for N=6
+        expected_mllk = -14730.368718
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
