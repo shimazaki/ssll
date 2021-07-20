@@ -184,7 +184,7 @@ class EMData:
             self.y = transforms.compute_y(self.spikes, self.order)
             # Count timesteps, trials, cells and interaction dimensions
             self.T, self.D = self.y.shape
-            assert self.T == T / window
+            assert self.T == int(T / window)
 
         elif param_est == 'pseudo':
             #pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
@@ -195,7 +195,7 @@ class EMData:
             self.y = transforms.compute_y(self.spikes, self.order)
             # Count timesteps, trials, cells and interaction dimensions
             self.T, self.D = self.y.shape
-            assert self.T == T / window
+            assert self.T == int(T / window)
 
         self.param_est_theta = param_est
         self.param_est_eta = param_est_eta

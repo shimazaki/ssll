@@ -204,6 +204,8 @@ def binalize_spikes(spikes, order, window):
     # Get spike-matrix metadata
     T, R, N = spikes.shape
     # Bin spikes
+    # Cutting the end of spike sequences that does not fit into the binning
+    spikes = spikes[:int(T / window) * window,:,:]
     spikes = spikes.reshape((int(T / window), window, R, N))
     spikes = spikes.any(axis=1)
     spikes = spikes.astype(numpy.int)
