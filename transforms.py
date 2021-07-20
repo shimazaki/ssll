@@ -36,7 +36,6 @@ import itertools
 import numpy
 import pdb
 from scipy import sparse
-import numba
 
 
 # Matrix to map from theta to probability
