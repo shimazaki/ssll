@@ -170,15 +170,17 @@ class EMData:
     def __init__(self, spikes, order, window, param_est, param_est_eta, map_function, state_cov, state_ar, theta_o, sigma_o):
 
         # Record the input parameters
-        self.spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
+        spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
             = spikes, order, state_cov, state_ar, window
+
+        self.spikes = transforms.binalize_spikes(spikes, order, window) 
         T, self.R, self.N = self.spikes.shape
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
             self.max_posterior = max_posterior.functions[map_function]
 
             # Compute the sufficient statistics for the model from the input spikes
-            self.y = transforms.compute_y(self.spikes, self.order, self.window)
+            self.y = transforms.compute_y(self.spikes, self.order)
             # Count timesteps, trials, cells and interaction dimensions
             self.T, self.D = self.y.shape
             assert self.T == T / window
@@ -189,7 +191,7 @@ class EMData:
             self.max_posterior = pseudo_likelihood.functions[map_function]
 
             # Compute the sufficient statistics for the model from the input spikes
-            self.y = transforms.compute_y(self.spikes, self.order, self.window)
+            self.y = transforms.compute_y(self.spikes, self.order)
             # Count timesteps, trials, cells and interaction dimensions
             self.T, self.D = self.y.shape
             assert self.T == T / window

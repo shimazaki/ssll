@@ -183,8 +183,34 @@ def compute_psi(theta):
 
     return float(psi)
 
+def binalize_spikes(spikes, order, window):
+    """
+    Returns the binary spike sequences computed from the original spike/count 
+    data. It returns 1 if spikes exist in a bin of the size 'window', and 
+    returns 0 otherwise.
 
-def compute_y(spikes, order, window):
+    :param numpy.ndarray spikes:
+        Binary matrix with dimensions (time, runs, cells), in which a `1' in
+        location (t, r, c) denotes a spike at time t in run r by cell c.
+    :param int order:
+        Order of spike-train interactions to estimate, for example, 2 =
+        pairwise, 3 = triplet-wise...
+    :param int window:
+        Bin-width for counting spikes, in milliseconds.
+
+    :returns:
+        Clipped binary spike data with (time, runs, cells)
+    """
+    # Get spike-matrix metadata
+    T, R, N = spikes.shape
+    # Bin spikes
+    spikes = spikes.reshape((int(T / window), window, R, N))
+    spikes = spikes.any(axis=1)
+    spikes = spikes.astype(numpy.int)
+    
+    return spikes
+
+def compute_y(spikes, order):
     """
     Computes the empirical mean rate of each spike pattern across trials for
     each timestep up to `order', for example
@@ -209,13 +235,10 @@ def compute_y(spikes, order, window):
     """
     # Get spike-matrix metadata
     T, R, N = spikes.shape
-    # Bin spikes
-    spikes = spikes.reshape((int(T / window), window, R, N))
-    spikes = spikes.any(axis=1)
     # Compute each n-choose-k subset of cell IDs up to `order'
     subsets = enumerate_subsets(N, order)
     # Set up the output array
-    y = numpy.zeros((int(T / window), len(subsets)))
+    y = numpy.zeros((T, len(subsets)))
     # Iterate over each subset
     for i in range(len(subsets)):
         # Select the cells that are in the subset

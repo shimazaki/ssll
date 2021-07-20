@@ -135,7 +135,7 @@ def compute_eta(theta, N, O, R=1000):
                 for idx, bin2sampl in enumerate(bins_to_sample):
                     theta_to_sample[idx] = theta[bin2sampl]
                 spikes = synthesis.generate_spikes_gibbs_parallel(theta_to_sample, N, O, R, sample_steps=100)
-                eta_from_sample = transforms.compute_y(spikes, O, 1)
+                eta_from_sample = transforms.compute_y(spikes, O)
                 for idx, bin2sampl in enumerate(bins_to_sample):
                     eta[bin2sampl] = eta_from_sample[idx]
 
