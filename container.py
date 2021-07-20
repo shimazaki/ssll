@@ -173,8 +173,9 @@ class EMData:
         spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
             = spikes, order, state_cov, state_ar, window
 
+        T, self.R, self.N = spikes.shape
         self.spikes = transforms.binalize_spikes(spikes, order, window) 
-        T, self.R, self.N = self.spikes.shape
+        
         if param_est == 'exact':
             transforms.initialise(self.N, self.order)
             self.max_posterior = max_posterior.functions[map_function]
