@@ -36,7 +36,7 @@ import itertools
 import numpy
 import pdb
 from scipy import sparse
-
+import numba
 
 
 # Matrix to map from theta to probability
@@ -182,6 +182,7 @@ def compute_psi(theta):
     psi = numpy.log(tmp)
 
     return float(psi)
+
 
 def binalize_spikes(spikes, order, window):
     """
