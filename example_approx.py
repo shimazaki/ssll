@@ -74,7 +74,7 @@ import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm with pseudo likelihood, TAP approximation!
 emd = __init__.run(spikes, O, map_function='cg',
-                   param_est='pseudo', param_est_eta='mf',window=11)
+                   param_est='pseudo', param_est_eta='mf',window=1)
 
 
 # ----- PLOTTING -----
