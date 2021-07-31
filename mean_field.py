@@ -114,6 +114,10 @@ def forward_problem_hessian(theta, N):
     eta_max = 0.5*numpy.ones(N)
     # Extract first order thetas
     theta1 = theta[:N]
+    # Set initial values for eta search
+    eta_init = np.empty(theta1.shape)
+    for i in range(N):
+        eta_init[i] = np.exp(theta1[i])/(1+np.exp(theta1[i]))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
@@ -171,6 +175,10 @@ def forward_problem(theta, N, expansion):
     eta = numpy.empty(theta.shape)
     # Extract first order thetas
     theta1 = theta[:N]
+    # Set initial values for eta search
+    eta_init = np.empty(theta1.shape)
+    for i in range(N):
+        eta_init[i] = np.exp(theta1[i])/(1+np.exp(theta1[i]))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
@@ -184,7 +192,7 @@ def forward_problem(theta, N, expansion):
         f = lambda x: self_consistent_eq(x, theta1=theta1, theta2=theta2,
                                          expansion='TAP')
         try:
-            eta[:N] = fsolve(f, 0.1*numpy.ones(N))
+            eta[:N] = fsolve(f, eta_init)
         except Warning:
             raise Exception('scipy.fsolve did not compute reliable result!')
         G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta[:N], 0.5 - eta[:N])
@@ -192,7 +200,7 @@ def forward_problem(theta, N, expansion):
         f = lambda x: self_consistent_eq(x, theta1=theta1, theta2=theta2,
                                          expansion='naive')
         try:
-            eta[:N] = fsolve(f, 0.1*numpy.ones(N))
+            eta[:N] = fsolve(f, eta_init)
         except Warning:
             raise Exception('scipy.fsolve did not compute reliable result!')
         G_inv = - theta2
