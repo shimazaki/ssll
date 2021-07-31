@@ -116,6 +116,10 @@ def forward_problem_hessian(theta, N):
         eta_max[i] = 1/(1+numpy.exp(-theta[i]))
     # Extract first order thetas
     theta1 = theta[:N]
+    # Set initial values for eta search
+    eta_init = np.empty(theta1.shape)
+    for i in range(N):
+        eta_init[i] = np.exp(theta1[i])/(1+np.exp(theta1[i]))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
@@ -176,7 +180,7 @@ def forward_problem(theta, N, expansion):
     # Set initial values for eta search
     eta_init = np.empty(theta1.shape)
     for i in range(N):
-        eta_init[i] = 1/(1+numpy.exp(-theta1[i]))
+	    eta_init[i] = np.exp(theta1[i])/(1+np.exp(theta1[i]))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
