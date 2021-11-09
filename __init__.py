@@ -154,6 +154,7 @@ def run(spikes, order=2, window=1, map_function='cg', \
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)
+        emd.mllk_list.append(lmc)
         emd.mllk = lmc
 
         # Update EM algorithm metadata

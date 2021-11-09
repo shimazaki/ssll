@@ -230,6 +230,7 @@ class EMData:
             self.sigma_f = numpy.copy(self.sigma_o)
             self.sigma_s = numpy.copy(self.sigma_o)
             self.sigma_s_lag = numpy.copy(self.sigma_o)
+            
         # For approximate term initialize only the diagonal of the covariances
         else:
             self.sigma_o = sigma_o * numpy.ones((self.T,self.D))
