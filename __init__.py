@@ -150,6 +150,7 @@ def run(spikes, order=2, window=1, map_function='cg', \
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
+    emd.mllk_list = []
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > emd.CONVERGED):
         print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,

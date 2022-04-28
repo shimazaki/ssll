@@ -203,6 +203,7 @@ class EMData:
         # Parameters for EM algorithm iterations
         self.marg_llk = log_marginal_functions[param_est_eta]
         self.mllk = numpy.inf
+        self.mllk_list = []
         self.iterations = 0
         self.CONVERGED = 1e-4
         self.convergence = numpy.inf       
