@@ -97,9 +97,14 @@ def run(spikes, order=2, window=1, map_function='cg', \
     :param float state_cov:
         The covariance matrix of state transition noise Q. Depending the choice 
         of the matrix form of Q, the code execute different optimization strategies.
-        If state_cov is a scalar, Q = state_cov I. state_cov is updated.
-        If state_cov is a vecotr, Q = diag(state_cov), and the diagonal is updated.
-        If state_cov is a matrix, Q = state_cov, and the whoel matrix is updated.  
+        If state_cov is a list and scalar, Q = state_cov I. state_cov is updated.
+        If state_cov is a float vecotr, Q = diag(state_cov), and the diagonal is updated.
+        If state_cov is a float matrix, Q = state_cov, and the whoel matrix is updated.
+        Only for O=2,
+            If state_cov is a list [lambda_1, lambda2], then they are asigned to the 
+            first and second order parameters:
+            Q = [lambda_1,...,lambda_1, lambda2,..,lambda2]
+            and lambda_1 and lambda2 are updated.
     :param float state_ar:
         The matrix of the first-order autoregressive parameter F in the state model.
     :param string map_function:
