@@ -94,8 +94,16 @@ def run(spikes, order=2, window=1, map_function='cg', \
         pairwise, 3 = triplet-wise...
     :param int window:
         Bin-width for counting spikes, in milliseconds.
+    :param float state_cov:
+        The covariance matrix of state transition noise Q. Depending the choice 
+        of the matrix form of Q, the code execute different optimization strategies.
+        If state_cov is a scalar, Q = state_cov I. state_cov is updated.
+        If state_cov is a vecotr, Q = diag(state_cov), and the diagonal is updated.
+        If state_cov is a matrix, Q = state_cov, and the whoel matrix is updated.  
+    :param float state_ar:
+        The matrix of the first-order autoregressive parameter F in the state model.
     :param string map_function:
-        Name of the function to use for maximum a-posterior estimation of the
+        Name of the function to use for maximum a-posteriori estimation of the
         natural parameters at each timestep. Refer to max_posterior.py.
     :param float lmbda1:
         Inverse coefficient on the identity matrix of the initial
