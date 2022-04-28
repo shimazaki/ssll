@@ -60,6 +60,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy
 import pdb
 
+from zmq import Message
+
 import container
 import exp_max
 import probability
@@ -75,7 +77,7 @@ import bethe_approximation
 def run(spikes, order=2, window=1, map_function='cg', \
         state_cov=0.01, state_ar=None, max_iter=100,
         param_est='exact', param_est_eta='exact',\
-        theta_o=0, sigma_o=0.1, mstep=True):
+        theta_o=0, sigma_o=0.1, mstep=True, EM_Info=True):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -157,9 +159,10 @@ def run(spikes, order=2, window=1, map_function='cg', \
     emd.mllk_list = []
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > emd.CONVERGED):
-        print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
-                                                              emd.convergence,
-                                                              emd.CONVERGED))
+        if EM_Info == True:
+            print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
+                                                                emd.convergence,
+                                                                emd.CONVERGED))
         # Perform EM
         exp_max.e_step(emd)
         if mstep == True:
@@ -174,5 +177,6 @@ def run(spikes, order=2, window=1, map_function='cg', \
         emd.iterations += 1
         emd.convergence = (lmp - lmc) / lmp
 
-    print('Log marginal likelihood = %.6f' % (emd.mllk))
+    if EM_Info == True:
+        print('Log marginal likelihood = %.6f' % (emd.mllk))
     return emd
