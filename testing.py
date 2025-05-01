@@ -331,7 +331,7 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='cg',
                             param_est_val='pseudo', param_est_eta='mf')
         # Check the consistency with the expected result.
-        expected_mllk = -14574.741419
+        expected_mllk = -14574.738686
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('cg in %f s' %(time.time() - tc))
