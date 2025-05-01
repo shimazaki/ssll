@@ -36,10 +36,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy
+from scipy.optimize import minimize
+import functools
 
 import probability
 import transforms
-import pseudo_likelihood
+import pseudo_likelihood 
 
 # Named function pointers to MAP estimators
 #functions = {'nr': newton_raphson,
@@ -126,6 +128,58 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
             raise Exception('The maximum-a-posterior gradient-ascent '+\
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
+
+    return theta_max, -ddlpo_i
+
+
+def log_posterior(theta_max, y_t, R, theta_o, sigma_o, sigma_o_i):
+
+    psi = transforms.compute_psi(theta_max)
+    tmp = numpy.dot(sigma_o_i, theta_max - theta_o)
+    lpo = R * (y_t - psi)  - 0.5*numpy.dot(theta_max - theta_o, tmp)
+    print(lpo)
+
+    return lpo
+
+def dlog_posterior(theta_max, y_t, R, theta_o, sigma_o, sigma_o_i):
+    # Compute the eta of the current theta values
+    p = transforms.compute_p(theta_max)
+    eta = transforms.compute_eta(p)
+    # Compute the first derivative of the posterior prob. w.r.t. theta_max
+    dllk = R * (y_t - eta)
+    dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
+    dlpo = dllk + dlpr
+
+    return dlpo
+
+def newton_raphson_autograd(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
+    """
+    TODO update comments to elaborate on how this method differs from the others
+
+    :param container.EMData emd:
+        All data pertaining to the EM algorithm.
+    :param int t:
+        Timestep for which to compute the maximum posterior probability.
+
+    :returns:
+        Tuple containing the mean and covariance of the posterior probability
+        density, each as a numpy.ndarray.
+    """
+    # Initialise the loop guards
+    max_dlpo = numpy.inf
+    iterations = 0
+    # Initialise theta_max to the smooth theta value of the previous iteration
+    theta_max = theta_0
+    lpo_partial = functools.partial(log_posterior, y_t=y_t, R=R, theta_o=theta_o, sigma_o=sigma_o, sigma_o_i=sigma_o_i)
+    dlpo_partial = functools.partial(dlog_posterior, y_t=y_t, R=R, theta_o=theta_o, sigma_o=sigma_o, sigma_o_i=sigma_o_i)
+
+    print(lpo_partial(theta_max))
+    
+    #res = minimize(lpo_partial, theta_0, method = 'Nelder-Mead', options={'xtol': 1e-8, 'disp': True})
+    res = minimize(lpo_partial, theta_0, method = 'BFGS', jac = None, options={'xtol': 1e-8, 'disp': True})
+    #res = minimize(lpo_partial, theta_0, method = 'BFGS', jac = lpo_partial, options={'xtol': 1e-8, 'disp': True})
+
+    print(res)
 
     return theta_max, -ddlpo_i
 
@@ -381,4 +435,5 @@ def compute_beta(df, dfp, s=None, which='PR'):
 # Named function pointers to MAP estimators
 functions = {'nr': newton_raphson,
              'cg': conjugate_gradient,
-             'bf': bfgs}
+             'bf': bfgs,
+             'ag': newton_raphson_autograd}

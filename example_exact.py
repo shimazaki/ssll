@@ -72,7 +72,8 @@ import numpy
 import __init__ # From outside this folder, this would be 'import ssll'
 
 # Run the algorithm!
-emd = __init__.run(spikes, O)
+#emd = __init__.run(spikes, O)
+emd = __init__.run(spikes, O, map_function='cg') 
 # Changing MAP estimation method to Newton-Raphson from Deafult Conjugate gradient.
 #emd = __init__.run(spikes, O, max_posterior='nr')
 

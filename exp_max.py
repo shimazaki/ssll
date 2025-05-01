@@ -280,9 +280,6 @@ def m_step_Q(emd):#, stationary):
         emd.Q = inv_lmbda / (emd.T - 1) * C
         emd.Q = (emd.Q + emd.Q.T) / 2
 
-
-        #print(Q,emd.Q)
-        #print('')
     else:
         for i in range(1, emd.T):
             lag_one_covariance = emd.sigma_s_lag[i, :]
