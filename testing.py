@@ -346,6 +346,45 @@ class TestEstimator(unittest.TestCase):
         print('bfgs in %f s' %(time.time() - tc))
 
 
+    def test_7_so_variable_pseudolikelihood(self):
+        print("Test One Time Bin for (N=3, O=2).")
+        # Repeat test for different numbers of neurons
+        N, O = 3, 2
+        self.T = 1
+        self.R = 300
+        # Create time-varying theta parameters
+        theta = synthesis.generate_stationary_thetas(N, O, self.T)
+
+        # Exact
+        tc = time.time()
+        emd = self.run_ssll(theta, N, O, map_fun='cg')
+        # Check the consistency with the expected result.
+        expected_mllk = -189.855470  # Updated for T=1, R=300
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        print('bfgs in %f s' %(time.time() - tc))
+
+        # CG Mean field
+        tc = time.time()
+        emd = self.run_ssll(theta, N, O, map_fun='cg',
+                            param_est_val='pseudo', param_est_eta='mf')
+        # Check the consistency with the expected result.
+        expected_mllk = -191.870697  # Updated for T=1, R=300
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        print('cg in %f s' %(time.time() - tc))
+
+        # BFGS Bethe_bybrid
+        tc = time.time()
+        emd = self.run_ssll(theta, N, O, map_fun='bf',
+                            param_est_val='pseudo', param_est_eta='bethe_hybrid')
+        # Check the consistency with the expected result.
+        expected_mllk = -189.688459  # Updated for T=1, R=300
+        print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
+        self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        print('bfgs in %f s' %(time.time() - tc))
+
+
     def wave(self, A, f, phi, T):
         rng = numpy.arange(0, T, 1e-3)
         wave = A * numpy.sin(2 * numpy.pi * f * rng + phi)

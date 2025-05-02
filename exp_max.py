@@ -219,8 +219,7 @@ def m_step_F(emd):
 def m_step_Q(emd):#, stationary):
     """
     Computes the optimised state-transition covariance hyperparameters `Q' of
-    the natural parameters of the posterior distributions over time. Here
-    just one single scalar is considered
+    the natural parameters of the posterior distributions over time.
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
@@ -277,21 +276,26 @@ def m_step_Q(emd):#, stationary):
                 else:
                     inv_lmbda += term1 + term2
                     C = 1.
-        emd.Q = inv_lmbda / (emd.T - 1) * C
-        emd.Q = (emd.Q + emd.Q.T) / 2
+        if emd.T == 1:
+            # For T=1, we do not update Q since we can't compute it from data
+            pass
+        else:
+            emd.Q = inv_lmbda / (emd.T - 1) * C
+            emd.Q = (emd.Q + emd.Q.T) / 2
 
-
-        #print(Q,emd.Q)
-        #print('')
     else:
         for i in range(1, emd.T):
-            lag_one_covariance = emd.sigma_s_lag[i, :]
-            tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
-            inv_lmbda += numpy.sum(emd.sigma_s[i]) -\
-                         2 * numpy.sum(lag_one_covariance) +\
-                         numpy.sum(emd.sigma_s[i - 1]) +\
-                         numpy.dot(tmp, tmp)
-        emd.Q = inv_lmbda / emd.D / (emd.T - 1) *\
+            if emd.T == 1:
+                # For T=1, we do not update Q since we can't compute it from data
+                pass
+            else:
+                lag_one_covariance = emd.sigma_s_lag[i, :]
+                tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
+                inv_lmbda += numpy.sum(emd.sigma_s[i]) -\
+                             2 * numpy.sum(lag_one_covariance) +\
+                             numpy.sum(emd.sigma_s[i - 1]) +\
+                             numpy.dot(tmp, tmp)
+                emd.Q = inv_lmbda / emd.D / (emd.T - 1) *\
                 numpy.identity(emd.D)
 
 
