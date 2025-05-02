@@ -322,7 +322,7 @@ class TestEstimator(unittest.TestCase):
     def test_6_so_variable_pseudolikelihood(self):
         print("Test Psuedolikelihood Algorithm (N=3, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
-        N, O = 3, 2
+        N, O = 8, 2
         # Create time-varying theta parameters
         theta = synthesis.generate_thetas(N, O, self.T)
         # Run the algorithm!
@@ -331,7 +331,7 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='cg',
                             param_est_val='pseudo', param_est_eta='mf')
         # Check the consistency with the expected result.
-        expected_mllk = -425.472505  # Updated for T=20, R=20 (pseudolikelihood)
+        expected_mllk = -1134.685715  # Updated for N=8, O=2, T=20, R=20 (pseudolikelihood)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('cg in %f s' %(time.time() - tc))
@@ -340,13 +340,13 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='bf',
                             param_est_val='pseudo', param_est_eta='bethe_hybrid')
         # Check the consistency with the expected result.
-        expected_mllk = -449.757334  # Updated for T=20, R=20 (BFGS Bethe hybrid)
+        expected_mllk = -1157.434769  # Updated for N=8, O=2, T=20, R=20 (BFGS Bethe hybrid)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
 
 
-    def test_7_so_variable_pseudolikelihood(self):
+    def test_7_so_one_time_bin(self):
         print("Test One Time Bin for (N=3, O=2).")
         # Repeat test for different numbers of neurons
         N, O = 3, 2

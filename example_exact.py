@@ -39,7 +39,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # Set time (milliseconds), number of trials, and number of cells
-T, R, N = 500, 200, 6
+T, R, N = 500, 200, 3
 # Set the interaction order
 O = 2
 
