@@ -180,22 +180,16 @@ class EMData:
             transforms.initialise(self.N, self.order)
             self.max_posterior = max_posterior.functions[map_function]
 
-            # Compute the sufficient statistics for the model from the input spikes
-            self.y = transforms.compute_y(self.spikes, self.order)
-            # Count timesteps, trials, cells and interaction dimensions
-            self.T, self.D = self.y.shape
-            assert self.T == int(T / window)
-
         elif param_est == 'pseudo':
             #pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
             pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order)
             self.max_posterior = pseudo_likelihood.functions[map_function]
 
-            # Compute the sufficient statistics for the model from the input spikes
-            self.y = transforms.compute_y(self.spikes, self.order)
-            # Count timesteps, trials, cells and interaction dimensions
-            self.T, self.D = self.y.shape
-            assert self.T == int(T / window)
+        # Compute the sufficient statistics for the model from the input spikes
+        self.y = transforms.compute_y(self.spikes, self.order)
+        # Count timesteps, trials, cells and interaction dimensions
+        self.T, self.D = self.y.shape
+        assert self.T == int(T / window)
 
         self.param_est_theta = param_est
         self.param_est_eta = param_est_eta
