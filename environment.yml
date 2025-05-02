@@ -1,0 +1,9 @@
+name: ssll
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.6.4
+  - numpy>=1.13.3
+  - scipy>=1.0.0
+  - matplotlib>=2.1.2 

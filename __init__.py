@@ -60,8 +60,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy
 import pdb
 
-from zmq import Message
-
 import container
 import exp_max
 import probability
