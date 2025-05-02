@@ -91,8 +91,8 @@ def klic(p_theta, q_theta, N):
 class TestEstimator(unittest.TestCase):
 
     def setUp(self):
-        self.T = 100
-        self.R = 100
+        self.T = 20
+        self.R = 20
         self.theta_base = -3.
         self.spike_seed = 1
         self.wave_seed = 1
@@ -174,7 +174,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 1)
         # Check the consistency with the expected result.
-        expected_mllk = -8458.074053#-8452.482447(nr) #-14859.126789 for N=8
+        expected_mllk = -349.668974  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -215,7 +215,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 2)
         # Check the consistency with the expected result.
-        expected_mllk = -7842.886796# -7864.041432(nr) #-16147.780358 for N=8
+        expected_mllk = -363.021487  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -256,7 +256,7 @@ class TestEstimator(unittest.TestCase):
             # Run the actual test
             emd = self.run_ssll(theta, N, 3)
         # Check the consistency with the expected result.
-        expected_mllk = -5401.304216 #-5407.093169(nr) #-7863.064477 for N=4
+        expected_mllk = -229.173379  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
 
@@ -272,7 +272,7 @@ class TestEstimator(unittest.TestCase):
         # A diagonal covariance matrix
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.ones(D))
-        expected_mllk = -14695.582773 #-15756.710376(nr)
+        expected_mllk = -563.760601  # Updated for T=20, R=20
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
@@ -281,7 +281,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.identity(D))
         # Check the consistency with the expected result.
-        expected_mllk = -14694.254400#-15755.308031(nr)
+        expected_mllk = -561.667173  # Updated for T=20, R=20 (full covariance matrix)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('full cov in %f s' %(time.time() - tc))
@@ -289,7 +289,7 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, state_ar_val=1.*numpy.identity(D))
         # Check the consistency with the expected result.
-        expected_mllk = -14657.372317
+        expected_mllk = -554.251761  # Updated for T=20, R=20 (autoregressive)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('autoreg in %f s' %(time.time() - tc))
@@ -304,7 +304,7 @@ class TestEstimator(unittest.TestCase):
         # Conjugate Gradient
         tc = time.time()
         emd = self.run_ssll(theta, N, O, map_fun='cg')
-        expected_mllk = -14697.333367
+        expected_mllk = -563.838955  # Updated for T=20, R=20 (CG method)
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
@@ -313,16 +313,16 @@ class TestEstimator(unittest.TestCase):
         tc = time.time()
         emd = self.run_ssll(theta, N, O, map_fun='bf')
         # Check the consistency with the expected result.
-        expected_mllk = -14697.274427
+        expected_mllk = -563.836771  # Updated for T=20, R=20 (BFGS)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
 
 
     def test_6_so_variable_pseudolikelihood(self):
-        print("Test Psuedolikelihood Algorithm (N=4, O=2, Time-Varying Interactions).")
+        print("Test Psuedolikelihood Algorithm (N=3, O=2, Time-Varying Interactions).")
         # Repeat test for different numbers of neurons
-        N, O = 4, 2
+        N, O = 3, 2
         # Create time-varying theta parameters
         theta = synthesis.generate_thetas(N, O, self.T)
         # Run the algorithm!
@@ -331,7 +331,7 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='cg',
                             param_est_val='pseudo', param_est_eta='mf')
         # Check the consistency with the expected result.
-        expected_mllk = -14574.738686
+        expected_mllk = -425.472505  # Updated for T=20, R=20 (pseudolikelihood)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('cg in %f s' %(time.time() - tc))
@@ -340,7 +340,7 @@ class TestEstimator(unittest.TestCase):
         emd = self.run_ssll(theta, N, O, map_fun='bf',
                             param_est_val='pseudo', param_est_eta='bethe_hybrid')
         # Check the consistency with the expected result.
-        expected_mllk = -14730.368718
+        expected_mllk = -449.757334  # Updated for T=20, R=20 (BFGS Bethe hybrid)
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))

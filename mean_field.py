@@ -366,7 +366,7 @@ def compute_psi(theta, eta, N):
     # Dot product of theta and eta
     psi_trans = numpy.dot(theta[:N], eta[:N])
     # Entropy of independent model
-    psi_0 = - numpy.sum(eta[:N]*numpy.log(eta[:N]) + (1 - eta[:N])*
+    psi_0 = - numpy.sum(eta[:N]*numpy.log(eta[:N] + numpy.finfo(float).eps) + (1 - eta[:N])*
                         numpy.log(1 - eta[:N]))
     # First derivative
     psi_1 = .5*numpy.sum(theta2*numpy.outer(eta[:N],eta[:N]))
