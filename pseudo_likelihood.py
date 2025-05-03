@@ -44,15 +44,6 @@ import bethe_approximation
 import multiprocessing
 from functools import partial
 
-functions = {'nr': pseudo_newton,
-             'cg': pseudo_cg,
-             'bf': pseudo_bfgs}
-
-compute_eta = {'mf': mean_field.forward_problem_hessian,
-               'bethe_BP': bethe_approximation.compute_eta_BP,
-               'bethe_CCCP': bethe_approximation.compute_eta_CCCP,
-               'bethe_hybrid': bethe_approximation.compute_eta_hybrid}
-
 
 MAX_GA_ITERATIONS = 5000
 Fx_s = None
@@ -698,3 +689,12 @@ def pseudo_log_likelihood(X_t, theta, t):
         pseudo_llk += numpy.sum(X_t[:,s_i]*fs - numpy.log(1 + numpy.exp(fs)))
     # Return
     return pseudo_llk
+
+functions = {'nr': pseudo_newton,
+             'cg': pseudo_cg,
+             'bf': pseudo_bfgs}
+
+compute_eta = {'mf': mean_field.forward_problem_hessian,
+               'bethe_BP': bethe_approximation.compute_eta_BP,
+               'bethe_CCCP': bethe_approximation.compute_eta_CCCP,
+               'bethe_hybrid': bethe_approximation.compute_eta_hybrid}
