@@ -33,40 +33,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy
-import pdb
 import pylab
-import random
-import sys
 import unittest
 import time
 
 import __init__
-import probability
 import synthesis
 import transforms
-
-
 
 def klic(p_theta, q_theta, N):
     """
     Computes the Kullback-Leibler divergence for each timestep of two
-    natural-parameter distributions, that is, the measure of information lost in
-    the EM estimation of the natural parameters with respect to the actual
-    natural parameters.
+    natural-parameter distributions.
 
-    TODO explain the use of the eta_map as the interactions vector
-
-    :param numpy.ndarray p_theta:
-        Mean of the actual natural parameters.
-    :param numpy.ndarray q_theta:
-        Mean of the estimated natural parameters.
-    :param int N:
-        Number of cells from which the natural parameters were generated.
-    :param int O:
-        Order of interactions observed.
-
-    :returns:
-        Kullback-Leibler divergence for each timestep as a numpy.ndarray.
+    Arguments:
+        p_theta -- Mean of the actual natural parameters
+        q_theta -- Mean of the estimated natural parameters
+        N -- Number of cells from which the natural parameters were generated
+    Returns:
+        Kullback-Leibler divergence for each timestep
     """
     # Get metadata and patterns
     T, D = p_theta.shape
@@ -86,19 +71,35 @@ def klic(p_theta, q_theta, N):
 
     return kld
 
-
-
 class TestEstimator(unittest.TestCase):
+    """
+    Tests for the SSLL estimator.
+    """
 
     def setUp(self):
+        """
+        Set up test fixtures.
+        """
         self.T = 20
         self.R = 20
         self.theta_base = -3.
         self.spike_seed = 1
         self.wave_seed = 1
 
-
     def plot(self, theta_a, theta_e, sigma_e, y, klic, N, T, D):
+        """
+        Plot test results for visualisation.
+
+        Arguments:
+            theta_a -- Actual theta values
+            theta_e -- Estimated theta values
+            sigma_e -- Estimated sigma values
+            y -- Observed pattern rates
+            klic -- KL divergence values
+            N -- Number of neurons
+            T -- Number of time steps
+            D -- Dimensionality of parameters
+        """
         # Set up an output figure
         fig, ax = pylab.subplots(3, 1)
         colours = ['b', 'g', 'r', 'c', 'm', 'y']
@@ -126,10 +127,24 @@ class TestEstimator(unittest.TestCase):
         fig.tight_layout()
         pylab.show()
 
-
     def run_ssll(self, theta, N, O, map_fun='cg',
-            state_cov_val=0.01, state_ar_val=None,
-            param_est_val='exact', param_est_eta='exact'):
+                 state_cov_val=0.01, state_ar_val=None,
+                 param_est_val='exact', param_est_eta='exact'):
+        """
+        Run the SSLL algorithm with given parameters.
+
+        Arguments:
+            theta -- Input theta values
+            N -- Number of neurons
+            O -- Order of interactions
+            map_fun -- Mapping function to use
+            state_cov_val -- State covariance value
+            state_ar_val -- State autoregressive value
+            param_est_val -- Parameter estimation method
+            param_est_eta -- Eta estimation method
+        Returns:
+            EMData object containing results
+        """
         # Initialise the library for computing pattern probabilities
         transforms.initialise(N, O)
         # Compute probability from theta values
@@ -145,15 +160,32 @@ class TestEstimator(unittest.TestCase):
         # Compute the KL divergence between real and estimated parameters
         kld = klic(theta, emd.theta_s, emd.N)
         # Check that KL divergence is OK
-        if numpy.any(kld[50:-50] > .05): # change from .01
+        if numpy.any(kld[50:-50] > 0.05):
             self.plot(theta, emd.theta_s, emd.sigma_s, emd.y, kld, emd.N, emd.T,
                 emd.D)
-        self.assertFalse(numpy.any(kld[50:-50] > .05)) # change from .01
+        self.assertFalse(numpy.any(kld[50:-50] > 0.05),
+                        "KL divergence exceeds threshold")
         return emd
 
+    def wave(self, A, f, phi, T):
+        """
+        Generate a wave function.
 
-    def test_1_fo_varying(self):
+        Arguments:
+            A -- Amplitude
+            f -- Frequency
+            phi -- Phase
+            T -- Time period
+        Returns:
+            Wave values
+        """
+        rng = numpy.arange(0, T, 1e-3)
+        wave = A * numpy.sin(2 * numpy.pi * f * rng + phi)
+        return wave
+
+    def test_1_first_order_time_varying(self):
         print("Test First-Order Time-Varying Interactions.")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(3):
             print(N)
@@ -177,10 +209,12 @@ class TestEstimator(unittest.TestCase):
         expected_mllk = -349.668974  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-
-    def test_2_so_variable(self):
+    def test_2_second_order_time_varying(self):
         print("\nTest Second-Order Time-Varying Interactions.")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in 2**numpy.arange(1, 3):
             print(N)
@@ -218,10 +252,12 @@ class TestEstimator(unittest.TestCase):
         expected_mllk = -363.021487  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-
-    def test_3_to_variable(self):
+    def test_3_third_order_time_varying(self):
         print("\nTest Third-Order Time-Varying Interactions.")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in 3**numpy.arange(1,2):
             print(N)
@@ -259,10 +295,12 @@ class TestEstimator(unittest.TestCase):
         expected_mllk = -229.173379  # Updated for T=20, R=20
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-
-    def test_4_so_different_state_models(self):
+    def test_4_state_models_covariance(self):
         print("\nTest Different State Models (N=4, O=2, Time-Varying Interactions).")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         N, O = 4, 2
         D = transforms.compute_D(N, 2)
@@ -293,9 +331,12 @@ class TestEstimator(unittest.TestCase):
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('autoreg in %f s' %(time.time() - tc))
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-    def test_5_so_variable_gradient_methods(self):
+    def test_5_gradient_optimization(self):
         print("\nTest Gradient Algorithms (N=6, O=2, Time-Varying Interactions).")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         N, O = 4, 2
         # Create time-varying theta parameters
@@ -317,10 +358,12 @@ class TestEstimator(unittest.TestCase):
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-
-    def test_6_so_variable_pseudolikelihood(self):
+    def test_6_pseudolikelihood(self):
         print("Test Psuedolikelihood Algorithm (N=3, O=2, Time-Varying Interactions).")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         N, O = 8, 2
         # Create time-varying theta parameters
@@ -344,10 +387,12 @@ class TestEstimator(unittest.TestCase):
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
-
-    def test_7_so_one_time_bin(self):
+    def test_7_single_time_bin(self):
         print("Test One Time Bin for (N=3, O=2).")
+        start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         N, O = 3, 2
         self.T = 1
@@ -383,14 +428,8 @@ class TestEstimator(unittest.TestCase):
         print('Log marginal likelihood = %.6f (expected)' % expected_mllk)
         self.assertFalse(numpy.absolute(emd.mllk-expected_mllk) > 1e-6)
         print('bfgs in %f s' %(time.time() - tc))
-
-
-    def wave(self, A, f, phi, T):
-        rng = numpy.arange(0, T, 1e-3)
-        wave = A * numpy.sin(2 * numpy.pi * f * rng + phi)
-
-        return wave
-
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
 if __name__ == '__main__':
     unittest.main()
