@@ -18,6 +18,12 @@ Copyright (C) 2016
 Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
                            Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
+                           
+Updated to extended testing framework
+
+Copyright (C) 2025
+Authors of the extensions: Hideaki Shimazaki (h.shimazaki@i.kyoto-u.ac.jp)
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -48,6 +54,7 @@ DEFAULT_SPIKE_SEED = 1  # Random seed for spike generation
 DEFAULT_WAVE_SEED = 1  # Random seed for wave generation
 DEFAULT_CONVERGENCE_THRESHOLD = 0.05  # Threshold for KL divergence
 DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood comparison
+DEFAULT_THETA_SEED = 42  # Random seed for theta generation
 
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
@@ -59,16 +66,16 @@ PSEUDOLIKELIHOOD_TEST_NEURONS = [4]  # Number of neurons for pseudolikelihood te
 SINGLE_TIME_BIN_TEST_NEURONS = [3]  # Number of neurons for single time bin test
 
 # Expected Log Marginal Likelihood Values
-EXPECTED_MLLK_FIRST_ORDER = -271.227932
-EXPECTED_MLLK_SECOND_ORDER = -363.021487
-EXPECTED_MLLK_THIRD_ORDER = -229.173379
-EXPECTED_MLLK_STATE_MODEL_DIAG = -563.760601
-EXPECTED_MLLK_STATE_MODEL_FULL = -561.667173
-EXPECTED_MLLK_STATE_MODEL_AUTOREG = -554.251761
-EXPECTED_MLLK_GRADIENT_CG = -563.838955
-EXPECTED_MLLK_GRADIENT_BFGS = -563.836771
-EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG = -551.955338
-EXPECTED_MLLK_PSEUDOLIKELIHOOD_BFGS = -566.897734
+EXPECTED_MLLK_FIRST_ORDER = -476.751648
+EXPECTED_MLLK_SECOND_ORDER = -696.244886
+EXPECTED_MLLK_THIRD_ORDER = -475.468532
+EXPECTED_MLLK_STATE_MODEL_DIAG = -696.129304
+EXPECTED_MLLK_STATE_MODEL_FULL = -695.342428
+EXPECTED_MLLK_STATE_MODEL_AUTOREG = -682.435119
+EXPECTED_MLLK_GRADIENT_CG = -696.244886
+EXPECTED_MLLK_GRADIENT_BFGS = -696.245766
+EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG = -673.617401
+EXPECTED_MLLK_PSEUDOLIKELIHOOD_BFGS = -700.746088
 EXPECTED_MLLK_SINGLE_TIME_BIN_EXACT = -189.855470
 EXPECTED_MLLK_SINGLE_TIME_BIN_CG = -191.870697
 EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS = -189.688459
@@ -176,23 +183,10 @@ class TestEstimator(unittest.TestCase):
         start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in FIRST_ORDER_TEST_NEURONS:
-            print(N)
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.ones((self.T, N)) * self.theta_base
-            # Add time-varying components for some neurons
-            numpy.random.seed(self.wave_seed)
-            n_random = numpy.random.randint(0, N + 1)
-            cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in numpy.arange(n_random):
-                # Draw random phase, amplitude and frequency
-                phi = numpy.random.uniform(0, 2 * numpy.pi)
-                A = numpy.random.uniform(2)
-                f = 1 / (numpy.random.uniform(self.T / 5., 5 * self.T) * 1e-3)
-                idx = cells[i]
-                theta[:,idx] = self.theta_base + \
-                    self.wave(A, f, phi, self.T * 1e-3)
+            O = 1
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the actual test
-            emd = self.run_ssll(theta, N, 1)
+            emd = self.run_ssll(theta, N, O)
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_FIRST_ORDER)
         self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_FIRST_ORDER) > DEFAULT_MLLK_TOLERANCE)
@@ -204,37 +198,10 @@ class TestEstimator(unittest.TestCase):
         start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in SECOND_ORDER_TEST_NEURONS:
-            print(N)
-            # Compute dimensionality of natural-parameter distribution
-            D = transforms.compute_D(N, 2)
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.zeros((self.T, D))
-            theta[:,:N] = self.theta_base
-            theta[:,N:] = -1.
-            # Add time-varying components for some neurons
-            numpy.random.seed(self.wave_seed)
-            n_random = numpy.random.randint(0, N / 2)
-            cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in numpy.arange(n_random):
-                # Draw random phase, amplitude and frequency
-                phi = numpy.random.uniform(0, 2 * numpy.pi)
-                A = numpy.random.uniform(2)
-                f = 1 / (numpy.random.uniform(self.T / 5., 5 * self.T) * 1e-3)
-                idx = cells[i]
-                theta[:,idx] = self.theta_base + \
-                    self.wave(A, f, phi, self.T * 1e-3)
-            # Add time-varying components for some interactions
-            n_random = numpy.random.randint(0, D - N)
-            interactions = numpy.random.choice(numpy.arange(N, D), n_random)
-            for i in numpy.arange(n_random):
-                # Draw random phase, amplitude and frequency
-                phi = numpy.random.uniform(0, 2 * numpy.pi)
-                A = numpy.random.uniform(1, 2)
-                f = 1 / (numpy.random.uniform(self.T / 5., 5 * self.T) * 1e-3)
-                idx = interactions[i]
-                theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
+            O = 2
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the actual test
-            emd = self.run_ssll(theta, N, 2)
+            emd = self.run_ssll(theta, N, O)
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SECOND_ORDER)
         self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SECOND_ORDER) > DEFAULT_MLLK_TOLERANCE)
@@ -246,37 +213,10 @@ class TestEstimator(unittest.TestCase):
         start_cpu_time = time.process_time()
         # Repeat test for different numbers of neurons
         for N in THIRD_ORDER_TEST_NEURONS:
-            print(N)
-            # Compute dimensionality of natural-parameter distribution
-            D = transforms.compute_D(N, 3)
-            # Create a regular set of theta parameters for each timestep
-            theta = numpy.zeros((self.T, D))
-            theta[:,:N] = self.theta_base
-            theta[:,N:] = -1.
-            # Add time-varying components for some neurons
-            numpy.random.seed(self.wave_seed)
-            n_random = numpy.random.randint(0, N / 2)
-            cells = numpy.random.choice(numpy.arange(N), n_random)
-            for i in numpy.arange(n_random):
-                # Draw random phase, amplitude and frequency
-                phi = numpy.random.uniform(0, 2 * numpy.pi)
-                A = numpy.random.uniform(2)
-                f = 1 / (numpy.random.uniform(self.T / 5., 5 * self.T) * 1e-3)
-                idx = cells[i]
-                theta[:,idx] = self.theta_base + \
-                    self.wave(A, f, phi, self.T * 1e-3)
-            # Add time-varying components for some interactions
-            n_random = numpy.random.randint(0, D - N)
-            interactions = numpy.random.choice(numpy.arange(N, D), n_random)
-            for i in numpy.arange(n_random):
-                # Draw random phase, amplitude and frequency
-                phi = numpy.random.uniform(0, 2 * numpy.pi)
-                A = numpy.random.uniform(1, 2)
-                f = 1 / (numpy.random.uniform(self.T / 5., 5 * self.T) * 1e-3)
-                idx = interactions[i]
-                theta[:,idx] = self.wave(A, f, phi, self.T * 1e-3)
+            O = 3
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the actual test
-            emd = self.run_ssll(theta, N, 3)
+            emd = self.run_ssll(theta, N, O)
         # Check the consistency with the expected result.
         print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_THIRD_ORDER)
         self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_THIRD_ORDER) > DEFAULT_MLLK_TOLERANCE)
@@ -291,7 +231,7 @@ class TestEstimator(unittest.TestCase):
             O = 2
             D = transforms.compute_D(N, 2)
             # Create time-varying theta parameters
-            theta = synthesis.generate_thetas(N, O, self.T)
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
             # A diagonal covariance matrix
             tc = time.time()
@@ -323,7 +263,7 @@ class TestEstimator(unittest.TestCase):
         for N in GRADIENT_TEST_NEURONS:
             O = 2
             # Create time-varying theta parameters
-            theta = synthesis.generate_thetas(N, O, self.T)
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
             # Conjugate Gradient
             tc = time.time()
@@ -348,7 +288,7 @@ class TestEstimator(unittest.TestCase):
         for N in PSEUDOLIKELIHOOD_TEST_NEURONS:
             O = 2
             # Create time-varying theta parameters
-            theta = synthesis.generate_thetas(N, O, self.T)
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
             # CG Mean field
             tc = time.time()
