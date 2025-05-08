@@ -55,8 +55,8 @@ DEFAULT_CONVERGENCE_THRESHOLD = 0.05  # Threshold for KL divergence
 DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood comparison
 
 
-SPIKE_GENERATION_TEST_NEURONS = [3]  # Number of neurons for spike generation test
-EXPECTED_SPIKE_COUNT = 162  # Total number of spikes expected
+SPIKE_GENERATION_TEST_NEURONS = [5]  # Number of neurons for spike generation test
+EXPECTED_SPIKE_COUNT = 292  # Total number of spikes expected for 5 neurons
 
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
@@ -68,7 +68,6 @@ PSEUDOLIKELIHOOD_TEST_NEURONS = [4]  # Number of neurons for pseudolikelihood te
 SINGLE_TIME_BIN_TEST_NEURONS = [3]  # Number of neurons for single time bin test
 
 # Expected Log Marginal Likelihood Values
-
 EXPECTED_MLLK_FIRST_ORDER = -476.751648
 EXPECTED_MLLK_SECOND_ORDER = -696.244886
 EXPECTED_MLLK_THIRD_ORDER = -475.468532
