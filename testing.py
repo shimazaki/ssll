@@ -49,12 +49,11 @@ import transforms
 # Test Parameters
 DEFAULT_T = 20  # Number of time steps
 DEFAULT_R = 20  # Number of trials
-DEFAULT_THETA_BASE = -3.  # Base value for theta parameters
 DEFAULT_SPIKE_SEED = 1  # Random seed for spike generation
-DEFAULT_WAVE_SEED = 1  # Random seed for wave generation
+DEFAULT_THETA_SEED = 42  # Random seed for theta generation
 DEFAULT_CONVERGENCE_THRESHOLD = 0.05  # Threshold for KL divergence
 DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood comparison
-DEFAULT_THETA_SEED = 42  # Random seed for theta generation
+
 
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
@@ -121,9 +120,7 @@ class TestEstimator(unittest.TestCase):
         """
         self.T = DEFAULT_T
         self.R = DEFAULT_R
-        self.theta_base = DEFAULT_THETA_BASE
         self.spike_seed = DEFAULT_SPIKE_SEED
-        self.wave_seed = DEFAULT_WAVE_SEED
 
     def run_ssll(self, theta, N, O, map_fun='cg',
                  state_cov_val=0.01, state_ar_val=None,
