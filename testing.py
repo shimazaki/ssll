@@ -19,7 +19,7 @@ Authors of the extensions: Christian Donner (christian.donner@bccn-berlin.de)
                            Hideaki Shimazaki (shimazaki@brain.riken.jp)
 
                            
-Updated to extended testing framework
+Updated to extended testing framework.
 
 Copyright (C) 2025
 Authors of the extensions: Hideaki Shimazaki (h.shimazaki@i.kyoto-u.ac.jp)
@@ -85,16 +85,15 @@ def klic(p_theta, q_theta, N):
     Computes the Kullback-Leibler divergence for each timestep of two
     natural-parameter distributions.
 
-    Arguments:
-        p_theta -- Mean of the actual natural parameters
-        q_theta -- Mean of the estimated natural parameters
-        N -- Number of cells from which the natural parameters were generated
+    Args:
+        p_theta: Mean of the actual natural parameters
+        q_theta: Mean of the estimated natural parameters
+        N: Number of cells from which the natural parameters were generated
     Returns:
         Kullback-Leibler divergence for each timestep
     """
     # Get metadata and patterns
     T, D = p_theta.shape
-    fx = transforms.enumerate_patterns(N)
     # Compute divergence for each timestep
     kld = numpy.zeros(T)
     for i in numpy.arange(T):
@@ -231,12 +230,14 @@ class TestEstimator(unittest.TestCase):
             # Create time-varying theta parameters
             theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
+
             # A diagonal covariance matrix
             tc = time.time()
             emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.ones(D))
             print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_STATE_MODEL_DIAG)
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_STATE_MODEL_DIAG) > DEFAULT_MLLK_TOLERANCE)
             print('diag cov in %f s' %(time.time() - tc))
+
             # A full covariance matrix
             tc = time.time()
             emd = self.run_ssll(theta, N, O, state_cov_val=0.01*numpy.identity(D))
@@ -244,6 +245,7 @@ class TestEstimator(unittest.TestCase):
             print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_STATE_MODEL_FULL)
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_STATE_MODEL_FULL) > DEFAULT_MLLK_TOLERANCE)
             print('full cov in %f s' %(time.time() - tc))
+            
             # An autoregressive matrix
             tc = time.time()
             emd = self.run_ssll(theta, N, O, state_ar_val=1.*numpy.identity(D))
@@ -263,12 +265,14 @@ class TestEstimator(unittest.TestCase):
             # Create time-varying theta parameters
             theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
+
             # Conjugate Gradient
             tc = time.time()
             emd = self.run_ssll(theta, N, O, map_fun='cg')
             print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_GRADIENT_CG)
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_GRADIENT_CG) > DEFAULT_MLLK_TOLERANCE)
             print('cg in %f s' %(time.time() - tc))
+
             # BFGS
             tc = time.time()
             emd = self.run_ssll(theta, N, O, map_fun='bf')
@@ -288,6 +292,7 @@ class TestEstimator(unittest.TestCase):
             # Create time-varying theta parameters
             theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
+
             # CG Mean field
             tc = time.time()
             emd = self.run_ssll(theta, N, O, map_fun='cg',
@@ -296,6 +301,7 @@ class TestEstimator(unittest.TestCase):
             print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG)
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG) > DEFAULT_MLLK_TOLERANCE)
             print('cg in %f s' %(time.time() - tc))
+
             # BFGS Bethe_bybrid
             tc = time.time()
             emd = self.run_ssll(theta, N, O, map_fun='bf',
