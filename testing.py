@@ -77,7 +77,8 @@ EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG = -673.617401
 EXPECTED_MLLK_PSEUDOLIKELIHOOD_BFGS = -700.746088
 EXPECTED_MLLK_SINGLE_TIME_BIN_EXACT = -189.855470
 EXPECTED_MLLK_SINGLE_TIME_BIN_CG = -191.870697
-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS = -189.688459
+EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP = -189.688459
+EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP = -189.693955
 
 def klic(p_theta, q_theta, N):
     """
@@ -332,17 +333,26 @@ class TestEstimator(unittest.TestCase):
             # Check the consistency with the expected result.
             print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_TIME_BIN_CG)
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SINGLE_TIME_BIN_CG) > DEFAULT_MLLK_TOLERANCE)
-            print('cg in %f s' %(time.time() - tc))
+            print('cg mf in %f s' %(time.time() - tc))
 
-            # BFGS Bethe_bybrid
+            # BFGS Bethe BP
             tc = time.time()
             emd = self.run_ssll(theta, N, O, map_fun='bf',
-                                param_est_val='pseudo', param_est_eta='bethe_hybrid')
+                                param_est_val='pseudo', param_est_eta='bethe_BP')
             # Check the consistency with the expected result.
-            print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS)
-            self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS) > DEFAULT_MLLK_TOLERANCE)
-            print('bfgs in %f s' %(time.time() - tc))
-        end_cpu_time = time.process_time()
+            print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP)
+            self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP) > DEFAULT_MLLK_TOLERANCE)
+            print('bfgs bethe bp in %f s' %(time.time() - tc))
+ 
+            # BFGS Bethe CCP
+            tc = time.time()
+            emd = self.run_ssll(theta, N, O, map_fun='bf',
+                                param_est_val='pseudo', param_est_eta='bethe_CCCP')
+            # Check the consistency with the expected result.
+            print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP)
+            self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP) > DEFAULT_MLLK_TOLERANCE)
+            print('bfgs bethe cccp in %f s' %(time.time() - tc))
+            end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
 if __name__ == '__main__':
