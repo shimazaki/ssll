@@ -33,7 +33,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy
-import pylab
 import unittest
 import time
 
@@ -86,47 +85,6 @@ class TestEstimator(unittest.TestCase):
         self.spike_seed = 1
         self.wave_seed = 1
 
-    def plot(self, theta_a, theta_e, sigma_e, y, klic, N, T, D):
-        """
-        Plot test results for visualisation.
-
-        Arguments:
-            theta_a -- Actual theta values
-            theta_e -- Estimated theta values
-            sigma_e -- Estimated sigma values
-            y -- Observed pattern rates
-            klic -- KL divergence values
-            N -- Number of neurons
-            T -- Number of time steps
-            D -- Dimensionality of parameters
-        """
-        # Set up an output figure
-        fig, ax = pylab.subplots(3, 1)
-        colours = ['b', 'g', 'r', 'c', 'm', 'y']
-        # Plot smoothed densities
-        for i in numpy.arange(D):
-            # Plot original theta values
-            ax[0].plot(theta_a[:, i], ls='--', c=colours[i%len(colours)])
-            # Plot data-estimated theta values
-            ax[0].plot(theta_e[:,i], ls='-', c=colours[i%len(colours)])
-            # Plot data-estimated confidence intervals
-            ax[0].fill_between(numpy.arange(T),
-                theta_e[:,i] - 2*numpy.sqrt(sigma_e[:,i,i]),
-                theta_e[:,i] + 2*numpy.sqrt(sigma_e[:,i,i]),
-                color=colours[i%len(colours)], alpha=.25)
-            ax[1].plot(y[:,i], c=colours[i%len(colours)], ls='-')
-        # Set axes labels and legends
-        ax[0].set_ylabel('Theta')
-        ax[0].set_title('Smoothed densities')
-        ax[1].set_title('Observed pattern rates')
-        ax[1].set_ylabel('Rate (patterns/second)')
-        ax[2].set_title('KL Divergence')
-        ax[2].set_ylabel('Bits')
-        ax[2].plot(klic)
-        ax[2].set_xlabel('Time (ms)')
-        fig.tight_layout()
-        pylab.show()
-
     def run_ssll(self, theta, N, O, map_fun='cg',
                  state_cov_val=0.01, state_ar_val=None,
                  param_est_val='exact', param_est_eta='exact'):
@@ -160,9 +118,6 @@ class TestEstimator(unittest.TestCase):
         # Compute the KL divergence between real and estimated parameters
         kld = klic(theta, emd.theta_s, emd.N)
         # Check that KL divergence is OK
-        if numpy.any(kld[50:-50] > 0.05):
-            self.plot(theta, emd.theta_s, emd.sigma_s, emd.y, kld, emd.N, emd.T,
-                emd.D)
         self.assertFalse(numpy.any(kld[50:-50] > 0.05),
                         "KL divergence exceeds threshold")
         return emd
