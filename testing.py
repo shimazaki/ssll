@@ -55,6 +55,9 @@ DEFAULT_CONVERGENCE_THRESHOLD = 0.05  # Threshold for KL divergence
 DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood comparison
 
 
+SPIKE_GENERATION_TEST_NEURONS = [3]  # Number of neurons for spike generation test
+EXPECTED_SPIKE_COUNT = 162  # Total number of spikes expected
+
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
 SECOND_ORDER_TEST_NEURONS = [4]  # Number of neurons for second-order test
@@ -65,6 +68,7 @@ PSEUDOLIKELIHOOD_TEST_NEURONS = [4]  # Number of neurons for pseudolikelihood te
 SINGLE_TIME_BIN_TEST_NEURONS = [3]  # Number of neurons for single time bin test
 
 # Expected Log Marginal Likelihood Values
+
 EXPECTED_MLLK_FIRST_ORDER = -476.751648
 EXPECTED_MLLK_SECOND_ORDER = -696.244886
 EXPECTED_MLLK_THIRD_ORDER = -475.468532
@@ -158,6 +162,26 @@ class TestEstimator(unittest.TestCase):
         self.assertFalse(numpy.any(kld[50:-50] > DEFAULT_CONVERGENCE_THRESHOLD),
                         "KL divergence exceeds threshold")
         return emd
+    
+    def test_0_spike_generation(self):
+        print("Test Spike Generation.")
+        start_cpu_time = time.process_time()
+        # Repeat test for different numbers of neurons
+        for N in SPIKE_GENERATION_TEST_NEURONS:
+            O = 2
+            # Initialize transforms library
+            transforms.initialise(N, O)
+            # Generate synthetic data
+            theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+            # Compute probability from theta values
+            p = numpy.zeros((self.T, 2**N))
+            for i in numpy.arange(self.T):
+                p[i,:] = transforms.compute_p(theta[i,:])
+            # Generate spikes
+            spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
+            print(numpy.sum(spikes))
+            self.assertEqual(numpy.sum(spikes), EXPECTED_SPIKE_COUNT)
+    
 
     def test_1_first_order_time_varying(self):
         print("Test First-Order Time-Varying Interactions.")
