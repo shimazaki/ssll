@@ -128,15 +128,15 @@ class TestEstimator(unittest.TestCase):
         """
         Run the SSLL algorithm with given parameters.
 
-        Arguments:
-            theta -- Input theta values
-            N -- Number of neurons
-            O -- Order of interactions
-            map_fun -- Mapping function to use
-            state_cov_val -- State covariance value
-            state_ar_val -- State autoregressive value
-            param_est_val -- Parameter estimation method
-            param_est_eta -- Eta estimation method
+        Args:
+            theta: Input theta values
+            N: Number of neurons
+            O: Order of interactions
+            map_fun: Mapping function to use
+            state_cov_val: State covariance value
+            state_ar_val: State autoregressive value
+            param_est_val: Parameter estimation method
+            param_est_eta: Eta estimation method
         Returns:
             EMData object containing results
         """
@@ -158,22 +158,6 @@ class TestEstimator(unittest.TestCase):
         self.assertFalse(numpy.any(kld[50:-50] > DEFAULT_CONVERGENCE_THRESHOLD),
                         "KL divergence exceeds threshold")
         return emd
-
-    def wave(self, A, f, phi, T):
-        """
-        Generate a wave function.
-
-        Arguments:
-            A -- Amplitude
-            f -- Frequency
-            phi -- Phase
-            T -- Time period
-        Returns:
-            Wave values
-        """
-        rng = numpy.arange(0, T, 1e-3)
-        wave = A * numpy.sin(2 * numpy.pi * f * rng + phi)
-        return wave
 
     def test_1_first_order_time_varying(self):
         print("Test First-Order Time-Varying Interactions.")
