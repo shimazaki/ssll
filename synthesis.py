@@ -206,7 +206,6 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     """
     # Set numpy seed (should be removed at some point)
     seed = kwargs.get('seed', None)
-    numpy.random.seed(seed)
     # Set pre-trials
     pre_R = kwargs.get('pre_n', 100)
     steps = kwargs.get('sample_steps', 1)
@@ -228,6 +227,7 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     # Iterate over all time bins
     for t in range(T):
         # Generate random numbers for this time bin
+        numpy.random.seed(seed+t)
         rand_numbers = numpy.random.rand(steps*R+pre_R, N)
         # Iterate through all Runs
         cur_theta = theta[t]
@@ -266,6 +266,14 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
         Order of interaction
     :param int R:
         Number of runs that are generated.
+    :param int seed:
+        Random seed for reproducibility (Default=None)
+    :param int pre_n:
+        Number of pre-trials (Default=100)
+    :param int sample_steps:
+        Number of steps between samples (Default=1)
+    :param int num_proc:
+        Number of processes to use (Default=1)
 
     :returns:
         Binary matrix with dimensions (time, runs, cells), in which a `1' in
@@ -274,7 +282,6 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
     """
     # Set numpy seed (should be removed at some point)
     seed = kwargs.get('seed', None)
-    numpy.random.seed(seed)
     # Set pre-trials
     pre_R = kwargs.get('pre_n', 100)
     # Sample Step
@@ -296,23 +303,46 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
         subset_map[i, subsets[i]] = 1
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
-    # Draw random numbers from uniform distribution
-    rand_numbers = numpy.random.rand(T, R+pre_R, N)
     # Parallel samplings at all time bins
     pool = Pool(num_proc)
     results = pool.map(partial(gibbs_sampler, X=X, theta=theta, N=N, R=R,
-        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps), range(T))
+        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps, seed=seed), 
+        range(T))
     pool.close()
 
     return numpy.array(results)
 
 
-def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps):
+def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, seed=None):
     """ Samples the spike data using Gibbs sampling for time bin t.
+    
+    :param int t:
+        Time bin index
+    :param numpy.ndarray X:
+        Array for spike data
+    :param numpy.ndarray theta:
+        Parameters used for sampling
+    :param int N:
+        Number of cells
+    :param int R:
+        Number of runs
+    :param int pre_R:
+        Number of pre-trials
+    :param numpy.ndarray subset_map:
+        Map of relevant patterns
+    :param numpy.ndarray subset_count:
+        Count of cells that must be active for each theta
+    :param int steps:
+        Number of steps between samples
+    :param int seed:
+        Random seed for reproducibility (Default=None)
     """
     cur_theta = theta[t]
     cur_X = numpy.zeros([R*steps+pre_R, N])
-    numpy.random.seed()
+    
+    # Set random seed if provided
+    if seed is not None:
+        numpy.random.seed(seed+t)
     rand_numbers = numpy.random.rand(R*steps + pre_R, N)
 
     for l in range(1, R*steps + pre_R):
