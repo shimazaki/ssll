@@ -227,7 +227,8 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
     # Iterate over all time bins
     for t in range(T):
         # Generate random numbers for this time bin
-        numpy.random.seed(seed+t)
+        if seed is not None:
+            numpy.random.seed(seed+t)
         rand_numbers = numpy.random.rand(steps*R+pre_R, N)
         # Iterate through all Runs
         cur_theta = theta[t]
