@@ -225,10 +225,10 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         subset_map[i, subsets[i]] = 1
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
-    # Draw random numbers from uniform distribution
-    rand_numbers = numpy.random.rand(T, steps*R+pre_R, N)
     # Iterate over all time bins
     for t in range(T):
+        # Generate random numbers for this time bin
+        rand_numbers = numpy.random.rand(steps*R+pre_R, N)
         # Iterate through all Runs
         cur_theta = theta[t]
         for l in range(1, steps*R+pre_R):
@@ -248,7 +248,7 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
                                                 - numpy.dot(cur_theta,fx0))))
                 # if smaller than probability X^(i,l) -> 1
                 X[t, l, i] = numpy.greater_equal(prob_spike,
-                                                 rand_numbers[t, l, i])
+                                                 rand_numbers[l, i])
     # Return spike data
     return X[:, pre_R::steps, :]
 
