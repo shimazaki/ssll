@@ -59,6 +59,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy
 import pdb
+import sys
+from tqdm import tqdm
 
 import container
 import exp_max
@@ -155,12 +157,19 @@ def run(spikes, order=2, window=1, map_function='cg', \
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
     emd.mllk_list = []
+    
+    # Create progress bar if EM_Info is True
+    if EM_Info == True:
+        pbar = tqdm(total=max_iter, desc='EM', 
+                    bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] Conv: {postfix}')
+    
     # Iterate the EM algorithm until convergence or failure
     while (emd.iterations < max_iter) and (emd.convergence > emd.CONVERGED):
         if EM_Info == True:
-            print('EM Iteration: %d - Convergence %.6f > %.6f' % (emd.iterations,
-                                                                emd.convergence,
-                                                                emd.CONVERGED))
+            # Update progress bar with convergence info
+            pbar.set_postfix_str(f'{emd.convergence:.6f} > {emd.CONVERGED:.6f}')
+            pbar.update(1)
+            
         # Perform EM
         exp_max.e_step(emd)
         if mstep == True:
@@ -176,5 +185,6 @@ def run(spikes, order=2, window=1, map_function='cg', \
         emd.convergence = (lmp - lmc) / lmp
 
     if EM_Info == True:
+        pbar.close()
         print('Log marginal likelihood = %.6f' % (emd.mllk))
     return emd
