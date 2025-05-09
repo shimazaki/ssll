@@ -57,7 +57,8 @@ DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood compariso
 
 SPIKE_GENERATION_TEST_NEURONS = [5]  # Number of neurons for spike generation test
 EXPECTED_SPIKE_COUNT = 292  # Total number of spikes expected for 5 neurons
-EXPECTED_SPIKE_COUNT_GIBBS = 283  # Total number of spikes expected for Gibbs sampling
+EXPECTED_SPIKE_COUNT_GIBBS = 296  # Total number of spikes expected for Gibbs sampling
+EXPECTED_SPIKE_COUNT_GIBBS_PARALLEL = 296  # Total number of spikes expected for Gibbs sampling parallel
 
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
@@ -190,6 +191,11 @@ class TestEstimator(unittest.TestCase):
             print('Spike Count = %d (expected %d)' % (spike_count, EXPECTED_SPIKE_COUNT_GIBBS))
             self.assertEqual(spike_count, EXPECTED_SPIKE_COUNT_GIBBS)
     
+            # Generate spikes using Gibbs sampling parallel
+            spikes = synthesis.generate_spikes_gibbs_parallel(theta, N, O, self.R, seed=self.spike_seed)
+            spike_count = numpy.sum(spikes)
+            print('Spike Count = %d (expected %d)' % (spike_count, EXPECTED_SPIKE_COUNT_GIBBS_PARALLEL))
+            self.assertEqual(spike_count, EXPECTED_SPIKE_COUNT_GIBBS_PARALLEL)    
 
     def test_1_first_order_time_varying(self):
         print("Test First-Order Time-Varying Interactions.")
