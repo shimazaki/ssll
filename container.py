@@ -222,8 +222,7 @@ class EMData:
 
         # Initialise covariances of the same (an I-matrix for each timestep)
         if param_est == 'exact':
-            I = [numpy.identity(self.D) for i in range(self.T)]
-            I = numpy.vstack(I).reshape((self.T,self.D,self.D))
+            I = numpy.tile(numpy.eye(self.D), (self.T, 1, 1))
             self.sigma_o = sigma_o * I
             self.sigma_o_inv = numpy.linalg.inv(self.sigma_o)
             del I

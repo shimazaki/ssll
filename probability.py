@@ -116,8 +116,8 @@ def log_marginal_raw(theta_f, theta_o, sigma_f, sigma_o_inv, y, R, period=None):
         a += log_likelihood(y[i,:], theta_f[i,:], R)
         theta_d = theta_f[i,:] - theta_o[i,:]
         b -= numpy.dot(theta_d, numpy.dot(sigma_o_inv[i,:,:], theta_d))
-        b += numpy.log(numpy.linalg.det(sigma_f[i,:,:])) +\
-             numpy.log(numpy.linalg.det(sigma_o_inv[i,:,:]))
+        b += numpy.linalg.slogdet(sigma_f[i,:,:])[1] +\
+             numpy.linalg.slogdet(sigma_o_inv[i,:,:])[1]
 
     log_p = a + b / 2
 

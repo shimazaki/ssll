@@ -110,13 +110,9 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
         dlpo = dllk + dlpr
         # Compute the second derivative of the posterior prob. w.r.t. theta_max
         ddlpo = -R * transforms.compute_fisher_info(p, eta) - sigma_o_i
-        # Dot the results to climb the gradient, and accumulate the
-        # Small regularization added to avoid singular matrices
-        ddlpo_i = numpy.linalg.inv(ddlpo + numpy.finfo(float).eps*\
-                                   numpy.identity(eta.shape[0]))
-        # Update Theta
-        epsilon = 1 / numpy.sqrt(eta.shape[0])
-        theta_max -= 1 * numpy.dot(ddlpo_i, dlpo)
+        # Solve for the Newton step (avoid computing full inverse in loop)
+        eps_I = numpy.finfo(float).eps * numpy.identity(eta.shape[0])
+        theta_max -= numpy.linalg.solve(ddlpo + eps_I, dlpo)
         # Update the look guard
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
         # Count iterations
@@ -127,6 +123,9 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
                 'algorithm did not converge before reaching the maximum '+\
                 'number iterations.')
 
+    # Compute inverse only once at convergence for the covariance
+    eps_I = numpy.finfo(float).eps * numpy.identity(eta.shape[0])
+    ddlpo_i = numpy.linalg.inv(ddlpo + eps_I)
     return theta_max, -ddlpo_i
 
 

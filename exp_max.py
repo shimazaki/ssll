@@ -120,7 +120,6 @@ def e_step_filter(emd):
 
             # Compute inverse of one-step prediction covariance
             emd.sigma_o_inv[i,:,:] = numpy.linalg.inv(emd.sigma_o[i,:,:])
-            c = numpy.log(numpy.linalg.det(emd.sigma_o_inv[i, :, :]))
         # Computation for approximate case with diagonal covariance matrix
         else:
             emd.sigma_o[i,:] = emd.sigma_f[i-1,:] + emd.Q.diagonal()
@@ -212,7 +211,7 @@ def m_step_F(emd):
         b += emd.sigma_s[i-1] +\
              numpy.outer(emd.theta_s[i-1,:], emd.theta_s[i-1,:])
     # Dot the results
-    emd.F = numpy.dot(a, numpy.linalg.inv(b))
+    emd.F = numpy.linalg.solve(b.T, a.T).T
     #emd.F = (emd.F + emd.F.T) / 2
 
 

@@ -62,6 +62,8 @@ import pdb
 import sys
 from tqdm import tqdm
 
+__version__ = '0.1.0'
+
 import container
 import exp_max
 import probability

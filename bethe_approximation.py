@@ -35,6 +35,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy
 
 
+def _compute_lmbd_tmp(lambda_ij, N):
+    """Compute lambdas for all pair states (0,0),(1,0),(0,1) and (1,1)."""
+    lmbd_tmp = numpy.zeros([N, N, 4])
+    lmbd_tmp[:, :, 0] = lambda_ij[:, :, 0] + lambda_ij[:, :, 0].T
+    lmbd_tmp[:, :, 1] = lambda_ij[:, :, 0] + lambda_ij[:, :, 1].T
+    lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
+    lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
+    return lmbd_tmp
+
+
 def construct_fisher_diag(eta, N):
     ddllk_diag = eta - eta**2
     return ddllk_diag
@@ -243,12 +253,7 @@ def update_gamma(phi_ij, lambda_ij, N):
     """
 
     diag_idx = numpy.diag_indices(N)
-    # Compute lambdas for all pair states (0,0),(1,0),(0,1) and (1,1)
-    lmbd_tmp = numpy.zeros([N, N, 4])
-    lmbd_tmp[:, :, 0] = lambda_ij[:, :, 0] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 1] = lambda_ij[:, :, 0] + lambda_ij[:, :, 1].T
-    lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
+    lmbd_tmp = _compute_lmbd_tmp(lambda_ij, N)
     # Compute new gammas
     gamma_new = numpy.log(numpy.sum(phi_ij * numpy.exp(-1. - lmbd_tmp), axis=2))
     gamma_new[diag_idx] = 0
@@ -277,11 +282,7 @@ def update_beliefs(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
     :returns:
         lambda_ij, gamma_ij
     """
-    lmbd_tmp = numpy.zeros([N, N, 4])
-    lmbd_tmp[:, :, 0] = lambda_ij[:, :, 0] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 1] = lambda_ij[:, :, 0] + lambda_ij[:, :, 1].T
-    lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
+    lmbd_tmp = _compute_lmbd_tmp(lambda_ij, N)
     b_ij_new = phi_ij * numpy.exp(-1. - lmbd_tmp -
                                   gamma_ij[:, :, numpy.newaxis])
     b_i_new = psi_i * numpy.exp(-1. + (N - 1.) + numpy.sum(lambda_ij, axis=0)) \
@@ -313,12 +314,7 @@ def compute_dual_energy(b_i, phi_ij, psi_i, lambda_ij, gamma_ij, N):
         lambda_ij, gamma_ij
 
     """
-    # Compute lambdas for all pair states (0,0),(1,0),(0,1) and (1,1)
-    lmbd_tmp = numpy.zeros([N, N, 4])
-    lmbd_tmp[:, :, 0] = lambda_ij[:, :, 0] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 1] = lambda_ij[:, :, 0] + lambda_ij[:, :, 1].T
-    lmbd_tmp[:, :, 2] = lambda_ij[:, :, 1] + lambda_ij[:, :, 0].T
-    lmbd_tmp[:, :, 3] = lambda_ij[:, :, 1] + lambda_ij[:, :, 1].T
+    lmbd_tmp = _compute_lmbd_tmp(lambda_ij, N)
     # Compute dual energy
     dual_energy = -numpy.sum(phi_ij * numpy.exp(-1. - lmbd_tmp -
                                                 gamma_ij[:, :, numpy.newaxis]))

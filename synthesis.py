@@ -225,6 +225,8 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         subset_map[i, subsets[i]] = 1
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
+    # Pre-allocate pattern array
+    pattern = numpy.zeros(N, dtype=numpy.uint8)
     # Iterate over all time bins
     for t in range(T):
         # Create per-bin RNG for reproducibility
@@ -237,7 +239,8 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
             for i in range(N):
                 # Construct pattern from trial before and
                 # from neurons that have been seen in this trial
-                pattern = numpy.hstack([X[t, l, :i], X[t, l-1, i:]])
+                pattern[:i] = X[t, l, :i]
+                pattern[i:] = X[t, l-1, i:]
                 # set x^(i,t) to "1" and compute f(X) for those
                 pattern[i] = 1
                 fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)
@@ -344,12 +347,15 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, see
     rng = numpy.random.default_rng(seed + t if seed is not None else None)
     rand_numbers = rng.random((R*steps + pre_R, N))
 
+    # Pre-allocate pattern array
+    pattern = numpy.zeros(N)
     for l in range(1, R*steps + pre_R):
         # Iterate through all cells
         for i in range(N):
             # Construct pattern from trial before and
             # from neurons that have been seen in this trial
-            pattern = numpy.hstack([cur_X[l, :i], cur_X[l-1, i:]])
+            pattern[:i] = cur_X[l, :i]
+            pattern[i:] = cur_X[l-1, i:]
             # set x^(i,t) to "1" and compute f(X) for those
             pattern[i] = 1
             fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)
