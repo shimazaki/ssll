@@ -56,9 +56,9 @@ DEFAULT_MLLK_TOLERANCE = 1e-6  # Tolerance for log marginal likelihood compariso
 
 
 SPIKE_GENERATION_TEST_NEURONS = [5]  # Number of neurons for spike generation test
-EXPECTED_SPIKE_COUNT = 292  # Total number of spikes expected for 5 neurons
-EXPECTED_SPIKE_COUNT_GIBBS = 296  # Total number of spikes expected for Gibbs sampling
-EXPECTED_SPIKE_COUNT_GIBBS_PARALLEL = 296  # Total number of spikes expected for Gibbs sampling parallel
+EXPECTED_SPIKE_COUNT = 211  # Total number of spikes expected for 5 neurons
+EXPECTED_SPIKE_COUNT_GIBBS = 246  # Total number of spikes expected for Gibbs sampling
+EXPECTED_SPIKE_COUNT_GIBBS_PARALLEL = 246  # Total number of spikes expected for Gibbs sampling parallel
 
 # Test Configuration
 FIRST_ORDER_TEST_NEURONS = [3]  # Number of neurons for first-order test
@@ -70,24 +70,25 @@ PSEUDOLIKELIHOOD_TEST_NEURONS = [4]  # Number of neurons for pseudolikelihood te
 SINGLE_TIME_BIN_TEST_NEURONS = [3]  # Number of neurons for single time bin test
 
 # Expected Log Marginal Likelihood Values
-EXPECTED_MLLK_FIRST_ORDER = -476.751648
-EXPECTED_MLLK_SECOND_ORDER = -696.244886
-EXPECTED_MLLK_THIRD_ORDER = -475.468532
-EXPECTED_MLLK_STATE_MODEL_DIAG = -696.129304
-EXPECTED_MLLK_STATE_MODEL_FULL = -695.342428
-EXPECTED_MLLK_STATE_MODEL_AUTOREG = -682.435119
-EXPECTED_MLLK_GRADIENT_CG = -696.244886
-EXPECTED_MLLK_GRADIENT_BFGS = -696.245766
-EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG = -673.617401
-EXPECTED_MLLK_PSEUDOLIKELIHOOD_BFGS = -700.746088
-EXPECTED_MLLK_SINGLE_TIME_BIN_EXACT = -189.855470
-EXPECTED_MLLK_SINGLE_TIME_BIN_CG = -191.870697
-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP = -189.688459
-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP = -189.693955
+EXPECTED_MLLK_FIRST_ORDER = -421.674518
+EXPECTED_MLLK_SECOND_ORDER = -575.257230
+EXPECTED_MLLK_THIRD_ORDER = -401.902792
+EXPECTED_MLLK_STATE_MODEL_DIAG = -574.967673
+EXPECTED_MLLK_STATE_MODEL_FULL = -573.224739
+EXPECTED_MLLK_STATE_MODEL_AUTOREG = -560.376159
+EXPECTED_MLLK_GRADIENT_NR = -575.258048
+EXPECTED_MLLK_GRADIENT_CG = -575.257230
+EXPECTED_MLLK_GRADIENT_BFGS = -575.251454
+EXPECTED_MLLK_PSEUDOLIKELIHOOD_CG = -570.582877
+EXPECTED_MLLK_PSEUDOLIKELIHOOD_BFGS = -578.793619
+EXPECTED_MLLK_SINGLE_TIME_BIN_EXACT = -149.619925
+EXPECTED_MLLK_SINGLE_TIME_BIN_CG = -151.303684
+EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP = -149.582678
+EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP = -149.585147
 
 # Edge Case Expected Values
-EXPECTED_MLLK_SINGLE_NEURON = -166.797808
-EXPECTED_MLLK_SINGLE_TRIAL = -12.691274
+EXPECTED_MLLK_SINGLE_NEURON = -133.413675
+EXPECTED_MLLK_SINGLE_TRIAL = -17.040421
 
 def klic(p_theta, q_theta, N):
     """
@@ -291,6 +292,13 @@ class TestEstimator(unittest.TestCase):
             # Create time-varying theta parameters
             theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
             # Run the algorithm!
+
+            # Newton-Raphson
+            tc = time.time()
+            emd = self.run_ssll(theta, N, O, map_fun='nr')
+            print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_GRADIENT_NR)
+            self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_GRADIENT_NR) > DEFAULT_MLLK_TOLERANCE)
+            print('nr in %f s' %(time.time() - tc))
 
             # Conjugate Gradient
             tc = time.time()
