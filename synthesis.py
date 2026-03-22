@@ -98,7 +98,7 @@ def generate_thetas(N, O, T, mu1=-2., sigma1=50, mu2=0., sigma2=50, alpha=12., r
     return theta
 
 
-def generate_stationary_thetas(N, O, T):
+def generate_stationary_thetas(N, O, T, seed=None):
     """ Generates stationary thetas.
 
     :param int N:
@@ -107,10 +107,14 @@ def generate_stationary_thetas(N, O, T):
         Order of model
     :param int T:
         Number of time bins
+    :param int seed:
+        Random seed for reproducibility
 
     :return:
         Array (t, d) with non changing thetas. 'd' is the dimensionality of the model.
     """
+    if seed is not None:
+        numpy.random.seed(seed)
     th1, th2 = -3., 0.
     D = transforms.compute_D(N, O)
     th = numpy.zeros([T,D])

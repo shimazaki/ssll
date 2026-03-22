@@ -85,6 +85,10 @@ EXPECTED_MLLK_SINGLE_TIME_BIN_CG = -191.870697
 EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_BP = -189.688459
 EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP = -189.693955
 
+# Edge Case Expected Values
+EXPECTED_MLLK_SINGLE_NEURON = -166.797808
+EXPECTED_MLLK_SINGLE_TRIAL = -12.691274
+
 def klic(p_theta, q_theta, N):
     """
     Computes the Kullback-Leibler divergence for each timestep of two
@@ -344,7 +348,7 @@ class TestEstimator(unittest.TestCase):
             self.T = 1
             self.R = 300
             # Create time-varying theta parameters
-            theta = synthesis.generate_stationary_thetas(N, O, self.T)
+            theta = synthesis.generate_stationary_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
 
             # Exact
             tc = time.time()
@@ -381,6 +385,35 @@ class TestEstimator(unittest.TestCase):
             self.assertFalse(numpy.absolute(emd.mllk-EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP) > DEFAULT_MLLK_TOLERANCE)
             print('bfgs bethe cccp in %f s' %(time.time() - tc))
             end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
+    def test_8_edge_cases(self):
+        print("Test Edge Cases.")
+        start_cpu_time = time.process_time()
+
+        # Single neuron (N=1, O=1)
+        N, O = 1, 1
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+        emd = self.run_ssll(theta, N, O)
+        print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_NEURON)
+        self.assertFalse(numpy.absolute(emd.mllk - EXPECTED_MLLK_SINGLE_NEURON) > DEFAULT_MLLK_TOLERANCE)
+        print('single neuron OK')
+
+        # Single trial (R=1)
+        N, O = 3, 2
+        self.R = 1
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+        transforms.initialise(N, O)
+        p = numpy.zeros((self.T, 2**N))
+        for i in numpy.arange(self.T):
+            p[i,:] = transforms.compute_p(theta[i,:])
+        spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
+        emd = __init__.run(spikes, O, EM_Info=False)
+        print('Log marginal likelihood = %.6f (expected)' % EXPECTED_MLLK_SINGLE_TRIAL)
+        self.assertFalse(numpy.absolute(emd.mllk - EXPECTED_MLLK_SINGLE_TRIAL) > DEFAULT_MLLK_TOLERANCE)
+        print('single trial OK')
+
+        end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
 if __name__ == '__main__':
