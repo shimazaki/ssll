@@ -5,8 +5,19 @@ Command: time python -m unittest testing -v
 
 Baseline (pre-optimization): 11.979s (9 tests, all passing)
 
-All phases combined: 11.729s, 11.988s (9 tests, all passing)
-Speedup: ~2% (within noise for small N=3-6 test suite)
+Final (all optimizations): 12.175s (9 tests, all passing)
+
+Per-test comparison (seconds):
+                            Baseline    Optimized   Delta
+  test_0 (Gibbs sampler)      0.511       0.390    -24%
+  test_1 (1st order)          0.100       0.097     -3%
+  test_2 (2nd order)          0.233       0.232     -0%
+  test_3 (3rd order)          0.187       0.183     -2%
+  test_4 (state models)       2.901       2.819     -3%
+  test_5 (gradient opts)      0.821       0.813     -1%
+  test_6 (pseudolikelihood)   5.390       5.239     -3%
+  test_7 (single time bin)    1.093       1.066     -2%
+  test_8 (edge cases)         0.881       0.869     -1%
 
 Applied changes:
   Phase 0: Added __version__, rewrote README.md
@@ -15,15 +26,19 @@ Applied changes:
            replaced inv() with solve() in NR inner loop (inv only at convergence),
            replaced inv() with solve() in m_step_F
   Phase 4: Extracted _compute_lmbd_tmp() helper in bethe_approximation.py
-  Phase 5: Pre-allocated pattern array in Gibbs samplers
+  Phase 5: Pre-allocated pattern array in Gibbs samplers,
+           incremental energy computation (only check subsets containing
+           the flipped neuron instead of all subsets) — 24% Gibbs speedup
   Phase 6: numpy.tile instead of list comprehension+vstack in container.py
 
-Reverted (slower for small N due to function call overhead):
-  Phase 2: logsumexp in transforms.py and max_posterior.py
-  Phase 3: sparse.diags Fisher info in transforms.py
-  Phase 5: Combined dot products (boolean subtract requires .astype() cast)
+Reverted (slower for small D due to function call overhead):
+  Cholesky (cho_factor/cho_solve): +20-44% slower than numpy.linalg.solve
+           for D=6-10 matrices. Would help for D>50.
+  logsumexp: scipy.special.logsumexp overhead > benefit for 2^N arrays with N<=6
+  sparse.diags Fisher info: overhead of constructing sparse diagonal each call
+  Combined Gibbs dot products: boolean subtract requires .astype(float) cast
 
 Note: Optimizations target large N where 2^N operations dominate.
-      Test suite uses N=3-6 so speedup is minimal. For N>12 with
+      Test suite uses N=3-6 so aggregate speedup is modest. For N>12 with
       exact methods, the slogdet and solve changes prevent numerical
       overflow and reduce O(D^3) operations in inner loops.

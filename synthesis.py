@@ -225,6 +225,15 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         subset_map[i, subsets[i]] = 1
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
+    # Precompute per-neuron: relevant subset indices and their reduced counts
+    neuron_rel_idx = []
+    neuron_rel_count = []
+    neuron_rel_map = []
+    for i in range(N):
+        rel = numpy.where(subset_map[:, i] == 1)[0]
+        neuron_rel_idx.append(rel)
+        neuron_rel_count.append(subset_count[rel] - 1)
+        neuron_rel_map.append(subset_map[rel])
     # Pre-allocate pattern array
     pattern = numpy.zeros(N, dtype=numpy.uint8)
     # Iterate over all time bins
@@ -234,6 +243,8 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
         rand_numbers = rng.random((steps*R+pre_R, N))
         # Iterate through all Runs
         cur_theta = theta[t]
+        # Precompute per-neuron theta slices for this time bin
+        neuron_theta = [cur_theta[rel] for rel in neuron_rel_idx]
         for l in range(1, steps*R+pre_R):
             # Iterate through all cells
             for i in range(N):
@@ -241,15 +252,13 @@ def generate_spikes_gibbs(theta, N, O, R, **kwargs):
                 # from neurons that have been seen in this trial
                 pattern[:i] = X[t, l, :i]
                 pattern[i:] = X[t, l-1, i:]
-                # set x^(i,t) to "1" and compute f(X) for those
-                pattern[i] = 1
-                fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)
-                # Set x^(i,t) to "0" and compute f(X) for those
                 pattern[i] = 0
-                fx0 = (numpy.dot(pattern, subset_map.T) == subset_count)
+                # Only check subsets containing neuron i
+                partial = neuron_rel_map[i].dot(pattern)
+                active = (partial == neuron_rel_count[i])
+                delta_energy = neuron_theta[i].dot(active)
                 # compute p( x^(i,l) = 1 || X^(1:i-1,t),X^(i+1:N,l-1) )
-                prob_spike = 0.5*(1 + numpy.tanh(0.5*(numpy.dot(cur_theta,fx1)
-                                                - numpy.dot(cur_theta,fx0))))
+                prob_spike = 0.5*(1 + numpy.tanh(0.5*delta_energy))
                 # if smaller than probability X^(i,l) -> 1
                 X[t, l, i] = numpy.greater_equal(prob_spike,
                                                  rand_numbers[l, i])
@@ -306,17 +315,29 @@ def generate_spikes_gibbs_parallel(theta, N, O, R, **kwargs):
         subset_map[i, subsets[i]] = 1
     # Count how many cells must be active for each theta
     subset_count = numpy.sum(subset_map, axis=1)
+    # Precompute per-neuron relevant subsets for incremental Gibbs
+    neuron_rel_idx = []
+    neuron_rel_count = []
+    neuron_rel_map = []
+    for i in range(N):
+        rel = numpy.where(subset_map[:, i] == 1)[0]
+        neuron_rel_idx.append(rel)
+        neuron_rel_count.append(subset_count[rel] - 1)
+        neuron_rel_map.append(subset_map[rel])
     # Parallel samplings at all time bins
     pool = Pool(num_proc)
     results = pool.map(partial(gibbs_sampler, X=X, theta=theta, N=N, R=R,
-        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps, seed=seed),
+        pre_R=pre_R, subset_map=subset_map, subset_count=subset_count, steps=steps, seed=seed,
+        neuron_rel_idx=neuron_rel_idx, neuron_rel_count=neuron_rel_count,
+        neuron_rel_map=neuron_rel_map),
         range(T))
     pool.close()
 
     return numpy.array(results)
 
 
-def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, seed=None):
+def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, seed=None,
+                  neuron_rel_idx=None, neuron_rel_count=None, neuron_rel_map=None):
     """ Samples the spike data using Gibbs sampling for time bin t.
 
     :param int t:
@@ -339,6 +360,12 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, see
         Number of steps between samples
     :param int seed:
         Random seed for reproducibility (Default=None)
+    :param list neuron_rel_idx:
+        Precomputed per-neuron relevant subset indices
+    :param list neuron_rel_count:
+        Precomputed per-neuron reduced counts
+    :param list neuron_rel_map:
+        Precomputed per-neuron subset maps
     """
     cur_theta = theta[t]
     cur_X = numpy.zeros([R*steps+pre_R, N])
@@ -346,6 +373,9 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, see
     # Create per-bin RNG for reproducibility
     rng = numpy.random.default_rng(seed + t if seed is not None else None)
     rand_numbers = rng.random((R*steps + pre_R, N))
+
+    # Precompute per-neuron theta slices
+    neuron_theta = [cur_theta[rel] for rel in neuron_rel_idx]
 
     # Pre-allocate pattern array
     pattern = numpy.zeros(N)
@@ -356,15 +386,13 @@ def gibbs_sampler(t, X, theta, N, R, pre_R, subset_map, subset_count, steps, see
             # from neurons that have been seen in this trial
             pattern[:i] = cur_X[l, :i]
             pattern[i:] = cur_X[l-1, i:]
-            # set x^(i,t) to "1" and compute f(X) for those
-            pattern[i] = 1
-            fx1 = (numpy.dot(pattern, subset_map.T) == subset_count)
-            # Set x^(i,t) to "0" and compute f(X) for those
             pattern[i] = 0
-            fx0 = (numpy.dot(pattern, subset_map.T) == subset_count)
+            # Only check subsets containing neuron i
+            partial = neuron_rel_map[i].dot(pattern)
+            active = (partial == neuron_rel_count[i])
+            delta_energy = neuron_theta[i].dot(active)
             # compute p( x^(i,l) = 1 || X^(1:i-1,t),X^(i+1:N,l-1) )
-            prob_spike = 0.5*(1 + numpy.tanh(0.5*(numpy.dot(cur_theta,fx1)
-                                                - numpy.dot(cur_theta,fx0))))
+            prob_spike = 0.5*(1 + numpy.tanh(0.5*delta_energy))
             # if smaller than probability X^(i,l) -> 1
             cur_X[l, i] = numpy.greater_equal(prob_spike, rand_numbers[l, i])
 
