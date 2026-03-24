@@ -38,43 +38,39 @@ emd = ssll.run(spikes, order=2, window=1, param_est='exact', param_est_eta='exac
 
 ### Log-Linear Model
 
-Spike patterns are modelled by an exponential-family distribution over binary vectors **x** = (x_1, ..., x_N). The log-linear (maximum entropy) model decomposes the log-probability into interaction terms up to order O:
+Spike patterns are modelled by an exponential-family distribution over binary vectors $\mathbf{x} = (x_1, \ldots, x_N)$. The log-linear (maximum entropy) model decomposes the log-probability into interaction terms up to order O:
 
-```
-log p(x | theta) = sum_i theta_i x_i                       (1st order: firing rates)
-                  + sum_{i<j} theta_ij x_i x_j             (2nd order: pairwise / Ising)
-                  + sum_{i<j<k} theta_ijk x_i x_j x_k      (3rd order: triplet)
-                  + ...
-                  - psi(theta)
-```
+$$\log p(\mathbf{x} \mid \boldsymbol{\theta}) = \sum_i \theta_i x_i + \sum_{i<j} \theta_{ij} x_i x_j + \sum_{i<j<k} \theta_{ijk} x_i x_j x_k + \cdots - \psi(\boldsymbol{\theta})$$
 
-where psi(theta) is the log partition function ensuring normalisation, and the sums extend up to the maximum interaction order O set by the `order` parameter.
+where $\psi(\boldsymbol{\theta})$ is the log partition function ensuring normalisation, and the sums extend up to the maximum interaction order O set by the `order` parameter.
 
-**Example (N=3, O=2):** The model has D = 6 natural parameters — three first-order (theta_1, theta_2, theta_3) controlling individual firing rates and three pairwise (theta_12, theta_13, theta_23) controlling spike correlations:
+**Example (N=3, O=2):** The model has D = 6 natural parameters — three first-order ($\theta_1, \theta_2, \theta_3$) controlling individual firing rates and three pairwise ($\theta_{12}, \theta_{13}, \theta_{23}$) controlling spike correlations:
 
-```
-log p(x | theta) = theta_1 x_1 + theta_2 x_2 + theta_3 x_3
-                  + theta_12 x_1 x_2 + theta_13 x_1 x_3 + theta_23 x_2 x_3
-                  - psi(theta)
-```
+$$\log p(\mathbf{x} \mid \boldsymbol{\theta}) = \theta_1 x_1 + \theta_2 x_2 + \theta_3 x_3 + \theta_{12} x_1 x_2 + \theta_{13} x_1 x_3 + \theta_{23} x_2 x_3 - \psi(\boldsymbol{\theta})$$
 
 - **O=1:** Independent model — each neuron fires independently (no interactions).
 - **O=2:** Pairwise Ising model — captures pairwise correlations (the most common choice).
 - **O=3:** Adds triplet interactions for higher-order correlations beyond pairwise.
 
-The sufficient statistics **F(x)** collect all monomials up to order O, and the expectation parameters **eta** = E[F(x)] (firing rates, spike coincidence probabilities) form the dual coordinates.
+The sufficient statistics $\mathbf{F}(\mathbf{x})$ collect all monomials up to order O, and the expectation parameters $\boldsymbol{\eta} = \mathrm{E}[\mathbf{F}(\mathbf{x})]$ (firing rates, spike coincidence probabilities) form the dual coordinates.
 
 ### State-Space Formulation
 
-The natural parameters evolve over time as a linear dynamical system:
+The natural parameters evolve over time as a state-space model with a linear state equation and a log-linear observation model.
 
-```
-theta_t = F * theta_{t-1} + xi_t,    xi_t ~ N(0, Q)
-```
+**State equation:**
 
-**Autoregressive parameter F** is a D×D matrix controlling how the parameters at time t-1 predict the parameters at time t:
+$$\boldsymbol{\theta}_t = F \boldsymbol{\theta}_{t-1} + \boldsymbol{\xi}_t, \qquad \boldsymbol{\xi}_t \sim \mathcal{N}(\mathbf{0}, Q)$$
 
-- **Default (F = I):** The identity matrix gives a random-walk model: theta_t = theta_{t-1} + xi_t. Each parameter drifts freely from its previous value.
+**Observation equation:**
+
+$$\log p(\mathbf{y}_t \mid \boldsymbol{\theta}_t) = R\left[\mathbf{y}_t^\top \boldsymbol{\theta}_t - \psi(\boldsymbol{\theta}_t)\right]$$
+
+where $\mathbf{y}_t$ is the vector of empirical spike-pattern frequencies at time $t$ and $R$ is the number of trials. This is the log-linear model from the previous section applied as the observation likelihood: the sufficient statistics of the observed spike patterns are compared against the model's expectation under $\boldsymbol{\theta}_t$.
+
+**Autoregressive parameter F** is a D×D matrix controlling how the parameters at time $t{-}1$ predict the parameters at time $t$:
+
+- **Default ($F = I$):** The identity matrix gives a random-walk model: $\boldsymbol{\theta}_t = \boldsymbol{\theta}_{t-1} + \boldsymbol{\xi}_t$. Each parameter drifts freely from its previous value.
 - **General F:** An autoregressive matrix that can capture mean-reverting dynamics, coupling between parameters, or other structured temporal dependencies.
 - Set the initial value of F via the `state_ar` parameter. When `state_ar` is provided, F is optimised during the M-step. When `state_ar=None` (default), F stays fixed at identity.
 
@@ -107,23 +103,23 @@ For large N where exact 2^N computation is infeasible:
 
 After fitting, the model provides time-resolved thermodynamic quantities that characterise the collective state of the population (Donner et al. 2017). These are computed by `energies.py` and stored in the `EMData` container:
 
-- **Log partition function psi(theta):** Normalisation constant of the log-linear model. Computed exactly for small N, via the Ogata-Tanemura estimator for large N, or via TAP/Bethe approximations. Stored in `emd.psi` (shape: T×1).
+- **Log partition function $\psi(\boldsymbol{\theta})$:** Normalisation constant of the log-linear model. Computed exactly for small N, via the Ogata-Tanemura estimator for large N, or via TAP/Bethe approximations. Stored in `emd.psi` (shape: T×1).
 
 - **Entropy:** Measures the variability of population spike patterns.
-  ```
-  S = -sum_x p(x) log p(x) = psi(theta) - theta . eta
-  ```
+
+  $$S = -\sum_{\mathbf{x}} p(\mathbf{x}) \log p(\mathbf{x}) = \psi(\boldsymbol{\theta}) - \boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
+
   `emd.S1` — entropy of the independent (O=1) model. `emd.S2` — entropy of the fitted model. `emd.S_ratio = (S1 - S2) / S1` — fractional entropy reduction due to interactions.
 
 - **Internal energy:** Expected value of the negative log-probability (energy function).
-  ```
-  U = -sum_x p(x) log p(x | theta) / psi = -theta . eta
-  ```
+
+  $$U = -\sum_{\mathbf{x}} p(\mathbf{x}) \log \frac{p(\mathbf{x} \mid \boldsymbol{\theta})}{\psi} = -\boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
+
   `emd.U1` — internal energy of the independent model. `emd.U2` — internal energy of the fitted model.
 
 - **Population spike rate:** The first-order expectation parameters `emd.eta_s[:, :N]` give the marginal firing probability of each neuron at each timestep.
 
-- **Silence probability:** The probability that no neuron fires: `p(x=0) = exp(-psi(theta))`, computable from `emd.psi`.
+- **Silence probability:** The probability that no neuron fires: $p(\mathbf{x}=\mathbf{0}) = \exp(-\psi(\boldsymbol{\theta}))$, computable from `emd.psi`.
 
 **Note:** Heat capacity (Donner 2017, Eq. 33) is not yet implemented — it requires an augmented partition function with a temperature parameter beta.
 
