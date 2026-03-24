@@ -40,7 +40,7 @@ emd = ssll.run(spikes, order=2, window=1, param_est='exact', param_est_eta='exac
 
 Spike patterns are modelled by an exponential-family distribution over binary vectors $\mathbf{x} = (x_1, \ldots, x_N)$. The log-linear (maximum entropy) model decomposes the log-probability into interaction terms up to order O:
 
-$$\log p(\mathbf{x} \mid \boldsymbol{\theta}) = \sum_i \theta_i x_i + \sum_{i<j} \theta_{ij} x_i x_j + \sum_{i<j<k} \theta_{ijk} x_i x_j x_k + \cdots - \psi(\boldsymbol{\theta})$$
+$$\log p(\mathbf{x} \mid \boldsymbol{\theta}) = \sum_i \theta_i x_i + \sum_{i \lt j} \theta_{ij} x_i x_j + \sum_{i \lt j \lt k} \theta_{ijk} x_i x_j x_k + \cdots - \psi(\boldsymbol{\theta})$$
 
 where $\psi(\boldsymbol{\theta})$ is the log partition function ensuring normalisation, and the sums extend up to the maximum interaction order O set by the `order` parameter.
 
