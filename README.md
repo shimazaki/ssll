@@ -70,7 +70,7 @@ where $\mathbf{y}_t$ is the vector of empirical spike-pattern frequencies at tim
 
 **Autoregressive parameter F** is a D×D matrix controlling how the parameters at time $t{-}1$ predict the parameters at time $t$:
 
-- **Default ($F = I$):** The identity matrix gives a random-walk model: $\boldsymbol{\theta}_t = \boldsymbol{\theta}_{t-1} + \boldsymbol{\xi}_t$. Each parameter drifts freely from its previous value.
+- **Default ($F = I$):** The identity matrix gives a random-walk model: $\boldsymbol{\theta}\_t = \boldsymbol{\theta}\_{t-1} + \boldsymbol{\xi}\_t$. Each parameter drifts freely from its previous value.
 - **General F:** An autoregressive matrix that can capture mean-reverting dynamics, coupling between parameters, or other structured temporal dependencies.
 - Set the initial value of F via the `state_ar` parameter. When `state_ar` is provided, F is optimised during the M-step. When `state_ar=None` (default), F stays fixed at identity.
 
@@ -107,13 +107,13 @@ After fitting, the model provides time-resolved thermodynamic quantities that ch
 
 - **Entropy:** Measures the variability of population spike patterns.
 
-  $$S = -\sum_{\mathbf{x}} p(\mathbf{x}) \log p(\mathbf{x}) = \psi(\boldsymbol{\theta}) - \boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
+$$S = -\sum_{\mathbf{x}} p(\mathbf{x}) \log p(\mathbf{x}) = \psi(\boldsymbol{\theta}) - \boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
 
   `emd.S1` — entropy of the independent (O=1) model. `emd.S2` — entropy of the fitted model. `emd.S_ratio = (S1 - S2) / S1` — fractional entropy reduction due to interactions.
 
 - **Internal energy:** Expected value of the negative log-probability (energy function).
 
-  $$U = -\sum_{\mathbf{x}} p(\mathbf{x}) \log \frac{p(\mathbf{x} \mid \boldsymbol{\theta})}{\psi} = -\boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
+$$U = -\sum_{\mathbf{x}} p(\mathbf{x}) \log \frac{p(\mathbf{x} \mid \boldsymbol{\theta})}{\psi} = -\boldsymbol{\theta} \cdot \boldsymbol{\eta}$$
 
   `emd.U1` — internal energy of the independent model. `emd.U2` — internal energy of the fitted model.
 
