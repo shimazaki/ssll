@@ -38,13 +38,31 @@ emd = ssll.run(spikes, order=2, window=1, param_est='exact', param_est_eta='exac
 
 ### Log-Linear Model
 
-Spike patterns are modelled by an exponential-family distribution over binary vectors **x** = (x_1, ..., x_N):
+Spike patterns are modelled by an exponential-family distribution over binary vectors **x** = (x_1, ..., x_N). The log-linear (maximum entropy) model decomposes the log-probability into interaction terms up to order O:
 
 ```
-log p(x | theta) = theta^T F(x) - psi(theta)
+log p(x | theta) = sum_i theta_i x_i                       (1st order: firing rates)
+                  + sum_{i<j} theta_ij x_i x_j             (2nd order: pairwise / Ising)
+                  + sum_{i<j<k} theta_ijk x_i x_j x_k      (3rd order: triplet)
+                  + ...
+                  - psi(theta)
 ```
 
-where **theta** are the natural parameters, **F(x)** are sufficient statistics (individual spikes and their coincidences up to order O), and psi(theta) is the log partition function. The expectation parameters **eta** = E[F(x)] form the dual coordinates.
+where psi(theta) is the log partition function ensuring normalisation, and the sums extend up to the maximum interaction order O set by the `order` parameter.
+
+**Example (N=3, O=2):** The model has D = 6 natural parameters — three first-order (theta_1, theta_2, theta_3) controlling individual firing rates and three pairwise (theta_12, theta_13, theta_23) controlling spike correlations:
+
+```
+log p(x | theta) = theta_1 x_1 + theta_2 x_2 + theta_3 x_3
+                  + theta_12 x_1 x_2 + theta_13 x_1 x_3 + theta_23 x_2 x_3
+                  - psi(theta)
+```
+
+- **O=1:** Independent model — each neuron fires independently (no interactions).
+- **O=2:** Pairwise Ising model — captures pairwise correlations (the most common choice).
+- **O=3:** Adds triplet interactions for higher-order correlations beyond pairwise.
+
+The sufficient statistics **F(x)** collect all monomials up to order O, and the expectation parameters **eta** = E[F(x)] (firing rates, spike coincidence probabilities) form the dual coordinates.
 
 ### State-Space Formulation
 
@@ -53,6 +71,19 @@ The natural parameters evolve over time as a linear dynamical system:
 ```
 theta_t = F * theta_{t-1} + xi_t,    xi_t ~ N(0, Q)
 ```
+
+**Autoregressive parameter F** is a D×D matrix controlling how the parameters at time t-1 predict the parameters at time t:
+
+- **Default (F = I):** The identity matrix gives a random-walk model: theta_t = theta_{t-1} + xi_t. Each parameter drifts freely from its previous value.
+- **General F:** An autoregressive matrix that can capture mean-reverting dynamics, coupling between parameters, or other structured temporal dependencies.
+- Set the initial value of F via the `state_ar` parameter. When `state_ar` is provided, F is optimised during the M-step. When `state_ar=None` (default), F stays fixed at identity.
+
+**State noise covariance Q** controls the expected magnitude of parameter changes between timesteps. The `state_cov` parameter sets the initial value of Q in one of four forms:
+
+- **Scalar** (e.g. `0.01`): Q = 0.01 × I — isotropic noise, all D parameters share one variance. Updated as a single scalar in the M-step. Simplest and usually sufficient.
+- **Vector** (1D array, length D): Q = diag(state_cov) — each parameter has its own variance. Updated element-wise in the M-step.
+- **Matrix** (D×D array): Q = state_cov — full covariance, captures correlations between parameter changes. Updated as a full matrix in the M-step. Expensive (D² parameters).
+- **List of 2 values** (e.g. `[0.01, 0.001]`): Q = diag(λ1,...,λ1, λ2,...,λ2) — separate variances for first-order parameters (rates) and higher-order parameters (interactions). λ1 and λ2 are updated separately. Use this when rates and interactions evolve at different timescales.
 
 The EM algorithm alternates between:
 
@@ -72,6 +103,30 @@ For large N where exact 2^N computation is infeasible:
 
 **When to use which:** Use exact methods for N <= 12. For larger networks, use `pseudo` + `mf` for speed, or `pseudo` + `bethe_hybrid` for better accuracy.
 
+### Macroscopic Network Properties
+
+After fitting, the model provides time-resolved thermodynamic quantities that characterise the collective state of the population (Donner et al. 2017). These are computed by `energies.py` and stored in the `EMData` container:
+
+- **Log partition function psi(theta):** Normalisation constant of the log-linear model. Computed exactly for small N, via the Ogata-Tanemura estimator for large N, or via TAP/Bethe approximations. Stored in `emd.psi` (shape: T×1).
+
+- **Entropy:** Measures the variability of population spike patterns.
+  ```
+  S = -sum_x p(x) log p(x) = psi(theta) - theta . eta
+  ```
+  `emd.S1` — entropy of the independent (O=1) model. `emd.S2` — entropy of the fitted model. `emd.S_ratio = (S1 - S2) / S1` — fractional entropy reduction due to interactions.
+
+- **Internal energy:** Expected value of the negative log-probability (energy function).
+  ```
+  U = -sum_x p(x) log p(x | theta) / psi = -theta . eta
+  ```
+  `emd.U1` — internal energy of the independent model. `emd.U2` — internal energy of the fitted model.
+
+- **Population spike rate:** The first-order expectation parameters `emd.eta_s[:, :N]` give the marginal firing probability of each neuron at each timestep.
+
+- **Silence probability:** The probability that no neuron fires: `p(x=0) = exp(-psi(theta))`, computable from `emd.psi`.
+
+**Note:** Heat capacity (Donner 2017, Eq. 33) is not yet implemented — it requires an augmented partition function with a temperature parameter beta.
+
 ## API Reference
 
 ### `ssll.run(spikes, **kwargs)`
@@ -86,14 +141,22 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `map_function` | str | `'cg'` | MAP optimizer: `'nr'`, `'cg'`, `'bf'` |
 | `param_est` | str | `'exact'` | `'exact'` or `'pseudo'` |
 | `param_est_eta` | str | `'exact'` | `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'` |
-| `state_cov` | float/array | 0.01 | Noise covariance Q (scalar, vector, or matrix) |
+| `state_cov` | float/array/list | 0.01 | Initial noise covariance Q: scalar (isotropic), 1D array (diagonal), D×D array (full), or list of 2 values [λ1, λ2] (separate rates/interactions) |
 | `state_ar` | ndarray | None | Autoregressive parameter F (DxD); None = identity |
 | `max_iter` | int | 100 | Maximum EM iterations |
 | `theta_o` | float/array | 0 | Prior mean |
 | `sigma_o` | float | 0.1 | Prior covariance scaling |
 | `mstep` | bool | True | Whether to run M-step |
 
-**Returns:** `container.EMData` object with fields `theta_s` (smoothed means), `sigma_s` (smoothed covariances), `eta_s` (expectation parameters), `mllk` (log marginal likelihood), etc.
+**Returns:** `container.EMData` object with fields:
+- `theta_s` — smoothed natural parameters (T×D)
+- `sigma_s` — smoothed covariances (T×D×D)
+- `eta_s` — expectation parameters (T×D)
+- `mllk` — log marginal likelihood history (per EM iteration)
+- `psi` — log partition function (T×1)
+- `S1`, `S2` — entropy of independent and fitted models (T×1)
+- `S_ratio` — fractional entropy reduction (S1−S2)/S1 (T×1)
+- `U1`, `U2` — internal energy of independent and fitted models (T×1)
 
 ## Examples
 
