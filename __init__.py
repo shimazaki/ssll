@@ -79,7 +79,8 @@ import bethe_approximation
 def run(spikes, order=2, window=1, map_function='cg', \
         state_cov=0.01, state_ar=None, max_iter=100,
         param_est='exact', param_est_eta='exact',\
-        theta_o=0, sigma_o=0.1, mstep=True, EM_Info=True):
+        theta_o=0, sigma_o=0.1, mstep=True, EM_Info=True,
+        stationary=False):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -138,6 +139,11 @@ def run(spikes, order=2, window=1, map_function='cg', \
     :param boolean mstep:
         The m-step of the EM algorithm is performed only if this parameter
         is true. (Default='True')
+    :param bool stationary:
+        If True, fit a time-independent model by pooling all T×R
+        observations into a single time step. Spikes (T, R, N) are reshaped
+        to (1, T*R, N) and state_cov is forced to None (Q=0, no update).
+        Default is False.
 
     :returns:
         Results encapsulated in a container.EMData object, containing the
@@ -147,12 +153,17 @@ def run(spikes, order=2, window=1, map_function='cg', \
     """
     # Ensure NaNs are caught
     numpy.seterr(invalid='raise')
+
+    # Stationary mode: pool all time bins as trials, fit single time step
+    if stationary:
+        T, R, N = spikes.shape
+        spikes = spikes.reshape(1, T * R, N)
+        state_cov = None
+        state_ar = None
+
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the EM-data container
-    #if stationary == 'all':
-    #    lmbda1, lmbda2 = numpy.inf, numpy.inf
-
     emd = container.EMData(spikes, order, window, param_est, param_est_eta,
                            map_function, state_cov, state_ar, theta_o, sigma_o)
 

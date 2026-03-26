@@ -96,13 +96,10 @@ The model supports stationary (time-independent) analysis by setting T=1. With a
 
 The EM iterations converge when $\mu = \hat{\boldsymbol{\theta}}$, i.e., the prior mean equals the posterior mode. Because $\Sigma$ is held fixed, the result is a regularised MAP estimate rather than the pure MLE. This is the same model used in stationary Ising/spin-glass analysis of spike data (Shimazaki et al. 2012, condition (i) with $\mathbf{Q} = 0$ and $\mathbf{F} = I$).
 
-If your data has multiple time bins but you wish to assume stationarity, reshape the data to pool all time bins as trials:
+Use `stationary=True` to fit a stationary model. This automatically pools all T×R observations into a single time step and sets Q=0:
 
 ```python
-# Original data: (T, R, N) — T time bins, R trials, N neurons
-# Pool time bins as trials for stationary analysis: (1, T*R, N)
-spikes_pooled = spikes.reshape(1, -1, spikes.shape[2])
-emd = ssll.run(spikes_pooled, order=2, window=1, param_est='exact', param_est_eta='exact')
+emd = ssll.run(spikes, order=2, param_est='exact', param_est_eta='exact', stationary=True)
 ```
 
 ### Approximation Methods
@@ -162,6 +159,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `theta_o` | float/array | 0 | Prior mean |
 | `sigma_o` | float | 0.1 | Prior covariance scaling |
 | `mstep` | bool | True | Whether to run M-step |
+| `stationary` | bool | False | Pool all T×R observations into one time step (Q=0) for stationary analysis |
 
 **Returns:** `container.EMData` object with fields:
 - `theta_s` — smoothed natural parameters (T×D)
