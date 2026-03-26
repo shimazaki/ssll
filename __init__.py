@@ -73,6 +73,8 @@ import transforms
 import pseudo_likelihood
 import mean_field
 import energies
+import thermodynamics
+import util
 import bethe_approximation
 
 
