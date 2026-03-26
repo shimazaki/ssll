@@ -20,7 +20,7 @@ python -m unittest testing -v
 python -m unittest testing.TestEstimator.test_0_spike_generation
 ```
 
-Tests use `unittest` (not pytest). The 8 tests are numbered 0–7 and validate against expected KL divergence thresholds and log marginal likelihood values.
+Tests use `unittest` (not pytest). The 9 tests are numbered 0–8 and validate against expected KL divergence thresholds and log marginal likelihood values.
 
 ## Running Examples
 
@@ -62,4 +62,5 @@ The `run()` function in `__init__.py` is the main entry point. It initializes an
 - `param_est_eta`: `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'`.
 - `state_cov`: Noise covariance — scalar (isotropic), vector (diagonal), or matrix (full).
 - `state_ar`: Autoregressive parameter matrix for state dynamics.
+- `stationary`: If `True`, pools all T×R observations into a single time step (Q=0) for time-independent analysis.
 - Spike data format: binary numpy array shaped `(time_bins, trials, neurons)`.
