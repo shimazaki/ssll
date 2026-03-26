@@ -86,6 +86,25 @@ The EM algorithm alternates between:
 - **E-step:** Recursive Bayesian filter (forward) and smoother (backward) with Laplace approximation at each timestep. The MAP estimate is found via Newton-Raphson (`nr`), conjugate gradient (`cg`, default), or BFGS (`bf`).
 - **M-step:** Optimize the noise covariance Q and (optionally) the autoregressive parameter F.
 
+### Stationary Analysis (T=1)
+
+The model supports stationary (time-independent) analysis by setting T=1. With a single time bin, the state-space machinery reduces to Bayesian inference of a static parameter:
+
+- The initial distribution $\boldsymbol{\theta}_1 \sim \mathcal{N}(\mu, \Sigma)$ serves as the prior, with $\mu$ = `theta_o` and $\Sigma$ = `sigma_o` $\times I$.
+- The **E-step** computes the MAP estimate $\hat{\boldsymbol{\theta}}$ balancing the prior and the observation likelihood. No forward-backward recursion is needed.
+- The **M-step** updates only the prior mean: $\mu \leftarrow \hat{\boldsymbol{\theta}}$. The state noise Q and autoregressive parameter F are not updated (there are no state transitions to estimate them from). The prior covariance $\Sigma$ remains fixed.
+
+The EM iterations converge when $\mu = \hat{\boldsymbol{\theta}}$, i.e., the prior mean equals the posterior mode. Because $\Sigma$ is held fixed, the result is a regularised MAP estimate rather than the pure MLE. This is the same model used in stationary Ising/spin-glass analysis of spike data (Shimazaki et al. 2012, condition (i) with $\mathbf{Q} = 0$ and $\mathbf{F} = I$).
+
+If your data has multiple time bins but you wish to assume stationarity, reshape the data to pool all time bins as trials:
+
+```python
+# Original data: (T, R, N) — T time bins, R trials, N neurons
+# Pool time bins as trials for stationary analysis: (1, T*R, N)
+spikes_pooled = spikes.reshape(1, -1, spikes.shape[2])
+emd = ssll.run(spikes_pooled, order=2, window=1, param_est='exact', param_est_eta='exact')
+```
+
 ### Approximation Methods
 
 For large N where exact 2^N computation is infeasible:
