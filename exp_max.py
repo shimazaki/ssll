@@ -91,7 +91,7 @@ def e_step(emd):
     e_step_smooth(emd)
 
     # Compute expectation parameters
-    for i in range(1, emd.T): 
+    for i in range(emd.T):
         if emd.param_est_eta == 'exact':
             p = transforms.compute_p(emd.theta_s[i,:])
             emd.eta_s[i,:] = transforms.compute_eta(p)

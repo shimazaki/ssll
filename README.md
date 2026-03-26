@@ -175,6 +175,4 @@ GPL-3.0. See [LICENSE](http://www.gnu.org/licenses/gpl-3.0.html).
 
 - Hideaki Shimazaki (h.shimazaki@kyoto-u.ac.jp)
 - Christian Donner (christian.donner@bccn-berlin.de)
-- Thomas Sharp (original exact inference code)
-- Jimmy Gaudreault (prior specification extensions)
-- Magalie Tatischeff (autoregressive parameter extensions)
+- Thomas Sharp (original code in Python)
