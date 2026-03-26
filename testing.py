@@ -43,7 +43,9 @@ import unittest
 import time
 
 import __init__
+import energies
 import synthesis
+import thermodynamics
 import transforms
 
 # Test Parameters
@@ -89,6 +91,20 @@ EXPECTED_MLLK_SINGLE_TIME_BIN_BFGS_CCCP = -149.585147
 # Edge Case Expected Values
 EXPECTED_MLLK_SINGLE_NEURON = -133.413675
 EXPECTED_MLLK_SINGLE_TRIAL = -17.040421
+
+# Thermodynamics Expected Values (N=4, O=2, T=20, R=20, seed=42/1, numpy.random.seed(0), samples=50)
+THERMO_RANDOM_SEED = 0
+THERMO_SAMPLES = 50
+THERMO_THRESHOLD = 90
+THERMO_TOLERANCE = 1e-4
+EXPECTED_S_PAIR_FIRST = 1.464306
+EXPECTED_S_PAIR_LAST = 1.390805
+EXPECTED_S_RATIO_FIRST = 0.866118
+EXPECTED_C_FIRST = 1.574292
+EXPECTED_C_LAST = 1.602107
+EXPECTED_P_SILENCE_FIRST = 0.586762
+EXPECTED_P_SILENCE_LAST = 0.610721
+EXPECTED_C_BETA_MID_FIRST = 1.635892
 
 def klic(p_theta, q_theta, N):
     """
@@ -423,6 +439,86 @@ class TestEstimator(unittest.TestCase):
 
         end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
+    def test_9_thermodynamics(self):
+        print("Test Thermodynamics (N=4, O=2).")
+        start_cpu_time = time.process_time()
+
+        # Fit a model (same as test_2)
+        N, O = 4, 2
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+        emd = self.run_ssll(theta, N, O)
+        energies.get_energies(emd)
+
+        # --- get_theta_samples ---
+        thetas = thermodynamics.get_theta_samples(emd, 10)
+        self.assertEqual(thetas.shape, (self.T, emd.D, 10))
+        # First sample should be the MAP estimate
+        self.assertTrue(numpy.allclose(thetas[:, :, 0], emd.theta_s),
+                        "First theta sample should equal theta_s")
+        print('get_theta_samples OK')
+
+        # --- get_entropy (deterministic) ---
+        S_pair, S_ratio = thermodynamics.get_entropy(emd)
+        self.assertEqual(S_pair.shape, (self.T,))
+        self.assertAlmostEqual(S_pair[0], EXPECTED_S_PAIR_FIRST, places=4)
+        self.assertAlmostEqual(S_ratio[0], EXPECTED_S_RATIO_FIRST, places=4)
+        print('get_entropy OK (S_pair[0]=%.6f, S_ratio[0]=%.6f)' % (S_pair[0], S_ratio[0]))
+
+        # --- compute_c (deterministic) ---
+        C = thermodynamics.compute_c(emd)
+        self.assertEqual(C.shape, (self.T,))
+        self.assertAlmostEqual(C[0], EXPECTED_C_FIRST, places=4)
+        self.assertAlmostEqual(C[-1], EXPECTED_C_LAST, places=4)
+        print('compute_c OK (C[0]=%.6f, C[-1]=%.6f)' % (C[0], C[-1]))
+
+        # --- compute_entropy_b (with sampling) ---
+        numpy.random.seed(THERMO_RANDOM_SEED)
+        S_pair_b, S_pair_bounds, S_ratio_b, S_ratio_bounds = \
+            thermodynamics.compute_entropy_b(emd, THERMO_SAMPLES, THERMO_THRESHOLD)
+        self.assertEqual(S_pair_b.shape, (self.T,))
+        self.assertEqual(S_pair_bounds.shape, (self.T, 2))
+        self.assertAlmostEqual(S_pair_b[0], EXPECTED_S_PAIR_FIRST, places=4)
+        self.assertAlmostEqual(S_pair_b[-1], EXPECTED_S_PAIR_LAST, places=4)
+        # Bounds should bracket the MAP estimate
+        self.assertTrue(S_pair_bounds[0, 0] <= S_pair_b[0] <= S_pair_bounds[0, 1],
+                        "Entropy bounds should bracket MAP estimate")
+        print('compute_entropy_b OK (S_pair[0]=%.6f, bounds=[%.4f, %.4f])' %
+              (S_pair_b[0], S_pair_bounds[0, 0], S_pair_bounds[0, 1]))
+
+        # --- compute_c_b (with sampling) ---
+        numpy.random.seed(THERMO_RANDOM_SEED)
+        C_b, C_bounds = thermodynamics.compute_c_b(emd, THERMO_SAMPLES, THERMO_THRESHOLD)
+        self.assertEqual(C_b.shape, (self.T,))
+        self.assertEqual(C_bounds.shape, (self.T, 2))
+        self.assertAlmostEqual(C_b[0], EXPECTED_C_FIRST, places=4)
+        self.assertAlmostEqual(C_b[-1], EXPECTED_C_LAST, places=4)
+        self.assertTrue(C_bounds[0, 0] <= C_b[0] <= C_bounds[0, 1],
+                        "Heat capacity bounds should bracket MAP estimate")
+        print('compute_c_b OK (C[0]=%.6f, bounds=[%.4f, %.4f])' %
+              (C_b[0], C_bounds[0, 0], C_bounds[0, 1]))
+
+        # --- compute_p_silence_b (with sampling) ---
+        numpy.random.seed(THERMO_RANDOM_SEED)
+        p_s, p_s_bounds = thermodynamics.compute_p_silence_b(emd, THERMO_SAMPLES, THERMO_THRESHOLD)
+        self.assertEqual(p_s.shape, (self.T,))
+        self.assertEqual(p_s_bounds.shape, (self.T, 2))
+        self.assertAlmostEqual(p_s[0], EXPECTED_P_SILENCE_FIRST, places=4)
+        self.assertAlmostEqual(p_s[-1], EXPECTED_P_SILENCE_LAST, places=4)
+        self.assertTrue(p_s_bounds[0, 0] <= p_s[0] <= p_s_bounds[0, 1],
+                        "p_silence bounds should bracket MAP estimate")
+        print('compute_p_silence_b OK (p_silence[0]=%.6f, bounds=[%.4f, %.4f])' %
+              (p_s[0], p_s_bounds[0, 0], p_s_bounds[0, 1]))
+
+        # --- get_c_beta ---
+        c_betas = thermodynamics.get_c_beta(emd, 5)
+        self.assertEqual(c_betas.shape, (5, self.T))
+        self.assertAlmostEqual(c_betas[2, 0], EXPECTED_C_BETA_MID_FIRST, places=4)
+        print('get_c_beta OK (c_betas[2,0]=%.6f)' % c_betas[2, 0])
+
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
 
 if __name__ == '__main__':
     unittest.main()
