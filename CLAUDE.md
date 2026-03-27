@@ -20,7 +20,7 @@ python -m unittest testing -v
 python -m unittest testing.TestEstimator.test_0_spike_generation
 ```
 
-Tests use `unittest` (not pytest). The 10 tests are numbered 0–9 and validate against expected KL divergence thresholds and log marginal likelihood values.
+Tests use `unittest` (not pytest). The 11 tests are numbered 0–9 plus `test_a_jax_tap_solver`, validating against expected KL divergence thresholds and log marginal likelihood values. The JAX test verifies parity between JAX and numpy TAP solvers (skips gracefully when JAX is unavailable).
 
 ## Running Examples
 
@@ -32,6 +32,22 @@ python example_approx.py   # Approximate inference (20 neurons, pseudo-likelihoo
 ## Dependencies
 
 numpy, scipy, matplotlib, tqdm. Conda env: `ssll`. Install: `conda env create -f environment.yml` or `pip install -r requirements.txt`.
+
+### Optional: JAX acceleration
+
+When JAX is available (e.g., `py311` env), the TAP solver in `mean_field.py` uses JIT-compiled `jax.lax.while_loop` for ~6x speedup on the iterative solver. Falls back to numpy automatically when JAX is not installed. Requires `jax_enable_x64` (set automatically on import).
+
+```bash
+# Run with JAX (py311 env)
+JAX_PLATFORMS=cpu /home/hideaki/anaconda3/envs/py311/bin/python -m unittest testing -v
+
+# Run without JAX (ssll env, Python 3.6)
+/home/hideaki/anaconda3/envs/ssll/bin/python -m unittest testing -v
+```
+
+### numpy 2.x compatibility
+
+The code is compatible with both numpy 1.x (ssll env) and numpy 2.x (py311 env).
 
 ## Architecture
 
@@ -69,5 +85,5 @@ The `run()` function in `__init__.py` is the main entry point. It initializes an
 
 The approximate inference path (`param_est='pseudo'`, `param_est_eta='mf'`) has been optimized for large N:
 - `pseudo_likelihood.py`: CSR sparse format for Fx_s matrices, precomputed stacked sparse matrices (`Fx_s_stacked`) for vectorized gradient/fs computation, single-pool parallelism for init, direct Fx_s_t diff computation (skips subsets not containing neuron s), precomputed subset membership lookup.
-- `mean_field.py`: Precomputed `theta2_sq` reused throughout TAP solver.
+- `mean_field.py`: Precomputed `theta2_sq` reused throughout TAP solver. Optional JAX JIT-compiled TAP solver (`_tap_solver_jax`, `_tap_post_jax`) eliminates Python loop overhead (0.29s → 0.05s at N=20).
 - `exp_max.py`: Identity matrix allocated once outside M-step loop.
