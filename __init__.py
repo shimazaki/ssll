@@ -82,7 +82,7 @@ def run(spikes, order=2, window=1, map_function='cg', \
         state_cov=0.01, state_ar=None, max_iter=100,
         param_est='exact', param_est_eta='exact',\
         theta_o=0, sigma_o=0.1, mstep=True, EM_Info=True,
-        stationary=False):
+        stationary=False, u=None):
     """
     Master-function of the State-Space Analysis of Spike Correlation package.
     Uses the expectation-maximisation algorithm to find the probability
@@ -146,6 +146,10 @@ def run(spikes, order=2, window=1, map_function='cg', \
         observations into a single time step. Spikes (T, R, N) are reshaped
         to (1, T*R, N) and state_cov is forced to None (Q=0, no update).
         Default is False.
+    :param numpy.ndarray u:
+        Exogenous input array of shape (T, n_u), or None. When provided,
+        the state equation becomes theta_t = F*theta_{t-1} + G*u_t + xi_t,
+        where G is learned via the M-step.
 
     :returns:
         Results encapsulated in a container.EMData object, containing the
@@ -162,12 +166,15 @@ def run(spikes, order=2, window=1, map_function='cg', \
         spikes = spikes.reshape(1, T * R, N)
         state_cov = None
         state_ar = None
+        if u is not None:
+            u = u.mean(axis=0, keepdims=True)
 
     # Get Number of cells
     N = spikes.shape[2]
     # Initialise the EM-data container
     emd = container.EMData(spikes, order, window, param_est, param_est_eta,
-                           map_function, state_cov, state_ar, theta_o, sigma_o)
+                           map_function, state_cov, state_ar, theta_o, sigma_o,
+                           u=u)
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)

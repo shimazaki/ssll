@@ -559,5 +559,84 @@ class TestEstimator(unittest.TestCase):
         print('JAX TAP solver test passed')
 
 
+    def test_b_exogenous_input(self):
+        """Test exogenous input G*u_t in state equation.
+
+        Data is generated from the actual state-space model:
+            theta[t] = theta[t-1] + G_true * u[t] + xi_t
+        so the EM should recover G_true. Uses T=50, R=50 for
+        sufficient statistical power.
+        """
+        print("Test Exogenous Input G*u_t.")
+        start_cpu_time = time.process_time()
+
+        N, O = 3, 2
+        D = transforms.compute_D(N, O)
+        transforms.initialise(N, O)
+        T_orig = self.T
+        self.T = 50
+        R_orig = self.R
+        self.R = 50
+
+        # Exogenous input u (T, n_u) — deterministic sinusoidal stimulus
+        n_u = 2
+        t_axis = numpy.linspace(0, 2 * numpy.pi, self.T)
+        u = numpy.column_stack([numpy.sin(t_axis), numpy.cos(t_axis)])
+
+        # True input gain matrix G (D, n_u)
+        numpy.random.seed(42)
+        G_true = numpy.array([[0.3, -0.2],
+                               [0.1, 0.4],
+                               [-0.2, 0.1],
+                               [0.15, -0.1],
+                               [0.05, 0.2],
+                               [-0.1, 0.15]])
+
+        # Generate theta from the actual state-space model (F=I, random walk + G*u)
+        Q_true = 0.001 * numpy.identity(D)
+        theta = numpy.zeros((self.T, D))
+        theta[0, :N] = -2.0  # initial first-order params
+        for t in range(1, self.T):
+            theta[t] = theta[t - 1] + G_true.dot(u[t]) + \
+                       numpy.random.multivariate_normal(numpy.zeros(D), Q_true)
+
+        # Generate spikes from theta
+        p = numpy.zeros((self.T, 2**N))
+        for i in range(self.T):
+            p[i, :] = transforms.compute_p(theta[i, :])
+        spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
+
+        # Run with exogenous input
+        emd_with_u = __init__.run(spikes, O, state_cov=0.01, u=u,
+                                  max_iter=200, EM_Info=False)
+
+        # Check G recovery: correlation between vec(G_true) and vec(G_est)
+        corr = numpy.corrcoef(G_true.flatten(), emd_with_u.G.flatten())[0, 1]
+        print('G recovery correlation = %.4f' % corr)
+        self.assertGreater(corr, 0.9,
+                           "G recovery correlation should exceed 0.9, got %.4f" % corr)
+
+        # Check G is not all zeros
+        self.assertFalse(numpy.allclose(emd_with_u.G, 0),
+                         "G should be non-zero after learning")
+        print('Learned G norm = %.4f (true G norm = %.4f)' %
+              (numpy.linalg.norm(emd_with_u.G), numpy.linalg.norm(G_true)))
+
+        # Run without u — verify G is None
+        emd_no_u = __init__.run(spikes, O, state_cov=0.01, EM_Info=False)
+        self.assertIsNone(emd_no_u.G, "G should be None when u is not provided")
+
+        # Model with u should fit at least as well
+        print('mllk with u = %.6f, without u = %.6f' %
+              (emd_with_u.mllk, emd_no_u.mllk))
+
+        # Restore
+        self.T = T_orig
+        self.R = R_orig
+
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -131,13 +131,13 @@ if HAS_JAX:
 
     @jax.jit
     def _tap_post_jax(theta2, theta2_sq, eta_max):
-        """JAX JIT'd post-loop G_inv computation and eta2."""
-        G_inv = -theta2 - theta2_sq * jnp.outer(0.5 - eta_max, 0.5 - eta_max)
+        """JAX JIT'd post-loop fisher_info_inv computation and eta2."""
+        fisher_info_inv = -theta2 - theta2_sq * jnp.outer(0.5 - eta_max, 0.5 - eta_max)
         diag_val = 1.0/eta_max + 1.0/(1.0 - eta_max) + \
                    0.5 * jnp.dot(theta2_sq, eta_max - eta_max**2)
-        G_inv = G_inv + jnp.diag(diag_val - jnp.diag(G_inv))
-        G = jnp.linalg.inv(G_inv)
-        eta2 = G + jnp.outer(eta_max, eta_max)
+        fisher_info_inv = fisher_info_inv + jnp.diag(diag_val - jnp.diag(fisher_info_inv))
+        fisher_info = jnp.linalg.inv(fisher_info_inv)
+        eta2 = fisher_info + jnp.outer(eta_max, eta_max)
         return eta2
 
 
@@ -190,14 +190,14 @@ def forward_problem_hessian(theta, N):
         if iter_num == 5000:
             raise Exception('Self consistent equations could not be solved!')
 
-    G_inv = - theta2 - theta2_sq*numpy.outer(0.5 - eta_max[:N],
+    fisher_info_inv = - theta2 - theta2_sq*numpy.outer(0.5 - eta_max[:N],
                                              0.5 - eta_max[:N])
-    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2_sq,
+    fisher_info_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2_sq,
                                                                   (eta_max -
                                                                    eta_max**2))
-    G = numpy.linalg.inv(G_inv)
+    fisher_info = numpy.linalg.inv(fisher_info_inv)
     # Compute second order eta
-    eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
+    eta2 = fisher_info + numpy.outer(eta_max[:N], eta_max[:N])
     eta[N:] = eta2[triu_idx]
     eta[:N] = eta_max
     eta[eta < 0.] = numpy.spacing(1)
@@ -268,7 +268,7 @@ def forward_problem(theta, N, expansion):
             eta[:N] = fsolve(f, eta_init)
         except Warning:
             raise Exception('scipy.fsolve did not compute reliable result!')
-        G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta[:N], 0.5 - eta[:N])
+        fisher_info_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta[:N], 0.5 - eta[:N])
     elif expansion == 'naive':
         f = lambda x: self_consistent_eq(x, theta1=theta1, theta2=theta2,
                                          expansion='naive')
@@ -276,13 +276,13 @@ def forward_problem(theta, N, expansion):
             eta[:N] = fsolve(f, eta_init)
         except Warning:
             raise Exception('scipy.fsolve did not compute reliable result!')
-        G_inv = - theta2
+        fisher_info_inv = - theta2
 
     # Compute Inverse of Fisher
-    G_inv[diag_idx] = 1./(eta[:N]*(1-eta[:N]))
-    G = numpy.linalg.inv(G_inv)
+    fisher_info_inv[diag_idx] = 1./(eta[:N]*(1-eta[:N]))
+    fisher_info = numpy.linalg.inv(fisher_info_inv)
     # Compute second order eta
-    eta2 = G + numpy.outer(eta[:N], eta[:N])
+    eta2 = fisher_info + numpy.outer(eta[:N], eta[:N])
     eta[N:] = eta2[triu_idx]
     return eta
 
@@ -307,8 +307,8 @@ def backward_problem(y_t, N, expansion, diag_weight_trick=True):
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
     # Compute covariance matrix and invert
-    G = compute_fisher_info_from_eta(y_t, N)
-    G_inv = numpy.linalg.inv(G[:N,:N])
+    fisher_info = compute_fisher_info_from_eta(y_t, N)
+    fisher_info_inv = numpy.linalg.inv(fisher_info[:N,:N])
 
     # Solve backward problem for indicated approximation
     if expansion == 'TAP':
@@ -321,7 +321,7 @@ def backward_problem(y_t, N, expansion, diag_weight_trick=True):
         # Compute linear coefficient of the solution for theta_ij
         linear_term = numpy.ones(quadratic_term.shape, dtype=float)
         # Compute offset of the solution for theta_ijtheta_TAP_wD
-        offset = G_inv.flatten()
+        offset = fisher_info_inv.flatten()
         # Solve for theta_ij
         theta2_solution = solve_quadratic_problem(quadratic_term, linear_term,
                                                   offset)
@@ -331,7 +331,7 @@ def backward_problem(y_t, N, expansion, diag_weight_trick=True):
         # Calculate Diagonal
         if diag_weight_trick:
             theta2_est[diag_idx] = compute_diagonal(y_t[:N], theta2_est,
-                                                    G_inv[diag_idx])
+                                                    fisher_info_inv[diag_idx])
         # Initialize array for solution of theta
         theta = numpy.empty(y_t.shape)
         # Fill in theta_ij
@@ -346,21 +346,21 @@ def backward_problem(y_t, N, expansion, diag_weight_trick=True):
     return theta
 
 
-def compute_diagonal(eta, theta2, G_inv_diag):
+def compute_diagonal(eta, theta2, fisher_info_inv_diag):
     """ Computes the diagonal for the second order theta matrix.
 
     :param numpy.ndarray eta:
         (c,) vector with all first order rates.
     :param numpy.ndarray theta3:
         (c,c) array with all second order thetas.
-    :param G_inv_diag:
+    :param fisher_info_inv_diag:
         (c,) vector with the diagonal of the Fisher Info.
 
     :returns:
         (c,) array with solution for theta_ii
     """
     return - 1./(eta*(1 - eta)) - .5*numpy.dot(theta2**2,eta*(1 - eta)) +\
-           G_inv_diag
+           fisher_info_inv_diag
 
 
 def solve_quadratic_problem(a, b, c):
@@ -543,19 +543,19 @@ def compute_fisher_info_from_eta(eta, N):
         Fisher-information matrix as numpy.ndarray
     """
     # Initialize matrix for the first part of the fisher matrix
-    G1 = numpy.zeros([N, N])
+    fisher_info1 = numpy.zeros([N, N])
     # Get upper triangle indices
     triu_idx = numpy.triu_indices(N, k=1)
     # Construct first part from eta
-    G1[triu_idx] = eta[N:]
-    G1 += G1.T
-    G1 += numpy.diag(eta[:N])
+    fisher_info1[triu_idx] = eta[N:]
+    fisher_info1 += fisher_info1.T
+    fisher_info1 += numpy.diag(eta[:N])
     # Second part of fisher information matrix
-    G2 = numpy.outer(eta[:N], eta[:N])
+    fisher_info2 = numpy.outer(eta[:N], eta[:N])
     # Final matrix
-    G = G1 - G2
+    fisher_info = fisher_info1 - fisher_info2
 
-    return G
+    return fisher_info
 
 
 def estimate_higher_order_eta(eta, N, order):

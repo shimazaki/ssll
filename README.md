@@ -60,7 +60,9 @@ The natural parameters evolve over time as a state-space model with a linear sta
 
 **State equation:**
 
-$$\boldsymbol{\theta}_t = F \boldsymbol{\theta}_{t-1} + \boldsymbol{\xi}_t, \qquad \boldsymbol{\xi}_t \sim \mathcal{N}(\mathbf{0}, Q)$$
+$$\boldsymbol{\theta}_t = F \boldsymbol{\theta}_{t-1} + G \mathbf{u}_t + \boldsymbol{\xi}_t, \qquad \boldsymbol{\xi}_t \sim \mathcal{N}(\mathbf{0}, Q)$$
+
+where $\mathbf{u}_t$ is an optional exogenous input vector (e.g., stimulus) and $G$ is the input gain matrix learned via the M-step. When no exogenous input is provided ($\mathbf{u} = \text{None}$), the model reduces to the standard autoregressive form.
 
 **Observation equation:**
 
@@ -84,7 +86,7 @@ where $\mathbf{y}_t$ is the vector of empirical spike-pattern frequencies at tim
 The EM algorithm alternates between:
 
 - **E-step:** Recursive Bayesian filter (forward) and smoother (backward) with Laplace approximation at each timestep. The MAP estimate is found via Newton-Raphson (`nr`), conjugate gradient (`cg`, default), or BFGS (`bf`).
-- **M-step:** Optimize the noise covariance Q and (optionally) the autoregressive parameter F.
+- **M-step:** Optimize the noise covariance Q, and (optionally) the autoregressive parameter F and input gain matrix G.
 
 ### Stationary Analysis (T=1)
 
@@ -160,6 +162,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `sigma_o` | float | 0.1 | Prior covariance scaling |
 | `mstep` | bool | True | Whether to run M-step |
 | `stationary` | bool | False | Pool all T×R observations into one time step (Q=0) for stationary analysis |
+| `u` | ndarray (T, n_u) | None | Exogenous input; when provided, adds G·u_t to the state equation with G learned via M-step |
 
 **Returns:** `container.EMData` object with fields:
 - `theta_s` — smoothed natural parameters (T×D)
@@ -170,6 +173,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 - `S1`, `S2` — entropy of independent and fitted models (T×1)
 - `S_ratio` — fractional entropy reduction (S1−S2)/S1 (T×1)
 - `U1`, `U2` — internal energy of independent and fitted models (T×1)
+- `G` — learned input gain matrix (D×n_u), or None if no exogenous input
 
 ## Examples
 

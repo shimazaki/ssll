@@ -167,7 +167,7 @@ class EMData:
     :ivar float convergence:
         Ratio between previous and current log-marginal prob. on last iteration.
     """
-    def __init__(self, spikes, order, window, param_est, param_est_eta, map_function, state_cov, state_ar, theta_o, sigma_o):
+    def __init__(self, spikes, order, window, param_est, param_est_eta, map_function, state_cov, state_ar, theta_o, sigma_o, u=None):
 
         # Record the input parameters
         spikes, self.order, self.state_cov_0, self.state_ar_0, self.window\
@@ -273,3 +273,12 @@ class EMData:
                                     hyperparameter need to be DxD')
         else:
             self.F = numpy.identity(self.D)
+
+        # Initialize exogenous input matrix G and input u
+        self.u = u
+        if u is not None:
+            self.n_u = u.shape[1]
+            self.G = numpy.zeros((self.D, self.n_u))
+        else:
+            self.n_u = 0
+            self.G = None
