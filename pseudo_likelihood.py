@@ -243,7 +243,7 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     # Initialize theta, iteration counter and maximal derivative of posterior
     theta_max = theta_0
     iterations = 0
-    max_dlpo = numpy.Inf
+    max_dlpo = numpy.inf
     # Intialize array for sum of active thetas (r,c)
     fs = numpy.empty([R, N])
 
@@ -335,7 +335,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     fs = fs_flat.reshape((R, N), order='F')
 
     # Initialize stopping criterion variables
-    max_dlpo = numpy.Inf
+    max_dlpo = numpy.inf
     iterations = 0
     # Get likelihood gradient
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)

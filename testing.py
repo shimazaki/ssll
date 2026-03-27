@@ -520,5 +520,44 @@ class TestEstimator(unittest.TestCase):
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
 
 
+    def test_a_jax_tap_solver(self):
+        """Test JAX TAP solver matches numpy version when JAX is available."""
+        print("Test JAX TAP solver.")
+        import mean_field
+
+        if not mean_field.HAS_JAX:
+            print('JAX not available, skipping')
+            return
+
+        # Generate test theta with pairwise interactions
+        N, O = 5, 2
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+
+        # Run JAX version
+        eta_jax = mean_field.forward_problem_hessian(theta[0], N)
+
+        # Run numpy version (force fallback)
+        mean_field.HAS_JAX = False
+        eta_np = mean_field.forward_problem_hessian(theta[0], N)
+        mean_field.HAS_JAX = True
+
+        # They should match to high precision
+        max_diff = numpy.max(numpy.abs(eta_jax - eta_np))
+        print('JAX vs numpy TAP max diff: %.2e' % max_diff)
+        self.assertTrue(max_diff < 1e-10,
+                        'JAX and numpy TAP results differ by %.2e' % max_diff)
+
+        # Also test across all timesteps
+        for t in range(self.T):
+            eta_j = mean_field.forward_problem_hessian(theta[t], N)
+            mean_field.HAS_JAX = False
+            eta_n = mean_field.forward_problem_hessian(theta[t], N)
+            mean_field.HAS_JAX = True
+            self.assertTrue(numpy.max(numpy.abs(eta_j - eta_n)) < 1e-10,
+                            'Mismatch at t=%d' % t)
+        print('All %d timesteps match OK' % self.T)
+        print('JAX TAP solver test passed')
+
+
 if __name__ == '__main__':
     unittest.main()

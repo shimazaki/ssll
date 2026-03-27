@@ -33,6 +33,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import itertools
+import math
 import numpy
 import pdb
 from scipy import sparse
@@ -55,8 +56,8 @@ def comb(N, k):
     :returns:
         N-choose-k
     """
-    nck = float(numpy.math.factorial(N)) / float(numpy.math.factorial(k)) /\
-        float(numpy.math.factorial(N - k))
+    nck = float(math.factorial(N)) / float(math.factorial(k)) /\
+        float(math.factorial(N - k))
 
     nck = int( numpy.around( nck ) )
 
@@ -208,7 +209,7 @@ def binalize_spikes(spikes, order, window):
     spikes = spikes[:int(T / window) * window,:,:]
     spikes = spikes.reshape((int(T / window), window, R, N))
     spikes = spikes.any(axis=1)
-    spikes = spikes.astype(numpy.int)
+    spikes = spikes.astype(int)
     
     return spikes
 

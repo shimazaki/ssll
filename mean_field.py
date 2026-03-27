@@ -35,6 +35,14 @@ import numpy
 import itertools
 from scipy.optimize import fsolve
 
+try:
+    import jax
+    jax.config.update('jax_enable_x64', True)
+    import jax.numpy as jnp
+    HAS_JAX = True
+except ImportError:
+    HAS_JAX = False
+
 
 def self_consistent_eq(eta, theta1, theta2, expansion='TAP'):
     """ Generates self-consistent equations for forward problem.
@@ -97,6 +105,42 @@ def self_consistent_eq_Hinv(eta, theta1, theta2, expansion='TAP'):
     return Hinv
 
 
+if HAS_JAX:
+    _eps_jax = jnp.finfo(jnp.float64).eps
+
+    @jax.jit
+    def _tap_solver_jax(theta1, theta2, theta2_sq, eta_max):
+        """JAX JIT'd TAP self-consistent equation solver."""
+        def body(state):
+            eta_m, conv, i = state
+            eta_var = eta_m - eta_m**2
+            deta = jnp.log(eta_m) - jnp.log(1.0 - eta_m) - theta1 - \
+                   jnp.dot(theta2, eta_m) - \
+                   0.5 * jnp.dot((0.5 - eta_m)[:, None] * theta2_sq, eta_var)
+            H_diag = 1.0/eta_m + 1.0/(1.0 - eta_m) + 0.5*jnp.dot(theta2_sq, eta_var)
+            eta_m = eta_m - 0.1 * deta / H_diag
+            eta_m = jnp.clip(eta_m, _eps_jax, 1.0 - _eps_jax)
+            conv = jnp.max(jnp.abs(deta))
+            return eta_m, conv, i + 1
+
+        def cond(state):
+            return (state[1] > 1e-4) & (state[2] < 5000)
+
+        eta_max, _, iters = jax.lax.while_loop(cond, body, (eta_max, jnp.inf, 0))
+        return eta_max, iters
+
+    @jax.jit
+    def _tap_post_jax(theta2, theta2_sq, eta_max):
+        """JAX JIT'd post-loop G_inv computation and eta2."""
+        G_inv = -theta2 - theta2_sq * jnp.outer(0.5 - eta_max, 0.5 - eta_max)
+        diag_val = 1.0/eta_max + 1.0/(1.0 - eta_max) + \
+                   0.5 * jnp.dot(theta2_sq, eta_max - eta_max**2)
+        G_inv = G_inv + jnp.diag(diag_val - jnp.diag(G_inv))
+        G = jnp.linalg.inv(G_inv)
+        eta2 = G + jnp.outer(eta_max, eta_max)
+        return eta2
+
+
 def forward_problem_hessian(theta, N):
     """ Gets the etas for given thetas. Here a costum-made iterative solver is
     used.
@@ -109,6 +153,9 @@ def forward_problem_hessian(theta, N):
     :returns:
         (d,) numpy.ndarray with all etas.
     """
+    if HAS_JAX:
+        return _forward_problem_hessian_jax(theta, N)
+
     # Initialize eta vector
     eta = numpy.empty(theta.shape)
     # Vectorized sigmoid initialization
@@ -153,6 +200,33 @@ def forward_problem_hessian(theta, N):
     eta2 = G + numpy.outer(eta_max[:N], eta_max[:N])
     eta[N:] = eta2[triu_idx]
     eta[:N] = eta_max
+    eta[eta < 0.] = numpy.spacing(1)
+    eta[eta > 1.] = 1. - numpy.spacing(1)
+    return eta
+
+
+def _forward_problem_hessian_jax(theta, N):
+    """JAX-accelerated version of forward_problem_hessian."""
+    eta = numpy.empty(theta.shape)
+    triu_idx = numpy.triu_indices(N, k=1)
+
+    theta1 = jnp.array(theta[:N])
+    theta2 = jnp.zeros((N, N))
+    theta2 = theta2.at[triu_idx].set(theta[N:])
+    theta2 = theta2 + theta2.T
+    theta2_sq = theta2**2
+
+    eta_max_init = 1.0 / (1.0 + jnp.exp(-theta1))
+    eta_max, iters = _tap_solver_jax(theta1, theta2, theta2_sq, eta_max_init)
+
+    if iters >= 5000:
+        raise Exception('Self consistent equations could not be solved!')
+
+    eta2 = _tap_post_jax(theta2, theta2_sq, eta_max)
+
+    eta_max_np = numpy.asarray(eta_max)
+    eta[:N] = eta_max_np
+    eta[N:] = numpy.asarray(eta2)[triu_idx]
     eta[eta < 0.] = numpy.spacing(1)
     eta[eta > 1.] = 1. - numpy.spacing(1)
     return eta
