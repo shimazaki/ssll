@@ -241,14 +241,18 @@ def compute_y(spikes, order):
     subsets = enumerate_subsets(N, order)
     # Set up the output array
     y = numpy.zeros((T, len(subsets)))
-    # Iterate over each subset
-    for i in range(len(subsets)):
-        # Select the cells that are in the subset
-        sp = spikes[:,:,subsets[i]]
-        # Find the timesteps in which all subset-cells spike coincidentally
-        spc = sp.sum(axis=2) == len(subsets[i])
-        # Average the occurences of coincident patterns to get the mean rate
-        y[:,i] = spc.mean(axis=1)
+    # Vectorize by subset size
+    # Order 1 (singletons): directly index — spike[:,:,s].mean(axis=1)
+    for i in range(N):
+        y[:, i] = spikes[:, :, subsets[i][0]].mean(axis=1)
+    # Higher orders: use product instead of sum==len (faster for pairs)
+    for i in range(N, len(subsets)):
+        sub = subsets[i]
+        # Product of spikes across neurons in subset; mean across trials
+        prod = spikes[:, :, sub[0]]
+        for s in sub[1:]:
+            prod = prod * spikes[:, :, s]
+        y[:, i] = prod.mean(axis=1)
 
     return y
 

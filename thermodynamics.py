@@ -84,7 +84,7 @@ def compute_entropy_b(emd, samples, threshold):
     return S_pair, S_pair_all[:, [disregard, -disregard - 1]], S_ratio, S_ratio_all[:, [disregard, -disregard - 1]]
 
 
-def compute_c_b(emd, samples, threshold, beta=1):
+def compute_heat_capacity_b(emd, samples, threshold, beta=1):
     """
     Computes he heat capacity and the bounding heat capacities based on the threshold.
     :param emd: container.EMData
@@ -144,7 +144,7 @@ def compute_p_silence_b(emd, samples, threshold):
     return p_silence, p_silence_bounds
 
 
-def compute_c(emd, beta=1):
+def compute_heat_capacity(emd, beta=1):
     """
     Computes the heat capacity
 
@@ -153,7 +153,7 @@ def compute_c(emd, beta=1):
     :param beta: float
     the value of beta used to slightly vary the theta parameters.
     :return: numpy.ndarray, numpy.ndarray
-    The heat capacity (if you wants bounding heat capacity, use compute_c_b)
+    The heat capacity (if you wants bounding heat capacity, use compute_heat_capacity_b)
     """
     psi = numpy.zeros(emd.T)
     C = numpy.zeros(emd.T)
@@ -169,7 +169,7 @@ def compute_c(emd, beta=1):
 
     return C
 
-def get_c_beta(emd, num, span=[0.25, 2]):
+def get_heat_capacity_beta(emd, num, span=[0.25, 2]):
     """
     Computes the heat capacity num times by multiplying theta by equaly spaced betas in span)
 
@@ -185,7 +185,7 @@ def get_c_beta(emd, num, span=[0.25, 2]):
     betas = numpy.linspace(span[0], span[1], num)
     c_betas = numpy.zeros((len(betas), emd.T))
     for i, beta in enumerate(betas):
-        c_betas[i, :] = compute_c(emd, beta)
+        c_betas[i, :] = compute_heat_capacity(emd, beta)
     return c_betas
 
 

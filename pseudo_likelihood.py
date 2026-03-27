@@ -37,6 +37,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy
 import max_posterior
 from scipy import sparse
+from scipy.special import expit
 import transforms
 import mean_field
 import bethe_approximation
@@ -47,7 +48,23 @@ from functools import partial
 
 MAX_GA_ITERATIONS = 5000
 Fx_s = None
+Fx_s_stacked = None  # Precomputed stacked sparse matrices for vectorized ops
 time_bin = -1
+
+
+def _build_subset_lookup(subsets, N):
+    """Precompute per-neuron subset membership for fast Fx_s_t computation.
+
+    Returns a list of length N. For each neuron s, the entry is a list of
+    (subset_index, other_neurons) tuples where other_neurons is a tuple of
+    the remaining neurons in subsets that contain s.
+    """
+    lookup = [[] for _ in range(N)]
+    for i, sub in enumerate(subsets):
+        for s in sub:
+            others = tuple(c for c in sub if c != s)
+            lookup[s].append((i, others))
+    return lookup
 
 
 def compute_Fx_s(X, O):
@@ -56,7 +73,7 @@ def compute_Fx_s(X, O):
     'O'th order from observed patterns for conditional likelihood model.
 
     :param numpy.array X:
-        Three dimensional (t, r, c) binary array, where the first dimension is time bin, 
+        Three dimensional (t, r, c) binary array, where the first dimension is time bin,
         the second is runs (trials) and the third is the number of cells.
     :param int O:
         Order of interactions.
@@ -68,44 +85,53 @@ def compute_Fx_s(X, O):
     T, R, N = X.shape
     # Compute each n-choose-k subset of cell IDs up to the 'O'th order
     subsets = transforms.enumerate_subsets(N, O)
+    subset_lookup = _build_subset_lookup(subsets, N)
     # Initialize Fx_s
-    global Fx_s
+    global Fx_s, Fx_s_stacked
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
+    Fx_s_stacked = []
     # For each time bin
     for i in range(T):
         # Initialize list
         Fx_s.append([])
         # For each cell
         for s in range(N):
-            Fx_s[i].append(compute_Fx_s_t(s, X[i,:,:], subsets))
+            Fx_s[i].append(compute_Fx_s_t(s, X[i,:,:], subsets, subset_lookup))
+        # Precompute stacked sparse matrix for vectorized gradient: (D, R*N)
+        # Each Fx_s[i][s] is (D, R) CSR. Stack horizontally by neuron.
+        Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
 
 
-def compute_Fx_s_t(neuron, Xt, subsets):
+def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
     """
-    Constructs the sparse matrix F(x_s=1, x_\s) at time t for neuron s.
+    Constructs the sparse matrix F(x_s=1, x_\\s) - F(x_s=0, x_\\s) at time t
+    for neuron s.  Only subsets containing neuron s produce non-zero rows.
+
     : param numpy.array Xt:
         Two dimensional (r, c) binary array, where the first dimension is runs
         (trials) and the second is the number of cells.
-    : returns (r,D) sparse feature matrix at time t, where D is the model
-        dimension.
+    : returns (D, R) sparse CSR feature-difference matrix at time t.
     """
     s = neuron
-    # Get spike data
-    Xtmp = Xt.copy()
-    # Set current cell to 1
-    Xtmp[:,s] = 1
-    # Compute Fx with cell active
-    Fx1 = compute_Fx(Xtmp, subsets)
-    # Get spike data again
-    Xtmp = Xt.copy()
-    # Sett current cell to 0
-    Xtmp[:,s] = 0
-    # Compute Fx for cell inactive
-    Fx2 = compute_Fx(Xtmp, subsets)
-    # Create sparse matrix of difference in active and inactive Fx
-
-    return sparse.coo_matrix(Fx1 - Fx2)
+    R = Xt.shape[0]
+    D = len(subsets)
+    Fx_diff = numpy.zeros((D, R))
+    if subset_lookup is not None:
+        entries = subset_lookup[s]
+    else:
+        entries = []
+        for i, sub in enumerate(subsets):
+            if s in sub:
+                entries.append((i, tuple(c for c in sub if c != s)))
+    for idx, others in entries:
+        if len(others) == 0:
+            # Singleton {s}: always 1 when s=1, 0 when s=0
+            Fx_diff[idx, :] = 1.0
+        else:
+            sp = Xt[:, others]
+            Fx_diff[idx, :] = sp.sum(axis=1) == len(others)
+    return sparse.csr_matrix(Fx_diff)
 
 
 def compute_Fx(X, subsets):
@@ -120,21 +146,23 @@ def compute_Fx(X, subsets):
         Order of interactions
 
     :returns Fx:
-        (r, D) matrix of feature vectors, where D is the model
+        (D, r) matrix of feature vectors, where D is the model
         dimension.
     """
     # Get spike-matrix metadata
     R, N = X.shape
     # Set up the output array
-    Fx = numpy.zeros((len(subsets),R))
-    # Iterate over each subset
+    Fx = numpy.zeros((len(subsets), R))
+    # Vectorize by subset size
     for i in range(len(subsets)):
-        # Select the cells that are in the subset
-        sp = X[:,subsets[i]]
-        # Find the trials in which all subset-cells spike coincidentally
-        spc = sp.sum(axis=1) == len(subsets[i])
-        # Save the observed spike pattern
-        Fx[i,:] = spc
+        sub = subsets[i]
+        if len(sub) == 1:
+            Fx[i, :] = X[:, sub[0]]
+        elif len(sub) == 2:
+            Fx[i, :] = X[:, sub[0]] * X[:, sub[1]]
+        else:
+            sp = X[:, sub]
+            Fx[i, :] = sp.sum(axis=1) == len(sub)
 
     return Fx
 
@@ -147,7 +175,7 @@ def compute_Fx_s_parallel(X, O):
     This is a parallelization version of compute_Fx_s.
 
     :param numpy.array X:
-        Three dimensional (t, r, c) binary array, where the first dimension is time bin, 
+        Three dimensional (t, r, c) binary array, where the first dimension is time bin,
         the second is runs (trials) and the third is the number of cells.
     :param int O:
         Order of interactions.
@@ -159,24 +187,31 @@ def compute_Fx_s_parallel(X, O):
     T, R, N = X.shape
     # Compute each n-choose-k subset of cell IDs up to the 'O'th order
     subsets = transforms.enumerate_subsets(N, O)
+    subset_lookup = _build_subset_lookup(subsets, N)
     # Initialize Fx_s
-    global Fx_s
+    global Fx_s, Fx_s_stacked
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
-    # Setting multiprocessing
+    Fx_s_stacked = []
+    # Setting multiprocessing — create pool once for all time bins
     proc_num = multiprocessing.cpu_count()
-    proc_num = min(N,proc_num)
-    # For each time bin
+    proc_num = min(N, proc_num)
+    # Build all (time_bin, neuron) tasks
+    tasks = []
     for i in range(T):
-        # Initialize list
-        Fx_s.append([])
-        # Parallel computation of features over the cells      
-        pool = multiprocessing.Pool(proc_num)
-        results = pool.map(partial(compute_Fx_s_t, Xt=X[i,:,:], subsets=subsets), iterable=range(N))
-        pool.close()
-        # Assining the results
-        for j in results:
-            Fx_s[i].append(j)
+        for s in range(N):
+            tasks.append((s, X[i,:,:], subsets, subset_lookup))
+    pool = multiprocessing.Pool(proc_num)
+    all_results = pool.starmap(compute_Fx_s_t, tasks)
+    pool.close()
+    pool.join()
+    # Unpack results into per-time-bin lists
+    idx = 0
+    for i in range(T):
+        Fx_s.append(all_results[idx:idx+N])
+        idx += N
+        # Precompute stacked sparse matrix for vectorized ops
+        Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
 
 
 def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
@@ -219,29 +254,21 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
         dllk = numpy.zeros(D)
         ddllk = numpy.zeros([D,D])
 
+        # Compute all fs at once via stacked matrix
+        fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)  # (R*N,)
+        fs = fs_flat.reshape((R, N), order='F')
+
         # Iterate over all cells
         for s_i in range(N):
-            # Calculate sum of active thetas
-            fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
             # Calculate conditional rate
-            try:
-                calc = numpy.less_equal(fs[:,s_i], 709)
-            except FloatingPointError:
-                print(numpy.amax(fs))
-            etas = numpy.ones(fs.shape[0])
-            etas[calc] = numpy.exp(fs[calc,s_i])/(1.+numpy.exp(fs[calc,s_i]))
+            etas = expit(fs[:, s_i])
             # Calculate derivative of conditional rate
             deta = - etas * (1-etas)
             # Calculate derivative for neuron
             dllk += Fx_s[time_bin][s_i].dot(X_t[:, s_i] - etas)
-            # Fill in detas in Fx_s
-            Fx_s_deta = sparse.coo_matrix(((deta)[Fx_s[time_bin][s_i].col],
-                                  [Fx_s[time_bin][s_i].col,
-                                   Fx_s[time_bin][s_i].row]),
-                                  [Fx_s[time_bin][s_i].shape[1],
-                                   Fx_s[time_bin][s_i].shape[0]])
-            # Compute finally Hesian for Neuron
-            ddllk += Fx_s[time_bin][s_i].dot(Fx_s_deta)
+            # Compute Hessian for neuron: Fx_s[s_i] @ diag(deta) @ Fx_s[s_i].T
+            Fx_si = Fx_s[time_bin][s_i]
+            ddllk += Fx_si.multiply(deta).dot(Fx_si.T).toarray()
         # Calculate prior
         dlpr = -numpy.dot(sigma_o_i, theta_max - theta_o)
         # Calculate posterior
@@ -303,10 +330,9 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     D = theta_0.shape[0]
     # Initialize theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s))
-    fs = numpy.empty([R, N])
-    for s_i in range(N):
-        fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via stacked matrix
+    fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)
+    fs = fs_flat.reshape((R, N), order='F')
 
     # Initialize stopping criterion variables
     max_dlpo = numpy.Inf
@@ -403,10 +429,9 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     N, D = X_t.shape[1], theta_0.shape[0]
     # Initialize theta with previous smoothed theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s))
-    fs = numpy.empty([R, N])
-    for s_i in range(N):
-        fs[:, s_i] = Fx_s[time_bin][s_i].T.dot(theta_max)
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via stacked matrix
+    fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)
+    fs = fs_flat.reshape((R, N), order='F')
 
     # Initialize the estimate of the inverse fisher info
     ddlpo_i_e = numpy.identity(theta_max.shape[0])
@@ -493,11 +518,9 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     """
     # Extract number of runs and cells
     R, N = X.shape
-    # Initialize array for Fx_s projection on search direction (r,c)
-    Fx_s_s = numpy.empty([R, N])
-    # Iterate of all cells and project Fx_s on search direction
-    for s_i in range(N):
-        Fx_s_s[:, s_i] = Fx_s[time_bin][s_i].T.dot(s)
+    # Project all Fx_s on search direction at once via stacked matrix
+    Fx_s_s_flat = Fx_s_stacked[time_bin].T.dot(s)  # (R*N,)
+    Fx_s_s = Fx_s_s_flat.reshape((R, N), order='F')  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
     # Project conditional rate on search direction
@@ -505,7 +528,7 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     # Project one-step covariance matrix on search direction
     sigma_o_i_s = numpy.dot(s, numpy.dot(sigma_o_i, s))
     # Compute projection of pseudo-log-likelihood Hessian on search direction
-    ddlpo_s = numpy.tensordot(detas*Fx_s_s, Fx_s_s, ((1,0),(1,0))) + sigma_o_i_s
+    ddlpo_s = numpy.sum(detas * Fx_s_s * Fx_s_s) + sigma_o_i_s
     # Compute how much the step should be along search direction
     alpha = dlpo_s/ddlpo_s
     # Update sum of active thetas
@@ -542,12 +565,14 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     """
     # Extract number of runs and cells
     R, N = X.shape
-    sigma_o_i = numpy.diag(sigma_o_i_tmp)
-    # Initialize array for Fx_s projection on search direction (r,c)
-    Fx_s_s = numpy.empty([R, N])
-    # Iterate of all cells and project Fx_s on search direction
-    for s_i in range(N):
-        Fx_s_s[:, s_i] = Fx_s[time_bin][s_i].T.dot(s)
+    # sigma_o_i_tmp is 1D diagonal — avoid constructing full (D,D) matrix
+    # Precompute sigma_o_i projected on search direction: sum(diag * s^2)
+    sigma_o_i_s = numpy.dot(sigma_o_i_tmp, s * s)
+    # Project all Fx_s on search direction at once via stacked matrix
+    Fx_s_s_flat = Fx_s_stacked[time_bin].T.dot(s)  # (R*N,)
+    Fx_s_s = Fx_s_s_flat.reshape((R, N), order='F')  # (R, N)
+    # Precompute Fx_s_s squared for Hessian projection
+    Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
     num_iter = 0
@@ -556,11 +581,8 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
         dlpo_s_old = numpy.absolute(dlpo_s)
         # Project conditional rate on search direction
         detas = etas*(1-etas)
-        # Project one-step covariance matrix on search direction
-        sigma_o_i_s = numpy.dot(s, numpy.dot(sigma_o_i, s))
-        # Compute projection of pseudologlikelihood Hessian on search direction
-        ddlpo_s = numpy.tensordot(detas*Fx_s_s, Fx_s_s, ((1,0),(1,0))) +\
-                  sigma_o_i_s
+        # Hessian projection: sum over all (r,n) of detas*Fx_s_s^2
+        ddlpo_s = numpy.sum(detas * Fx_s_s_sq) + sigma_o_i_s
         # Compute how much the step should be along search direction
         alpha = dlpo_s/ddlpo_s
         # Update sum of active thetas
@@ -568,8 +590,8 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
         # Update theta
         theta_new = theta + .5*alpha*s
         dllk, etas = pseudo_dllk(theta_new, X, fs)
-        # Calculate prior
-        dlpr = -numpy.dot(sigma_o_i, theta_new - theta_o)
+        # Calculate prior: element-wise multiply with 1D diagonal
+        dlpr = -sigma_o_i_tmp * (theta_new - theta_o)
         dlpo = dllk + dlpr
         dlpo_s = numpy.dot(dlpo.T, s)
         conv = numpy.absolute(dlpo_s_old-dlpo_s)
@@ -591,15 +613,9 @@ def compute_cond_eta(theta, t):
     """
     N = len(Fx_s[t])
     R = Fx_s[t][0].shape[1]
-    fs = numpy.empty([R, N])
-    for s_i in range(N):
-        fs[:, s_i] = Fx_s[t][s_i].T.dot(theta)
-    try:
-        calc = numpy.less_equal(fs, 709)
-    except FloatingPointError:
-        print(numpy.amax(fs))
-    etas = numpy.ones(fs.shape)
-    etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
+    fs_flat = Fx_s_stacked[t].T.dot(theta)
+    fs = fs_flat.reshape((R, N), order='F')
+    etas = expit(fs)
     return numpy.mean(etas, axis=0)
 
 
@@ -617,19 +633,10 @@ def pseudo_dllk(theta, X, fs):
         (d,) numpy.ndarray with gradient
         (r,c) numpy.ndarray with conditional rates
     """
-    # Get number of cells
-    N = X.shape[1]
-    # Initialize gradient array
-    dllk = numpy.zeros(theta.shape[0])
-    # Calculate conditional rate
-    calc = numpy.less_equal(fs, 709)
-    etas = numpy.ones(fs.shape)
-    etas[calc] = numpy.exp(fs[calc])/(1.+numpy.exp(fs[calc]))
-    # Iterate over all cells
-    for s_i in range(N):
-        # Add gradient for each cell
-        dllk += Fx_s[time_bin][s_i].dot((X[:,s_i] - etas[:,s_i]))
-    # Return
+    # Calculate conditional rate using scipy expit (handles overflow, vectorized C)
+    etas = expit(fs)
+    # Compute gradient via stacked sparse matrix: Fx_s_stacked @ residuals
+    dllk = Fx_s_stacked[time_bin].dot((X - etas).ravel(order='F'))
     return dllk, etas
 
 
@@ -652,14 +659,9 @@ def pseudo_ddllk(etas, D):
     for s_i in range(N):
         # Calculate the derivative of conditional rate wrt. theta
         deta = -etas[:, s_i]*(1-etas[:, s_i])
-        # Fill the derivatives where Fx_s one
-        Fx_s_deta = sparse.coo_matrix(((deta)[Fx_s[time_bin][s_i].col],
-                                [Fx_s[time_bin][s_i].col,
-                                 Fx_s[time_bin][s_i].row]),
-                                [Fx_s[time_bin][s_i].shape[1],
-                                 Fx_s[time_bin][s_i].shape[0]])
-        # Compute final Hessian for each cell
-        ddllk += Fx_s[time_bin][s_i].dot(Fx_s_deta)
+        # Compute Hessian for each cell: Fx_s[s_i] @ diag(deta) @ Fx_s[s_i].T
+        Fx_si = Fx_s[time_bin][s_i]
+        ddllk += Fx_si.multiply(deta).dot(Fx_si.T).toarray()
     # Return
     return ddllk
 
@@ -679,15 +681,11 @@ def pseudo_log_likelihood(X_t, theta, t):
     """
     # Extraxt trial and Cell number
     R, N = X_t.shape
-    # Initialize pseudo-log-likelihood
-    pseudo_llk = 0
-    # Run over all cells
-    for s_i in range(N):
-        # Calculate fs
-        fs = Fx_s[t][s_i].T.dot(theta)
-        # and pseudo-log-likelihood for each cell
-        pseudo_llk += numpy.sum(X_t[:,s_i]*fs - numpy.log(1 + numpy.exp(fs)))
-    # Return
+    # Compute all fs at once via stacked matrix
+    fs_flat = Fx_s_stacked[t].T.dot(theta)
+    fs = fs_flat.reshape((R, N), order='F')
+    # Vectorized pseudo-log-likelihood: sum over all cells and trials
+    pseudo_llk = numpy.sum(X_t * fs - numpy.log(1 + numpy.exp(fs)))
     return pseudo_llk
 
 functions = {'nr': pseudo_newton,

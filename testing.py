@@ -465,12 +465,12 @@ class TestEstimator(unittest.TestCase):
         self.assertAlmostEqual(S_ratio[0], EXPECTED_S_RATIO_FIRST, places=4)
         print('get_entropy OK (S_pair[0]=%.6f, S_ratio[0]=%.6f)' % (S_pair[0], S_ratio[0]))
 
-        # --- compute_c (deterministic) ---
-        C = thermodynamics.compute_c(emd)
+        # --- compute_heat_capacity (deterministic) ---
+        C = thermodynamics.compute_heat_capacity(emd)
         self.assertEqual(C.shape, (self.T,))
         self.assertAlmostEqual(C[0], EXPECTED_C_FIRST, places=4)
         self.assertAlmostEqual(C[-1], EXPECTED_C_LAST, places=4)
-        print('compute_c OK (C[0]=%.6f, C[-1]=%.6f)' % (C[0], C[-1]))
+        print('compute_heat_capacity OK (C[0]=%.6f, C[-1]=%.6f)' % (C[0], C[-1]))
 
         # --- compute_entropy_b (with sampling) ---
         numpy.random.seed(THERMO_RANDOM_SEED)
@@ -486,16 +486,16 @@ class TestEstimator(unittest.TestCase):
         print('compute_entropy_b OK (S_pair[0]=%.6f, bounds=[%.4f, %.4f])' %
               (S_pair_b[0], S_pair_bounds[0, 0], S_pair_bounds[0, 1]))
 
-        # --- compute_c_b (with sampling) ---
+        # --- compute_heat_capacity_b (with sampling) ---
         numpy.random.seed(THERMO_RANDOM_SEED)
-        C_b, C_bounds = thermodynamics.compute_c_b(emd, THERMO_SAMPLES, THERMO_THRESHOLD)
+        C_b, C_bounds = thermodynamics.compute_heat_capacity_b(emd, THERMO_SAMPLES, THERMO_THRESHOLD)
         self.assertEqual(C_b.shape, (self.T,))
         self.assertEqual(C_bounds.shape, (self.T, 2))
         self.assertAlmostEqual(C_b[0], EXPECTED_C_FIRST, places=4)
         self.assertAlmostEqual(C_b[-1], EXPECTED_C_LAST, places=4)
         self.assertTrue(C_bounds[0, 0] <= C_b[0] <= C_bounds[0, 1],
                         "Heat capacity bounds should bracket MAP estimate")
-        print('compute_c_b OK (C[0]=%.6f, bounds=[%.4f, %.4f])' %
+        print('compute_heat_capacity_b OK (C[0]=%.6f, bounds=[%.4f, %.4f])' %
               (C_b[0], C_bounds[0, 0], C_bounds[0, 1]))
 
         # --- compute_p_silence_b (with sampling) ---
@@ -510,11 +510,11 @@ class TestEstimator(unittest.TestCase):
         print('compute_p_silence_b OK (p_silence[0]=%.6f, bounds=[%.4f, %.4f])' %
               (p_s[0], p_s_bounds[0, 0], p_s_bounds[0, 1]))
 
-        # --- get_c_beta ---
-        c_betas = thermodynamics.get_c_beta(emd, 5)
+        # --- get_heat_capacity_beta ---
+        c_betas = thermodynamics.get_heat_capacity_beta(emd, 5)
         self.assertEqual(c_betas.shape, (5, self.T))
         self.assertAlmostEqual(c_betas[2, 0], EXPECTED_C_BETA_MID_FIRST, places=4)
-        print('get_c_beta OK (c_betas[2,0]=%.6f)' % c_betas[2, 0])
+        print('get_heat_capacity_beta OK (c_betas[2,0]=%.6f)' % c_betas[2, 0])
 
         end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))

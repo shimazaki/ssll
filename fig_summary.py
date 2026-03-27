@@ -32,7 +32,7 @@ import synthesis
 import transforms
 import energies
 from util import compute_bounds, shuffle_spikes
-from thermodynamics import compute_entropy_b, compute_c_b, compute_p_silence_b
+from thermodynamics import compute_entropy_b, compute_heat_capacity_b, compute_p_silence_b
 
 # Color constants (same as ssll_jup/utils/display_settings.py)
 DEFAULT_ORIGINAL_COLOR = '#FF0000'
@@ -227,8 +227,8 @@ def main():
     ax.set_ylabel('$p_{silence}$', fontsize=fontsize)
 
     # Heat capacity
-    C, C_bounds = compute_c_b(emd, samples, threshold)
-    C_shuffled, C_bounds_shuffled = compute_c_b(emd_shuffled, samples, threshold)
+    C, C_bounds = compute_heat_capacity_b(emd, samples, threshold)
+    C_shuffled, C_bounds_shuffled = compute_heat_capacity_b(emd_shuffled, samples, threshold)
     ax = fig.add_axes([.69, 0.1, .28, .15])
     ax.fill_between(time_steps, C_bounds_shuffled[:, 0], C_bounds_shuffled[:, 1], color=DEFAULT_SHUFFLED_COLOR, edgecolor=None, alpha=0.2)
     ax.plot(time_steps, C, color=DEFAULT_ORIGINAL_COLOR, lw=1)

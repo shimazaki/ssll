@@ -154,18 +154,20 @@ def e_step_smooth(emd):
             emd.sigma_s_lag[i+1] = numpy.dot(A, emd.sigma_s[i+1,:])
     else:
         for i in reversed(range(emd.T - 1)):
-            # Compute the A matrix
-            a = numpy.dot(numpy.diag(emd.sigma_f[i]), emd.F.T)
-            A = numpy.dot(a, numpy.diag(emd.sigma_o_inv[i+1]))
+            # Compute the A matrix: diag(sigma_f) @ F.T @ diag(sigma_o_inv)
+            # diag(d) @ M = d[:,None] * M; M @ diag(d) = M * d[None,:]
+            a = emd.sigma_f[i][:, numpy.newaxis] * emd.F.T
+            A = a * emd.sigma_o_inv[i+1][numpy.newaxis, :]
             # Compute the backward-smoothed means
             tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
             emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
             # Compute the backward-smoothed covariances
-            tmp = numpy.dot(A, numpy.diag(emd.sigma_s[i+1] - emd.sigma_o[i+1]))
-            tmp = numpy.dot(tmp, A.T)
-            emd.sigma_s[i] = numpy.diagonal(numpy.diag(emd.sigma_f[i]) + tmp)
+            # A @ diag(d) @ A.T, then take diagonal
+            Ad = A * (emd.sigma_s[i+1] - emd.sigma_o[i+1])[numpy.newaxis, :]
+            emd.sigma_s[i] = emd.sigma_f[i] + numpy.sum(Ad * A, axis=1)
             # Compute the backward-smoothed lag-one covariances
-            emd.sigma_s_lag[i+1] = numpy.dot(A, numpy.diag(emd.sigma_s[i+1])).diagonal()
+            # (A @ diag(sigma_s)).diagonal() = sum(A * sigma_s, axis=1)
+            emd.sigma_s_lag[i+1] = numpy.sum(A * emd.sigma_s[i+1][numpy.newaxis, :], axis=1)
 
 
 def m_step(emd):#, stationary='None'):
@@ -283,19 +285,19 @@ def m_step_Q(emd):#, stationary):
             emd.Q = (emd.Q + emd.Q.T) / 2
 
     else:
-        for i in range(1, emd.T):
-            if emd.T == 1:
-                # For T=1, we do not update Q since we can't compute it from data
-                pass
-            else:
+        if emd.T == 1:
+            # For T=1, we do not update Q since we can't compute it from data
+            pass
+        else:
+            I_D = numpy.identity(emd.D)
+            for i in range(1, emd.T):
                 lag_one_covariance = emd.sigma_s_lag[i, :]
                 tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
                 inv_lmbda += numpy.sum(emd.sigma_s[i]) -\
                              2 * numpy.sum(lag_one_covariance) +\
                              numpy.sum(emd.sigma_s[i - 1]) +\
                              numpy.dot(tmp, tmp)
-                emd.Q = inv_lmbda / emd.D / (emd.T - 1) *\
-                numpy.identity(emd.D)
+            emd.Q = inv_lmbda / emd.D / (emd.T - 1) * I_D
 
 
 def m_step_Q2(emd, stationary):

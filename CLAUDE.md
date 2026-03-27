@@ -20,7 +20,7 @@ python -m unittest testing -v
 python -m unittest testing.TestEstimator.test_0_spike_generation
 ```
 
-Tests use `unittest` (not pytest). The 9 tests are numbered 0–8 and validate against expected KL divergence thresholds and log marginal likelihood values.
+Tests use `unittest` (not pytest). The 10 tests are numbered 0–9 and validate against expected KL divergence thresholds and log marginal likelihood values.
 
 ## Running Examples
 
@@ -64,3 +64,10 @@ The `run()` function in `__init__.py` is the main entry point. It initializes an
 - `state_ar`: Autoregressive parameter matrix for state dynamics.
 - `stationary`: If `True`, pools all T×R observations into a single time step (Q=0) for time-independent analysis.
 - Spike data format: binary numpy array shaped `(time_bins, trials, neurons)`.
+
+### Performance Notes
+
+The approximate inference path (`param_est='pseudo'`, `param_est_eta='mf'`) has been optimized for large N:
+- `pseudo_likelihood.py`: CSR sparse format for Fx_s matrices, precomputed stacked sparse matrices (`Fx_s_stacked`) for vectorized gradient/fs computation, single-pool parallelism for init, direct Fx_s_t diff computation (skips subsets not containing neuron s), precomputed subset membership lookup.
+- `mean_field.py`: Precomputed `theta2_sq` reused throughout TAP solver.
+- `exp_max.py`: Identity matrix allocated once outside M-step loop.

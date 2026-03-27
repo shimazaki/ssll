@@ -111,15 +111,10 @@ def forward_problem_hessian(theta, N):
     """
     # Initialize eta vector
     eta = numpy.empty(theta.shape)
-    eta_max = 0.5*numpy.ones(N)
-    for i in range(N):
-        eta_max[i] = 1/(1+numpy.exp(-theta[i]))
+    # Vectorized sigmoid initialization
+    eta_max = 1.0 / (1.0 + numpy.exp(-theta[:N]))
     # Extract first order thetas
     theta1 = theta[:N]
-    # Set initial values for eta search
-    eta_init = numpy.empty(theta1.shape)
-    for i in range(N):
-        eta_init[i] = numpy.exp(theta1[i])/(1+numpy.exp(theta1[i]))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
@@ -128,15 +123,19 @@ def forward_problem_hessian(theta, N):
     theta2[triu_idx] = theta[N:]
     theta2 += theta2.T
     conv = numpy.inf
-    # Solve self-consistent equations and calculate approximation of
-    # fisher matrix
+    # Solve self-consistent equations with inlined TAP equations
     iter_num = 0
+    theta2_sq = theta2**2
     while conv > 1e-4 and iter_num < 5000:
-        deta = self_consistent_eq(eta_max, theta1=theta1, theta2=theta2,
-                                  expansion='TAP')
-        Hinv = self_consistent_eq_Hinv(eta_max, theta1=theta1, theta2=theta2,
-                                       expansion='TAP')
-        eta_max -= .1*numpy.dot(Hinv, deta)
+        # Inlined self_consistent_eq (TAP)
+        eta_var = eta_max - eta_max**2  # eta*(1-eta)
+        deta = numpy.log(eta_max) - numpy.log(1 - eta_max) - theta1 - \
+               numpy.dot(theta2, eta_max) - \
+               .5*numpy.dot((.5 - eta_max)[:,numpy.newaxis]*theta2_sq, eta_var)
+        # Inlined self_consistent_eq_Hinv (TAP)
+        H_diag = 1./eta_max + 1./(1 - eta_max) + .5*numpy.dot(theta2_sq, eta_var)
+        # Update: eta -= 0.1 * diag(1/H) @ deta
+        eta_max -= .1 * deta / H_diag
         conv = numpy.amax(numpy.absolute(deta))
         iter_num += 1
         eta_max[eta_max <= 0.] = numpy.spacing(1)
@@ -144,9 +143,9 @@ def forward_problem_hessian(theta, N):
         if iter_num == 5000:
             raise Exception('Self consistent equations could not be solved!')
 
-    G_inv = - theta2 - theta2**2*numpy.outer(0.5 - eta_max[:N],
+    G_inv = - theta2 - theta2_sq*numpy.outer(0.5 - eta_max[:N],
                                              0.5 - eta_max[:N])
-    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2**2,
+    G_inv[diag_idx] = 1./eta_max + 1./(1.-eta_max) + .5*numpy.dot(theta2_sq,
                                                                   (eta_max -
                                                                    eta_max**2))
     G = numpy.linalg.inv(G_inv)
@@ -177,10 +176,8 @@ def forward_problem(theta, N, expansion):
     eta = numpy.empty(theta.shape)
     # Extract first order thetas
     theta1 = theta[:N]
-    # Set initial values for eta search
-    eta_init = numpy.empty(theta1.shape)
-    for i in range(N):
-	    eta_init[i] = numpy.exp(theta1[i])/(1+numpy.exp(theta1[i]))
+    # Set initial values for eta search (vectorized sigmoid)
+    eta_init = 1.0 / (1.0 + numpy.exp(-theta1))
     # Get indices
     triu_idx = numpy.triu_indices(N, k=1)
     diag_idx = numpy.diag_indices(N)
