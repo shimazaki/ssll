@@ -178,7 +178,7 @@ def run(spikes, order=2, window=1, map_function='cg', \
 
     # Set up loop guards for the EM algorithm
     lmc = emd.marg_llk(emd)
-    emd.mllk_list = []
+    emd.mll_list = []
     
     # Create progress bar if EM_Info is True
     if EM_Info == True:
@@ -199,8 +199,8 @@ def run(spikes, order=2, window=1, map_function='cg', \
         # Update previous and current log marginal values
         lmp = lmc
         lmc = emd.marg_llk(emd)
-        emd.mllk_list.append(lmc)
-        emd.mllk = lmc
+        emd.mll_list.append(lmc)
+        emd.mll = lmc
 
         # Update EM algorithm metadata
         emd.iterations += 1
@@ -208,5 +208,5 @@ def run(spikes, order=2, window=1, map_function='cg', \
 
     if EM_Info == True:
         pbar.close()
-        print('Log marginal likelihood = %.6f' % (emd.mllk))
+        print('Log marginal likelihood = %.6f' % (emd.mll))
     return emd

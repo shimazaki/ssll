@@ -168,7 +168,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 - `theta_s` — smoothed natural parameters (T×D)
 - `sigma_s` — smoothed covariances (T×D×D)
 - `eta_s` — expectation parameters (T×D)
-- `mllk` — log marginal likelihood history (per EM iteration)
+- `mll` — log marginal likelihood history (per EM iteration)
 - `psi` — log partition function (T×1)
 - `S1`, `S2` — entropy of independent and fitted models (T×1)
 - `S_ratio` — fractional entropy reduction (S1−S2)/S1 (T×1)
