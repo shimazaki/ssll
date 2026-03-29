@@ -60,9 +60,9 @@ The natural parameters evolve over time as a state-space model with a linear sta
 
 **State equation:**
 
-$$\boldsymbol{\theta}_t = F \boldsymbol{\theta}_{t-1} + G \mathbf{u}_t + \boldsymbol{\xi}_t, \qquad \boldsymbol{\xi}_t \sim \mathcal{N}(\mathbf{0}, Q)$$
+$$\boldsymbol{\theta}_t = F \boldsymbol{\theta}_{t-1} + U \mathbf{u}_t + \boldsymbol{\xi}_t, \qquad \boldsymbol{\xi}_t \sim \mathcal{N}(\mathbf{0}, Q)$$
 
-where $\mathbf{u}_t$ is an optional exogenous input vector (e.g., stimulus) and $G$ is the input gain matrix learned via the M-step. When no exogenous input is provided ($\mathbf{u} = \text{None}$), the model reduces to the standard autoregressive form.
+where $\mathbf{u}_t$ is an optional exogenous input vector (e.g., stimulus) and $U$ is the input gain matrix learned via the M-step. When no exogenous input is provided ($\mathbf{u} = \text{None}$), the model reduces to the standard autoregressive form.
 
 **Observation equation:**
 
@@ -162,7 +162,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `sigma_o` | float | 0.1 | Prior covariance scaling |
 | `mstep` | bool | True | Whether to run M-step |
 | `stationary` | bool | False | Pool all T×R observations into one time step (Q=0) for stationary analysis |
-| `u` | ndarray (T, n_u) | None | Exogenous input; when provided, adds G·u_t to the state equation with G learned via M-step |
+| `u` | ndarray (T, n_u) | None | Exogenous input; when provided, adds U·u_t to the state equation with U learned via M-step |
 
 **Returns:** `container.EMData` object with fields:
 - `theta_s` — smoothed natural parameters (T×D)
@@ -173,7 +173,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 - `S1`, `S2` — entropy of independent and fitted models (T×1)
 - `S_ratio` — fractional entropy reduction (S1−S2)/S1 (T×1)
 - `U1`, `U2` — internal energy of independent and fitted models (T×1)
-- `G` — learned input gain matrix (D×n_u), or None if no exogenous input
+- `U` — learned input gain matrix (D×n_u), or None if no exogenous input
 
 ## Examples
 

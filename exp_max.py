@@ -113,8 +113,8 @@ def e_step_filter(emd):
     for i in range(1, emd.T):
         # Compute one-step prediction density
         emd.theta_o[i,:] = numpy.dot(emd.F, emd.theta_f[i-1,:])
-        if emd.G is not None:
-            emd.theta_o[i,:] += numpy.dot(emd.G, emd.u[i,:])
+        if emd.U is not None:
+            emd.theta_o[i,:] += numpy.dot(emd.U, emd.u[i,:])
         # Computation for exact case with full covariance matrix
         if emd.param_est_eta == 'exact':
             tmp = numpy.dot(emd.F, emd.sigma_f[i-1,:,:])
@@ -191,8 +191,8 @@ def m_step(emd):#, stationary='None'):
         m_step_Q(emd)#, stationary)
     if emd.state_ar_0 is not None:
         m_step_F(emd)
-    if emd.G is not None:
-        m_step_G(emd)
+    if emd.U is not None:
+        m_step_U(emd)
 
 
 def m_step_F(emd):
@@ -213,8 +213,8 @@ def m_step_F(emd):
     # Sum partial results over each timestep
     for i in range(1, emd.T):
         theta_i = emd.theta_s[i, :]
-        if emd.G is not None:
-            theta_i = theta_i - numpy.dot(emd.G, emd.u[i, :])
+        if emd.U is not None:
+            theta_i = theta_i - numpy.dot(emd.U, emd.u[i, :])
         a += emd.sigma_s_lag[i] +\
              numpy.outer(theta_i, emd.theta_s[i-1,:])
         b += emd.sigma_s[i-1] +\
@@ -224,18 +224,18 @@ def m_step_F(emd):
     #emd.F = (emd.F + emd.F.T) / 2
 
 
-def m_step_G(emd):
+def m_step_U(emd):
     """
-    Computes the optimised exogenous input matrix G from the smoothed
-    posterior estimates. From dQ/dG = 0:
+    Computes the optimised exogenous input matrix U from the smoothed
+    posterior estimates. From dQ/dU = 0:
 
-        G* = [sum_{t=2}^{T} (theta_{t|T} - F*theta_{t-1|T}) u_t^T]
+        U* = [sum_{t=2}^{T} (theta_{t|T} - F*theta_{t-1|T}) u_t^T]
              [sum_{t=2}^{T} u_t u_t^T]^{-1}
 
     :param container.EMData emd:
         All data pertaining to the EM algorithm.
     """
-    if emd.G is None:
+    if emd.U is None:
         return
     # Accumulate numerator and denominator
     num = numpy.zeros((emd.D, emd.n_u))
@@ -244,8 +244,8 @@ def m_step_G(emd):
         residual = emd.theta_s[i, :] - numpy.dot(emd.F, emd.theta_s[i - 1, :])
         num += numpy.outer(residual, emd.u[i, :])
         den += numpy.outer(emd.u[i, :], emd.u[i, :])
-    # Solve G* = num @ den^{-1}
-    emd.G = numpy.linalg.solve(den.T, num.T).T
+    # Solve U* = num @ den^{-1}
+    emd.U = numpy.linalg.solve(den.T, num.T).T
 
 
 def m_step_Q(emd):#, stationary):
@@ -283,8 +283,8 @@ def m_step_Q(emd):#, stationary):
                     numpy.dot(emd.F, lag_one_covariance.T) +\
                     numpy.dot(numpy.dot(emd.F, emd.sigma_s[i - 1, :]), emd.F.T)
             tmp = emd.theta_s[i, :] - numpy.dot(emd.F, emd.theta_s[i - 1, :])
-            if emd.G is not None:
-                tmp = tmp - numpy.dot(emd.G, emd.u[i, :])
+            if emd.U is not None:
+                tmp = tmp - numpy.dot(emd.U, emd.u[i, :])
             term2 = numpy.dot(tmp.reshape(emd.D, 1), tmp.reshape(1, emd.D))
 
             if type(emd.state_cov_0) == list:
@@ -326,8 +326,8 @@ def m_step_Q(emd):#, stationary):
             for i in range(1, emd.T):
                 lag_one_covariance = emd.sigma_s_lag[i, :]
                 tmp = emd.theta_s[i, :] - emd.theta_s[i - 1, :]
-                if emd.G is not None:
-                    tmp = tmp - numpy.dot(emd.G, emd.u[i, :])
+                if emd.U is not None:
+                    tmp = tmp - numpy.dot(emd.U, emd.u[i, :])
                 inv_lmbda += numpy.sum(emd.sigma_s[i]) -\
                              2 * numpy.sum(lag_one_covariance) +\
                              numpy.sum(emd.sigma_s[i - 1]) +\

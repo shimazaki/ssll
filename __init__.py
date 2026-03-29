@@ -148,8 +148,8 @@ def run(spikes, order=2, window=1, map_function='cg', \
         Default is False.
     :param numpy.ndarray u:
         Exogenous input array of shape (T, n_u), or None. When provided,
-        the state equation becomes theta_t = F*theta_{t-1} + G*u_t + xi_t,
-        where G is learned via the M-step.
+        the state equation becomes theta_t = F*theta_{t-1} + U*u_t + xi_t,
+        where U is learned via the M-step.
 
     :returns:
         Results encapsulated in a container.EMData object, containing the

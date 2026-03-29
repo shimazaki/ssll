@@ -560,14 +560,14 @@ class TestEstimator(unittest.TestCase):
 
 
     def test_b_exogenous_input(self):
-        """Test exogenous input G*u_t in state equation.
+        """Test exogenous input U*u_t in state equation.
 
         Data is generated from the actual state-space model:
-            theta[t] = theta[t-1] + G_true * u[t] + xi_t
-        so the EM should recover G_true. Uses T=50, R=50 for
+            theta[t] = theta[t-1] + U_true * u[t] + xi_t
+        so the EM should recover U_true. Uses T=50, R=50 for
         sufficient statistical power.
         """
-        print("Test Exogenous Input G*u_t.")
+        print("Test Exogenous Input U*u_t.")
         start_cpu_time = time.process_time()
 
         N, O = 3, 2
@@ -583,21 +583,21 @@ class TestEstimator(unittest.TestCase):
         t_axis = numpy.linspace(0, 2 * numpy.pi, self.T)
         u = numpy.column_stack([numpy.sin(t_axis), numpy.cos(t_axis)])
 
-        # True input gain matrix G (D, n_u)
+        # True input gain matrix U (D, n_u)
         numpy.random.seed(42)
-        G_true = numpy.array([[0.3, -0.2],
+        U_true = numpy.array([[0.3, -0.2],
                                [0.1, 0.4],
                                [-0.2, 0.1],
                                [0.15, -0.1],
                                [0.05, 0.2],
                                [-0.1, 0.15]])
 
-        # Generate theta from the actual state-space model (F=I, random walk + G*u)
+        # Generate theta from the actual state-space model (F=I, random walk + U*u)
         Q_true = 0.001 * numpy.identity(D)
         theta = numpy.zeros((self.T, D))
         theta[0, :N] = -2.0  # initial first-order params
         for t in range(1, self.T):
-            theta[t] = theta[t - 1] + G_true.dot(u[t]) + \
+            theta[t] = theta[t - 1] + U_true.dot(u[t]) + \
                        numpy.random.multivariate_normal(numpy.zeros(D), Q_true)
 
         # Generate spikes from theta
@@ -610,21 +610,21 @@ class TestEstimator(unittest.TestCase):
         emd_with_u = __init__.run(spikes, O, state_cov=0.01, u=u,
                                   max_iter=200, EM_Info=False)
 
-        # Check G recovery: correlation between vec(G_true) and vec(G_est)
-        corr = numpy.corrcoef(G_true.flatten(), emd_with_u.G.flatten())[0, 1]
-        print('G recovery correlation = %.4f' % corr)
+        # Check U recovery: correlation between vec(U_true) and vec(U_est)
+        corr = numpy.corrcoef(U_true.flatten(), emd_with_u.U.flatten())[0, 1]
+        print('U recovery correlation = %.4f' % corr)
         self.assertGreater(corr, 0.9,
-                           "G recovery correlation should exceed 0.9, got %.4f" % corr)
+                           "U recovery correlation should exceed 0.9, got %.4f" % corr)
 
-        # Check G is not all zeros
-        self.assertFalse(numpy.allclose(emd_with_u.G, 0),
-                         "G should be non-zero after learning")
-        print('Learned G norm = %.4f (true G norm = %.4f)' %
-              (numpy.linalg.norm(emd_with_u.G), numpy.linalg.norm(G_true)))
+        # Check U is not all zeros
+        self.assertFalse(numpy.allclose(emd_with_u.U, 0),
+                         "U should be non-zero after learning")
+        print('Learned U norm = %.4f (true U norm = %.4f)' %
+              (numpy.linalg.norm(emd_with_u.U), numpy.linalg.norm(U_true)))
 
-        # Run without u — verify G is None
+        # Run without u — verify U is None
         emd_no_u = __init__.run(spikes, O, state_cov=0.01, EM_Info=False)
-        self.assertIsNone(emd_no_u.G, "G should be None when u is not provided")
+        self.assertIsNone(emd_no_u.U, "U should be None when u is not provided")
 
         # Model with u should fit at least as well
         print('mll with u = %.6f, without u = %.6f' %

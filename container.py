@@ -274,11 +274,11 @@ class EMData:
         else:
             self.F = numpy.identity(self.D)
 
-        # Initialize exogenous input matrix G and input u
+        # Initialize exogenous input matrix U and input u
         self.u = u
         if u is not None:
             self.n_u = u.shape[1]
-            self.G = numpy.zeros((self.D, self.n_u))
+            self.U = numpy.zeros((self.D, self.n_u))
         else:
             self.n_u = 0
-            self.G = None
+            self.U = None
