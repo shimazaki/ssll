@@ -131,3 +131,18 @@
 #  the entire D-vector inner work reduces to scalar; theta_new/fs_new
 #  reconstructed once at the end from the final alpha)
  60    1.540    1.464    1.624
+
+# bench_pseudo_mf @ 2026-06-05 (paired 15 reps, post opt/dense-dllk)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  1.561  1.464  2.156
+# opt:    60  1.363  1.195  1.937   (~-12.7% median, -18.4% min)
+# Replace Fx_s_stacked sparse matvecs (CSR for dllk, CSC for fs) with
+# dense closed-form equivalents:
+#   fs   = theta_h + X @ Theta2          (Theta2 symmetric NxN)
+#   dllk = [res.sum(0), (M + M.T) triu]  with M = X.T @ res, res = X-etas
+# Dense BLAS gemm at N=60,R=100 is ~1.4x faster than the CSC matvec, and
+# the dllk path also avoids the order='F' ravel-induced copy that the
+# CSR matvec previously required.
+ 60    1.363    1.195    1.937
