@@ -49,6 +49,7 @@ from functools import partial
 MAX_GA_ITERATIONS = 5000
 Fx_s = None
 Fx_s_stacked = None  # Precomputed stacked sparse matrices for vectorized ops
+Fx_s_stacked_T = None  # Precomputed transpose (CSC) of Fx_s_stacked for fast .T.dot
 time_bin = -1
 
 
@@ -87,10 +88,11 @@ def compute_Fx_s(X, O):
     subsets = transforms.enumerate_subsets(N, O)
     subset_lookup = _build_subset_lookup(subsets, N)
     # Initialize Fx_s
-    global Fx_s, Fx_s_stacked
+    global Fx_s, Fx_s_stacked, Fx_s_stacked_T
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
     Fx_s_stacked = []
+    Fx_s_stacked_T = []
     # For each time bin
     for i in range(T):
         # Initialize list
@@ -100,7 +102,9 @@ def compute_Fx_s(X, O):
             Fx_s[i].append(compute_Fx_s_t(s, X[i,:,:], subsets, subset_lookup))
         # Precompute stacked sparse matrix for vectorized gradient: (D, R*N)
         # Each Fx_s[i][s] is (D, R) CSR. Stack horizontally by neuron.
-        Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
+        M = sparse.hstack(Fx_s[i], format='csr')
+        Fx_s_stacked.append(M)
+        Fx_s_stacked_T.append(M.T.tocsc())
 
 
 def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None,
@@ -226,10 +230,11 @@ def compute_Fx_s_parallel(X, O):
     subsets = transforms.enumerate_subsets(N, O)
     subset_lookup = _build_subset_lookup(subsets, N)
     # Initialize Fx_s
-    global Fx_s, Fx_s_stacked
+    global Fx_s, Fx_s_stacked, Fx_s_stacked_T
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
     Fx_s_stacked = []
+    Fx_s_stacked_T = []
     # With direct-CSR build, the per-task cost is small enough that
     # multiprocessing IPC/fork overhead dominates. Run serially.
     for i in range(T):
@@ -241,7 +246,9 @@ def compute_Fx_s_parallel(X, O):
         Fx_s.append([compute_Fx_s_t(s, Xt, subsets, subset_lookup,
                                     spike_cols=spike_cols)
                      for s in range(N)])
-        Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
+        M = sparse.hstack(Fx_s[i], format='csr')
+        Fx_s_stacked.append(M)
+        Fx_s_stacked_T.append(M.T.tocsc())
 
 
 def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
@@ -284,8 +291,8 @@ def pseudo_newton(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
         dllk = numpy.zeros(D)
         ddllk = numpy.zeros([D,D])
 
-        # Compute all fs at once via stacked matrix
-        fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)  # (R*N,)
+        # Compute all fs at once via precomputed CSC transpose
+        fs_flat = Fx_s_stacked_T[time_bin].dot(theta_max)  # (R*N,)
         fs = fs_flat.reshape((R, N), order='F')
 
         # Iterate over all cells
@@ -360,8 +367,8 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     D = theta_0.shape[0]
     # Initialize theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via stacked matrix
-    fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via precomputed CSC transpose
+    fs_flat = Fx_s_stacked_T[time_bin].dot(theta_max)
     fs = fs_flat.reshape((R, N), order='F')
 
     # Initialize stopping criterion variables
@@ -459,8 +466,8 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     N, D = X_t.shape[1], theta_0.shape[0]
     # Initialize theta with previous smoothed theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via stacked matrix
-    fs_flat = Fx_s_stacked[time_bin].T.dot(theta_max)
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via precomputed CSC transpose
+    fs_flat = Fx_s_stacked_T[time_bin].dot(theta_max)
     fs = fs_flat.reshape((R, N), order='F')
 
     # Initialize the estimate of the inverse fisher info
@@ -548,8 +555,8 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     """
     # Extract number of runs and cells
     R, N = X.shape
-    # Project all Fx_s on search direction at once via stacked matrix
-    Fx_s_s_flat = Fx_s_stacked[time_bin].T.dot(s)  # (R*N,)
+    # Project all Fx_s on search direction at once via precomputed CSC transpose
+    Fx_s_s_flat = Fx_s_stacked_T[time_bin].dot(s)  # (R*N,)
     Fx_s_s = Fx_s_s_flat.reshape((R, N), order='F')  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
@@ -598,8 +605,8 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     # sigma_o_i_tmp is 1D diagonal — avoid constructing full (D,D) matrix
     # Precompute sigma_o_i projected on search direction: sum(diag * s^2)
     sigma_o_i_s = numpy.dot(sigma_o_i_tmp, s * s)
-    # Project all Fx_s on search direction at once via stacked matrix
-    Fx_s_s_flat = Fx_s_stacked[time_bin].T.dot(s)  # (R*N,)
+    # Project all Fx_s on search direction at once via precomputed CSC transpose
+    Fx_s_s_flat = Fx_s_stacked_T[time_bin].dot(s)  # (R*N,)
     Fx_s_s = Fx_s_s_flat.reshape((R, N), order='F')  # (R, N)
     # Precompute Fx_s_s squared for Hessian projection
     Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
@@ -645,7 +652,7 @@ def compute_cond_eta(theta, t):
     """
     N = len(Fx_s[t])
     R = Fx_s[t][0].shape[1]
-    fs_flat = Fx_s_stacked[t].T.dot(theta)
+    fs_flat = Fx_s_stacked_T[t].dot(theta)
     fs = fs_flat.reshape((R, N), order='F')
     etas = expit(fs)
     return numpy.mean(etas, axis=0)
@@ -713,8 +720,8 @@ def pseudo_log_likelihood(X_t, theta, t):
     """
     # Extraxt trial and Cell number
     R, N = X_t.shape
-    # Compute all fs at once via stacked matrix
-    fs_flat = Fx_s_stacked[t].T.dot(theta)
+    # Compute all fs at once via precomputed CSC transpose
+    fs_flat = Fx_s_stacked_T[t].dot(theta)
     fs = fs_flat.reshape((R, N), order='F')
     # Vectorized pseudo-log-likelihood: sum over all cells and trials
     pseudo_llk = numpy.sum(X_t * fs - numpy.log(1 + numpy.exp(fs)))

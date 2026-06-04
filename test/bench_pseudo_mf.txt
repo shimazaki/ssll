@@ -79,3 +79,11 @@
  40    2.385    2.299    2.388
  60    3.158    3.072    3.867
 
+# bench_pseudo_mf @ 2026-06-05 03:32:04
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=3 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s
+ 20    0.726    0.716    0.785
+ 40    2.193    1.771    2.201
+ 60    2.731    2.686    2.782
+
