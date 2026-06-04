@@ -213,20 +213,12 @@ def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
     dth = th1 - th0
     # points of integration
     int_points = numpy.linspace(0,1,K)
-    # array for negative derivatives of Energy function
-    avg_dUs = numpy.empty(K)
-    # iterate over all integration points
-    # iterate over all integration points
+    # All K integration thetas at once: (K, D)
+    th_batch = th0[None, :] + int_points[:, None] * dth[None, :]
+    eta_batch = mean_field.forward_problem_hessian_batch(th_batch, N)
+    # negative derivative of energy function at each integration point
+    avg_dUs = eta_batch.dot(dth)
     points_to_sample = []
-    for i, int_point in enumerate(int_points):
-        # theta point that needs to be evaluated
-        th_tmp = th0 + int_point*dth
-        # Sample Data
-        eta = mean_field.forward_problem_hessian(th_tmp, N)
-        # negative derivative of energy function
-        dU = numpy.dot(dth, eta)
-        # compute mean
-        avg_dUs[i] = numpy.mean(dU)
 
     # weights for trapezoidal intergration rule
     w = numpy.ones(K)/K
