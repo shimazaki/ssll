@@ -139,7 +139,7 @@ $$U = \sum_{\mathbf{x}} p(\mathbf{x}) E(\mathbf{x}) = -\boldsymbol{\theta} \cdot
 
 - **Silence probability:** The probability that no neuron fires: $p(\mathbf{x}=\mathbf{0}) = \exp(-\psi(\boldsymbol{\theta}))$, computable from `emd.psi`.
 
-**Note:** Heat capacity (Donner 2017, Eq. 33) is not yet implemented — it requires an augmented partition function with a temperature parameter beta.
+- **Heat capacity** (Donner 2017, Eq. 33): Second derivative of the log partition function w.r.t. an inverse-temperature parameter $\beta$, $C(\beta) = \partial^2 \psi(\beta\boldsymbol{\theta}) / \partial \beta^2$, computed by finite differences. ψ is evaluated via `energies.compute_psi`, so the same call works for both small and large networks, including stationary fits. All three functions take a `method` argument: `'auto'` (default — exact for N ≤ 15, Ogata-Tanemura for N > 15), `'exact'` (force 2^N enumeration), or `'approx'` (force Ogata-Tanemura). Not stored in `EMData` — call `thermodynamics.compute_heat_capacity(emd, beta=1, method='auto')` for the point estimate, `compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto')` for credible-interval bounds from posterior θ-samples, or `get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto')` to sweep β.
 
 ## API Reference
 

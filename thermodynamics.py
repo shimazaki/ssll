@@ -41,6 +41,34 @@ import energies
 import transforms
 
 
+def _psi(theta, N, O, method):
+    """Compute psi for a (T, D) theta array using the requested method.
+
+    method: 'auto' (energies.compute_psi: exact if N<=15, OT if N>15),
+            'exact' (transforms.compute_psi, enumerates 2**N), or
+            'approx' (Ogata-Tanemura, applicable to any N).
+    """
+    if method == 'auto':
+        return energies.compute_psi(theta, N, O)
+    if method == 'exact':
+        transforms.initialise(N, O)
+        T = theta.shape[0]
+        psi = numpy.empty(T)
+        for i in range(T):
+            psi[i] = transforms.compute_psi(theta[i])
+        return psi
+    if method == 'approx':
+        T = theta.shape[0]
+        theta0 = numpy.copy(theta)
+        theta0[:, N:] = 0
+        psi0 = energies.compute_ind_psi(theta0[:, :N])
+        psi = numpy.empty(T)
+        for i in range(T):
+            psi[i] = energies.ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
+        return psi
+    raise ValueError("method must be 'auto', 'exact', or 'approx'")
+
+
 def compute_entropy_b(emd, samples, threshold):
     """
     Computes the entropy of the model, the bounds compted based on the threshold,
@@ -84,7 +112,7 @@ def compute_entropy_b(emd, samples, threshold):
     return S_pair, S_pair_all[:, [disregard, -disregard - 1]], S_ratio, S_ratio_all[:, [disregard, -disregard - 1]]
 
 
-def compute_heat_capacity_b(emd, samples, threshold, beta=1):
+def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto'):
     """
     Computes he heat capacity and the bounding heat capacities based on the threshold.
     :param emd: container.EMData
@@ -95,6 +123,9 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1):
     Decides how strictly the credible interval is
     :param beta: float
     the value of beta used to slightly vary the theta parameters.
+    :param method: str
+    'auto' (default): exact for N<=15, Ogata-Tanemura for N>15.
+    'exact': always enumerate 2**N. 'approx': always use Ogata-Tanemura.
     :return: numpy.ndarray, numpy.ndarray
     The heat capacity and the bounds based on the threshold
     """
@@ -102,17 +133,14 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1):
 
     thetas = beta * get_theta_samples(emd, samples)
 
-    psi = numpy.zeros(T)
     C = numpy.zeros((T, samples))
     epsilon = 1e-3
     for n in range(samples):
-        for t in range(T):
-            psi[t] = transforms.compute_psi(thetas[t, :, n])
-            tmp1 = transforms.compute_psi(thetas[t, :, n] * (1 + epsilon))
-            tmp2 = transforms.compute_psi(thetas[t, :, n] * (1 - epsilon))
-            c = tmp1 - 2 * psi[t] + tmp2
-            d = epsilon ** 2
-            C[t, n] = c / d
+        th = thetas[:, :, n]
+        psi = _psi(th, emd.N, emd.order, method)
+        tmp1 = _psi(th * (1 + epsilon), emd.N, emd.order, method)
+        tmp2 = _psi(th * (1 - epsilon), emd.N, emd.order, method)
+        C[:, n] = (tmp1 - 2 * psi + tmp2) / (epsilon ** 2)
     C_map = C[:, 0]
     disregard = int((samples - threshold / 100.0 * samples) / 2)
     C = numpy.sort(C, axis=1)
@@ -144,7 +172,7 @@ def compute_p_silence_b(emd, samples, threshold):
     return p_silence, p_silence_bounds
 
 
-def compute_heat_capacity(emd, beta=1):
+def compute_heat_capacity(emd, beta=1, method='auto'):
     """
     Computes the heat capacity
 
@@ -152,24 +180,22 @@ def compute_heat_capacity(emd, beta=1):
     Object used for encapsulating data used in the expectation maximisation algorithm.
     :param beta: float
     the value of beta used to slightly vary the theta parameters.
+    :param method: str
+    'auto' (default): exact for N<=15, Ogata-Tanemura for N>15.
+    'exact': always enumerate 2**N. 'approx': always use Ogata-Tanemura.
     :return: numpy.ndarray, numpy.ndarray
     The heat capacity (if you wants bounding heat capacity, use compute_heat_capacity_b)
     """
-    psi = numpy.zeros(emd.T)
-    C = numpy.zeros(emd.T)
     epsilon = 1e-3
-    for t in range(emd.T):
-        theta = beta * emd.theta_s[t, :]
-        psi[t] = transforms.compute_psi(theta)
-        tmp1 = transforms.compute_psi(theta * (1 + epsilon))
-        tmp2 = transforms.compute_psi(theta * (1 - epsilon))
-        c = tmp1 - 2 * psi[t] + tmp2
-        d = epsilon ** 2
-        C[t] = c / d
+    theta = beta * emd.theta_s
+    psi = _psi(theta, emd.N, emd.order, method)
+    tmp1 = _psi(theta * (1 + epsilon), emd.N, emd.order, method)
+    tmp2 = _psi(theta * (1 - epsilon), emd.N, emd.order, method)
+    C = (tmp1 - 2 * psi + tmp2) / (epsilon ** 2)
 
     return C
 
-def get_heat_capacity_beta(emd, num, span=[0.25, 2]):
+def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto'):
     """
     Computes the heat capacity num times by multiplying theta by equaly spaced betas in span)
 
@@ -179,13 +205,15 @@ def get_heat_capacity_beta(emd, num, span=[0.25, 2]):
     The number of heat capacities to compute, all with different betas.
     :param span: list
     The span for betas
+    :param method: str
+    'auto' (default), 'exact', or 'approx' — see compute_heat_capacity.
     :return: numpy.ndarray
     The heat capacities computed with num different betas.
     """
     betas = numpy.linspace(span[0], span[1], num)
     c_betas = numpy.zeros((len(betas), emd.T))
     for i, beta in enumerate(betas):
-        c_betas[i, :] = compute_heat_capacity(emd, beta)
+        c_betas[i, :] = compute_heat_capacity(emd, beta, method=method)
     return c_betas
 
 
