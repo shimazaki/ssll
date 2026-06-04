@@ -414,33 +414,23 @@ def compute_Fx_s_parallel(X, O, map_function='cg'):
     Fx_s_stacked = []
     Fx_s_stacked_T = []
 
-    # Direct stacked-CSR build for order=2 (cg/bf): skips per-s sparse
-    # construction + _fast_hstack_csr entirely. ~4.5x faster than the
-    # per-s + hstack path on the build itself.
+    # For order=2 cg/bf, both forward and transpose matvecs against
+    # ``Fx_s_stacked`` have been replaced by dense BLAS gemms over
+    # ``Theta2`` and ``X`` (see ``_fs_from_theta_dense`` and
+    # ``pseudo_dllk``). The sparse matrices are no longer touched in
+    # the hot path, so skip building them entirely; pseudo_log_likelihood
+    # and compute_cond_eta read X from this stored reference instead.
     skip_per_s = (O == 2 and map_function in ('cg', 'bf'))
     if skip_per_s:
         pair_i, pair_j = _enumerate_pair_idx(N)
         _pair_i_idx = pair_i
         _pair_j_idx = pair_j
-        for i in range(T):
-            Xt = X[i, :, :]
-            spike_cols = [numpy.nonzero(Xt[:, k])[0].astype(numpy.int32)
-                          for k in range(N)]
-            nnz_arr = numpy.fromiter((sc.size for sc in spike_cols),
-                                     dtype=numpy.int32, count=N)
-            offsets = numpy.empty(N + 1, dtype=numpy.int32)
-            offsets[0] = 0
-            numpy.cumsum(nnz_arr, out=offsets[1:])
-            if nnz_arr.sum():
-                flat = numpy.concatenate(spike_cols).astype(numpy.int32,
-                                                            copy=False)
-            else:
-                flat = numpy.empty(0, dtype=numpy.int32)
-            M = _build_stacked_csr_o2(flat, offsets, N, R, pair_i, pair_j)
-            Fx_s.append(None)  # per-s not used by cg/bf
-            Fx_s_stacked.append(M)
-            Fx_s_stacked_T.append(M.T.tocsc())
+        Fx_s = [None] * T  # per-s not used by cg/bf
         return
+
+    pair_i, pair_j = _enumerate_pair_idx(N)
+    _pair_i_idx = pair_i
+    _pair_j_idx = pair_j
 
     subset_lookup = _build_subset_lookup(subsets, N)
     # With direct-CSR build, the per-task cost is small enough that
