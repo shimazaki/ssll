@@ -52,11 +52,7 @@ def _psi(theta, N, O, method):
         return energies.compute_psi(theta, N, O)
     if method == 'exact':
         transforms.initialise(N, O)
-        T = theta.shape[0]
-        psi = numpy.empty(T)
-        for i in range(T):
-            psi[i] = transforms.compute_psi(theta[i])
-        return psi
+        return transforms.compute_psi_vec(theta)
     if method == 'approx':
         T = theta.shape[0]
         theta0 = numpy.copy(theta)
@@ -131,16 +127,16 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto'):
     """
     T, D = emd.theta_s.shape
 
-    thetas = beta * get_theta_samples(emd, samples)
+    thetas = beta * get_theta_samples(emd, samples)  # (T, D, samples)
 
-    C = numpy.zeros((T, samples))
+    # Reshape (T, D, samples) -> (samples*T, D) so psi runs in one batched call.
+    th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, D)
     epsilon = 1e-3
-    for n in range(samples):
-        th = thetas[:, :, n]
-        psi = _psi(th, emd.N, emd.order, method)
-        tmp1 = _psi(th * (1 + epsilon), emd.N, emd.order, method)
-        tmp2 = _psi(th * (1 - epsilon), emd.N, emd.order, method)
-        C[:, n] = (tmp1 - 2 * psi + tmp2) / (epsilon ** 2)
+    psi = _psi(th_stack, emd.N, emd.order, method)
+    tmp1 = _psi(th_stack * (1 + epsilon), emd.N, emd.order, method)
+    tmp2 = _psi(th_stack * (1 - epsilon), emd.N, emd.order, method)
+    C = ((tmp1 - 2 * psi + tmp2) / (epsilon ** 2)).reshape(samples, T).T
+
     C_map = C[:, 0]
     disregard = int((samples - threshold / 100.0 * samples) / 2)
     C = numpy.sort(C, axis=1)
@@ -211,10 +207,16 @@ def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto'):
     The heat capacities computed with num different betas.
     """
     betas = numpy.linspace(span[0], span[1], num)
-    c_betas = numpy.zeros((len(betas), emd.T))
-    for i, beta in enumerate(betas):
-        c_betas[i, :] = compute_heat_capacity(emd, beta, method=method)
-    return c_betas
+    T, D = emd.theta_s.shape
+    epsilon = 1e-3
+    # Build a (num*T, D) stack so psi only needs to be evaluated three times
+    # across all betas (psi, +eps, -eps) — same total inner work, one batched call.
+    theta_stack = (betas[:, None, None] * emd.theta_s[None, :, :]).reshape(num * T, D)
+    psi = _psi(theta_stack, emd.N, emd.order, method)
+    tmp1 = _psi(theta_stack * (1 + epsilon), emd.N, emd.order, method)
+    tmp2 = _psi(theta_stack * (1 - epsilon), emd.N, emd.order, method)
+    C = ((tmp1 - 2 * psi + tmp2) / (epsilon ** 2)).reshape(num, T)
+    return C
 
 
 def get_entropy(emd):

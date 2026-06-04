@@ -184,6 +184,35 @@ def compute_psi(theta):
     return float(psi)
 
 
+def compute_psi_vec(theta):
+    """Vectorised psi for a batch of theta vectors.
+
+    Equivalent to ``[compute_psi(theta[i]) for i in range(T)]`` but
+    folded into a single sparse matmul + reduction, which removes the
+    per-row Python overhead. Used by the heat-capacity sweep and the
+    credible-bound sampling in ``thermodynamics``.
+
+    :param numpy.ndarray theta: (T, D)
+    :returns: (T,) numpy.ndarray of float psi values.
+    """
+    global p_map
+    # p_map is (2**N, D); theta.T is (D, T); product is (2**N, T)
+    tmp = p_map.dot(theta.T)
+    return numpy.log(numpy.exp(tmp).sum(axis=0))
+
+
+def compute_p_vec(theta):
+    """Vectorised compute_p over a batch of theta vectors.
+
+    :param numpy.ndarray theta: (T, D)
+    :returns: (T, 2**N) probability matrix.
+    """
+    global p_map
+    log_p = p_map.dot(theta.T)
+    p = numpy.exp(log_p)
+    return (p / p.sum(axis=0, keepdims=True)).T
+
+
 def binalize_spikes(spikes, order, window):
     """
     Returns the binary spike sequences computed from the original spike/count 

@@ -1,0 +1,25 @@
+# bench_pseudo_mf @ 2026-06-05 01:29:33
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=2 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s
+ 20    1.567    1.505    1.567
+
+# bench_pseudo_mf @ 2026-06-05 01:29:48
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=2 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s
+ 40    4.906    4.585    4.906
+
+# bench_pseudo_mf @ 2026-06-05 01:30:03
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=2 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s
+ 60   10.521    9.695   10.521
+
+# bench_pseudo_mf @ 2026-06-05 01:34:41
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=2 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s
+ 20    1.556    1.450    1.556
+ 40    4.795    4.701    4.795
+

@@ -142,9 +142,9 @@ def compute_eta(theta, N, O, R=1000):
         # if large ensemble approximate
         else:
             transforms.initialise(N, O)
+            P = transforms.compute_p_vec(theta)  # (T, 2**N)
             for i in range(T):
-                p = transforms.compute_p(theta[i])
-                eta[i] = transforms.compute_eta(p)
+                eta[i] = transforms.compute_eta(P[i])
 
     return eta, bins_to_sample
 
@@ -183,8 +183,7 @@ def compute_psi(theta, N, O, R=1000):
         # else approximate
         else:
             transforms.initialise(N, 2)
-            for i in range(T):
-                psi[i] = transforms.compute_psi(theta[i])
+            psi = transforms.compute_psi_vec(theta)
     return psi
 
 
