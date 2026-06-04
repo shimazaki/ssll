@@ -54,7 +54,31 @@ Fx_s_stacked_T = None  # Precomputed transpose (CSC) of Fx_s_stacked for fast .T
 # (skipped for order=2 + cg/bf MAP path; see compute_Fx_s_parallel).
 _N_cells = 0
 _R_trials = 0
+# Cached lex pair (i<j) indices (length n_pairs each) for dense symmetric
+# reconstruction of the pair-block of a theta-like (D,) vector. Set in
+# compute_Fx_s_parallel when running the order=2 cg/bf direct-CSR path.
+_pair_i_idx = None
+_pair_j_idx = None
 time_bin = -1
+
+
+def _fs_from_theta_dense(theta, X):
+    """Dense replacement for ``Fx_s_stacked_T[t].dot(theta).reshape((R, N), 'F')``.
+
+    For order=2, ``Fx_s_stacked.T @ theta`` reduces to
+
+        fs[r, c] = theta_h[c] + sum_{k != c} Theta2[c, k] * X[r, k]
+
+    where ``Theta2`` is the symmetric (N,N) matrix with off-diagonal
+    entries given by the pair-block of ``theta``. Equivalent to a dense
+    matmul ``X @ Theta2`` plus a row-broadcast of ``theta_h``; dense BLAS
+    is ~1.4x faster than the CSC matvec for N=60, more for larger N.
+    """
+    N = _N_cells
+    Theta2 = numpy.zeros((N, N))
+    Theta2[_pair_i_idx, _pair_j_idx] = theta[N:]
+    Theta2[_pair_j_idx, _pair_i_idx] = theta[N:]
+    return theta[:N] + X.dot(Theta2)
 
 
 def _build_stacked_csr_o2(spike_cols_flat, spike_cols_offset, N, R,
@@ -382,6 +406,7 @@ def compute_Fx_s_parallel(X, O, map_function='cg'):
     subsets = transforms.enumerate_subsets(N, O)
     # Initialize Fx_s
     global Fx_s, Fx_s_stacked, Fx_s_stacked_T, _N_cells, _R_trials
+    global _pair_i_idx, _pair_j_idx
     _N_cells = N
     _R_trials = R
     # List of lists (for each time bin) of sparse matrices (for each cell)
@@ -395,6 +420,8 @@ def compute_Fx_s_parallel(X, O, map_function='cg'):
     skip_per_s = (O == 2 and map_function in ('cg', 'bf'))
     if skip_per_s:
         pair_i, pair_j = _enumerate_pair_idx(N)
+        _pair_i_idx = pair_i
+        _pair_j_idx = pair_j
         for i in range(T):
             Xt = X[i, :, :]
             spike_cols = [numpy.nonzero(Xt[:, k])[0].astype(numpy.int32)
@@ -548,9 +575,8 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     D = theta_0.shape[0]
     # Initialize theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via precomputed CSC transpose
-    fs_flat = Fx_s_stacked_T[time_bin].dot(theta_max)
-    fs = fs_flat.reshape((R, N), order='F')
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via dense reconstruction
+    fs = _fs_from_theta_dense(theta_max, X_t)
 
     # Initialize stopping criterion variables
     max_dlpo = numpy.inf
@@ -647,9 +673,8 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     N, D = X_t.shape[1], theta_0.shape[0]
     # Initialize theta with previous smoothed theta
     theta_max = theta_0
-    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via precomputed CSC transpose
-    fs_flat = Fx_s_stacked_T[time_bin].dot(theta_max)
-    fs = fs_flat.reshape((R, N), order='F')
+    # Calculate fs = sum(theta_I*F_I(x_s = 1, x_/s)) via dense reconstruction
+    fs = _fs_from_theta_dense(theta_max, X_t)
 
     # Initialize the estimate of the inverse fisher info
     ddlpo_i_e = numpy.identity(theta_max.shape[0])
@@ -791,9 +816,9 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o,
     # sigma_o_i_tmp is 1D diagonal — avoid constructing full (D,D) matrix
     # Precompute sigma_o_i projected on search direction: sum(diag * s^2)
     sigma_o_i_s = numpy.dot(sigma_o_i_tmp, s * s)
-    # Project all Fx_s on search direction at once via precomputed CSC transpose
-    Fx_s_s_flat = Fx_s_stacked_T[time_bin].dot(s)  # (R*N,)
-    Fx_s_s = Fx_s_s_flat.reshape((R, N), order='F')  # (R, N)
+    # Project all Fx_s on search direction via dense reconstruction
+    # (~1.4x faster than the equivalent CSC matvec for N=60).
+    Fx_s_s = _fs_from_theta_dense(s, X)  # (R, N)
     # Precompute Fx_s_s squared for Hessian projection
     Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
     # Project posterior on search direction
@@ -864,8 +889,18 @@ def pseudo_dllk(theta, X, fs):
     """
     # Calculate conditional rate using scipy expit (handles overflow, vectorized C)
     etas = expit(fs)
-    # Compute gradient via stacked sparse matrix: Fx_s_stacked @ residuals
-    dllk = Fx_s_stacked[time_bin].dot((X - etas).ravel(order='F'))
+    # Dense formulation of ``Fx_s_stacked @ (X - etas).ravel('F')``:
+    #   singleton block: dllk[i]      = sum_r res[r, i]                 = res.sum(0)[i]
+    #   pair (i<j):      dllk[N+p]    = sum_r X[r,j]*res[r,i] + X[r,i]*res[r,j]
+    #                                = (M + M.T)[i, j] where M = X.T @ res.
+    # Avoids the order='F' ravel forced-copy that the sparse path requires,
+    # which dominates at N=60 when fs is now produced C-contiguous.
+    res = X - etas
+    M = X.T.dot(res)
+    dllk = numpy.empty(_N_cells + _pair_i_idx.shape[0])
+    dllk[:_N_cells] = res.sum(axis=0)
+    dllk[_N_cells:] = (M[_pair_i_idx, _pair_j_idx]
+                       + M[_pair_j_idx, _pair_i_idx])
     return dllk, etas
 
 
