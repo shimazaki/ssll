@@ -146,3 +146,17 @@
 # the dllk path also avoids the order='F' ravel-induced copy that the
 # CSR matvec previously required.
  60    1.363    1.195    1.937
+
+# bench_pseudo_mf @ 2026-06-05 (paired 15 reps, post opt/skip-fx-stacked-cg)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  1.323  1.218  1.964
+# opt:    60  1.247  1.134  1.823   (~-5.7% median, -6.9% min)
+# After OPT 12, neither pseudo_dllk nor pseudo_line_search2 touches the
+# Fx_s_stacked CSR / CSC matrices on the cg/bf hot path. Skip the
+# direct-stacked-CSR build entirely for order=2 cg/bf -- ~0.08s/run saved
+# (build alone was ~12% of the run at N=60). compute_cond_eta and
+# pseudo_log_likelihood still reference Fx_s_stacked_T but are not used
+# in the standard EM pipeline (verified by grep).
+ 60    1.247    1.134    1.823
