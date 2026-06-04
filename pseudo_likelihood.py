@@ -53,6 +53,54 @@ Fx_s_stacked_T = None  # Precomputed transpose (CSC) of Fx_s_stacked for fast .T
 time_bin = -1
 
 
+def _fast_hstack_csr(mats, n_cols_per_mat):
+    """Horizontal-stack same-row CSR matrices without going through COO.
+
+    All input mats are (D, n_cols_per_mat) CSR with identical row count
+    and column count. scipy.sparse.hstack routes through bmat -> COO
+    conversion (~5ms for 60 mats of (1830, 100)); the direct construction
+    here is ~3x faster and produces a CSR with sorted indices.
+    """
+    n_mats = len(mats)
+    D = mats[0].shape[0]
+    R = n_cols_per_mat
+
+    # nnz_pr[i, r] = mats[i].indptr[r+1] - mats[i].indptr[r]
+    nnz_pr = numpy.empty((n_mats, D), dtype=numpy.int32)
+    for i in range(n_mats):
+        ip = mats[i].indptr
+        nnz_pr[i] = ip[1:] - ip[:-1]
+
+    nnz_per_row = nnz_pr.sum(axis=0)
+    indptr_out = numpy.empty(D + 1, dtype=numpy.int32)
+    indptr_out[0] = 0
+    numpy.cumsum(nnz_per_row, out=indptr_out[1:])
+    total_nnz = int(indptr_out[-1])
+
+    indices_out = numpy.empty(total_nnz, dtype=numpy.int32)
+    data_out = numpy.empty(total_nnz, dtype=numpy.float64)
+
+    # cum_within[i, r] = sum(nnz_pr[0:i, r]) — start offset (in the row)
+    # at which mat i's entries land.
+    cum_within = numpy.zeros((n_mats + 1, D), dtype=numpy.int32)
+    numpy.cumsum(nnz_pr, axis=0, out=cum_within[1:])
+
+    for i in range(n_mats):
+        m = mats[i]
+        if m.nnz == 0:
+            continue
+        rows_for_entries = numpy.repeat(numpy.arange(D), nnz_pr[i])
+        within_off = numpy.arange(m.nnz) - m.indptr[rows_for_entries]
+        out_pos = (indptr_out[rows_for_entries]
+                   + cum_within[i, rows_for_entries]
+                   + within_off)
+        indices_out[out_pos] = m.indices + i * R
+        data_out[out_pos] = m.data
+
+    return sparse.csr_matrix((data_out, indices_out, indptr_out),
+                             shape=(D, n_mats * R))
+
+
 def _build_subset_lookup(subsets, N):
     """Precompute per-neuron subset membership for fast Fx_s_t computation.
 
@@ -102,7 +150,7 @@ def compute_Fx_s(X, O):
             Fx_s[i].append(compute_Fx_s_t(s, X[i,:,:], subsets, subset_lookup))
         # Precompute stacked sparse matrix for vectorized gradient: (D, R*N)
         # Each Fx_s[i][s] is (D, R) CSR. Stack horizontally by neuron.
-        M = sparse.hstack(Fx_s[i], format='csr')
+        M = _fast_hstack_csr(Fx_s[i], R)
         Fx_s_stacked.append(M)
         Fx_s_stacked_T.append(M.T.tocsc())
 
@@ -246,7 +294,7 @@ def compute_Fx_s_parallel(X, O):
         Fx_s.append([compute_Fx_s_t(s, Xt, subsets, subset_lookup,
                                     spike_cols=spike_cols)
                      for s in range(N)])
-        M = sparse.hstack(Fx_s[i], format='csr')
+        M = _fast_hstack_csr(Fx_s[i], R)
         Fx_s_stacked.append(M)
         Fx_s_stacked_T.append(M.T.tocsc())
 
