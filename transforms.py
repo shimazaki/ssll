@@ -238,8 +238,12 @@ def binalize_spikes(spikes, order, window):
     spikes = spikes[:int(T / window) * window,:,:]
     spikes = spikes.reshape((int(T / window), window, R, N))
     spikes = spikes.any(axis=1)
-    spikes = spikes.astype(int)
-    
+    # Store as float64 so downstream matmuls (X_t @ Theta2 in
+    # _fs_from_theta_dense, X_t.T @ res in pseudo_dllk, batched matmul
+    # in compute_y) dispatch to BLAS gemm. Values are still {0., 1.},
+    # so equation arithmetic is identical.
+    spikes = spikes.astype(numpy.float64)
+
     return spikes
 
 def compute_y(spikes, order):

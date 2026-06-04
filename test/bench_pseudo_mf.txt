@@ -179,3 +179,15 @@
 # Profile (3 runs): pseudo_dllk tottime 1.154s -> 0.896s,
 # _fs_from_theta_dense tottime 0.415s -> 0.221s (~7.6% of run total).
  60    1.194    1.119    1.714
+
+# bench_pseudo_mf @ 2026-06-05 (paired 15 reps, post opt/spikes-float)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  1.180  1.161  1.265
+# opt:    60  1.126  1.095  1.144   (clean cluster; ~-4.6% median, -5.7% min)
+# binalize_spikes returns float64 instead of int. Cascades to BLAS gemm for
+# X_t @ Theta2 in _fs_from_theta_dense (~0.42ms -> ~0.04ms standalone)
+# and the batched matmul in compute_y. Values are still {0., 1.}, so the
+# equation arithmetic is identical -- only the storage dtype changes.
+ 60    1.126    1.095    1.144
