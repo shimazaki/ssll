@@ -116,7 +116,6 @@ def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
     s = neuron
     R = Xt.shape[0]
     D = len(subsets)
-    Fx_diff = numpy.zeros((D, R))
     if subset_lookup is not None:
         entries = subset_lookup[s]
     else:
@@ -124,14 +123,38 @@ def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
         for i, sub in enumerate(subsets):
             if s in sub:
                 entries.append((i, tuple(c for c in sub if c != s)))
-    for idx, others in entries:
+    # Build CSR directly: each row idx gets a slice of column indices
+    # corresponding to runs where the product of others' spikes equals 1.
+    # Sort entries by row index so we can construct CSR indptr in order.
+    entries_sorted = sorted(entries, key=lambda e: e[0])
+    cols_per_row = []  # list of (idx, col_array) pairs in sorted-idx order
+    all_cols_arrays = []
+    nnz_per_row = []
+    row_indices = []
+    for idx, others in entries_sorted:
         if len(others) == 0:
-            # Singleton {s}: always 1 when s=1, 0 when s=0
-            Fx_diff[idx, :] = 1.0
+            cols = numpy.arange(R, dtype=numpy.int32)
+        elif len(others) == 1:
+            cols = numpy.nonzero(Xt[:, others[0]])[0].astype(numpy.int32)
         else:
-            sp = Xt[:, others]
-            Fx_diff[idx, :] = sp.sum(axis=1) == len(others)
-    return sparse.csr_matrix(Fx_diff)
+            mask = Xt[:, others[0]].astype(bool)
+            for c in others[1:]:
+                mask &= Xt[:, c].astype(bool)
+            cols = numpy.nonzero(mask)[0].astype(numpy.int32)
+        if cols.size:
+            row_indices.append(idx)
+            nnz_per_row.append(cols.size)
+            all_cols_arrays.append(cols)
+    if not all_cols_arrays:
+        return sparse.csr_matrix((D, R), dtype=numpy.float64)
+    indices = numpy.concatenate(all_cols_arrays)
+    data = numpy.ones(indices.size, dtype=numpy.float64)
+    # Build indptr: zeros except at populated rows, then cumsum.
+    indptr = numpy.zeros(D + 1, dtype=numpy.int32)
+    for r, n in zip(row_indices, nnz_per_row):
+        indptr[r + 1] = n
+    numpy.cumsum(indptr, out=indptr)
+    return sparse.csr_matrix((data, indices, indptr), shape=(D, R))
 
 
 def compute_Fx(X, subsets):
@@ -193,24 +216,11 @@ def compute_Fx_s_parallel(X, O):
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
     Fx_s_stacked = []
-    # Setting multiprocessing — create pool once for all time bins
-    proc_num = multiprocessing.cpu_count()
-    proc_num = min(N, proc_num)
-    # Build all (time_bin, neuron) tasks
-    tasks = []
+    # With direct-CSR build, the per-task cost is small enough that
+    # multiprocessing IPC/fork overhead dominates. Run serially.
     for i in range(T):
-        for s in range(N):
-            tasks.append((s, X[i,:,:], subsets, subset_lookup))
-    pool = multiprocessing.Pool(proc_num)
-    all_results = pool.starmap(compute_Fx_s_t, tasks)
-    pool.close()
-    pool.join()
-    # Unpack results into per-time-bin lists
-    idx = 0
-    for i in range(T):
-        Fx_s.append(all_results[idx:idx+N])
-        idx += N
-        # Precompute stacked sparse matrix for vectorized ops
+        Fx_s.append([compute_Fx_s_t(s, X[i,:,:], subsets, subset_lookup)
+                     for s in range(N)])
         Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
 
 
