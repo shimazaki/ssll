@@ -95,3 +95,10 @@
  40    1.790    1.764    2.060
  60    2.541    2.440    2.833
 
+# bench_pseudo_mf @ 2026-06-05 04:50 (paired 15 reps, post opt/tap-linearity)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  2.661  2.528  2.765
+# opt:    60  2.518  2.378  2.607  (~5% faster across the distribution)
+ 60    2.518    2.378    2.607

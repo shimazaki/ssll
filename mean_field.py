@@ -174,13 +174,17 @@ def forward_problem_hessian(theta, N):
     iter_num = 0
     theta2_sq = theta2**2
     while conv > 1e-4 and iter_num < 5000:
-        # Inlined self_consistent_eq (TAP)
+        # Inlined self_consistent_eq (TAP). Shared sub-expression:
+        # (theta2_sq @ eta_var) appears in both deta (via the linear
+        # identity ((0.5 - eta_max)[:,None] * theta2_sq) @ v
+        # = (0.5 - eta_max) * (theta2_sq @ v)) and H_diag.
         eta_var = eta_max - eta_max**2  # eta*(1-eta)
-        deta = numpy.log(eta_max) - numpy.log(1 - eta_max) - theta1 - \
-               numpy.dot(theta2, eta_max) - \
-               .5*numpy.dot((.5 - eta_max)[:,numpy.newaxis]*theta2_sq, eta_var)
+        t2sq_ev = numpy.dot(theta2_sq, eta_var)
+        deta = (numpy.log(eta_max) - numpy.log(1 - eta_max) - theta1
+                - numpy.dot(theta2, eta_max)
+                - .5 * (.5 - eta_max) * t2sq_ev)
         # Inlined self_consistent_eq_Hinv (TAP)
-        H_diag = 1./eta_max + 1./(1 - eta_max) + .5*numpy.dot(theta2_sq, eta_var)
+        H_diag = 1./eta_max + 1./(1 - eta_max) + .5 * t2sq_ev
         # Update: eta -= 0.1 * diag(1/H) @ deta
         eta_max -= .1 * deta / H_diag
         conv = numpy.amax(numpy.absolute(deta))
@@ -246,11 +250,12 @@ def forward_problem_hessian_batch(theta, N):
         t2_em = numpy.einsum('bij,bj->bi', theta2, eta_max)
         t2sq_ev = numpy.einsum('bij,bj->bi', theta2_sq, eta_var)
         half_minus = 0.5 - eta_max                          # (B, N)
-        # ((0.5 - eta_max)[..., None] * theta2_sq) @ eta_var
-        ons_term = numpy.einsum('bij,bj->bi',
-                                half_minus[:, :, None] * theta2_sq, eta_var)
+        # Linear identity:
+        #   ((0.5 - eta_max)[..., None] * theta2_sq) @ eta_var
+        # = (0.5 - eta_max) * (theta2_sq @ eta_var)
+        # so we reuse t2sq_ev instead of materialising (B, N, N).
         deta = (numpy.log(eta_max) - numpy.log(1.0 - eta_max)
-                - theta1 - t2_em - 0.5 * ons_term)
+                - theta1 - t2_em - 0.5 * half_minus * t2sq_ev)
         H_diag = 1.0 / eta_max + 1.0 / (1.0 - eta_max) + 0.5 * t2sq_ev
         eta_max = eta_max - 0.1 * deta / H_diag
         numpy.clip(eta_max, spacing, 1.0 - spacing, out=eta_max)
