@@ -102,3 +102,11 @@
 # master: 60  2.661  2.528  2.765
 # opt:    60  2.518  2.378  2.607  (~5% faster across the distribution)
  60    2.518    2.378    2.607
+
+# bench_pseudo_mf @ 2026-06-05 05:05 (paired 15 reps, post opt/hoist-dllk-from-ls2)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  2.540  2.445  2.723
+# opt:    60  2.192  2.122  2.301   (~-13.7% median, -13.2% min)
+ 60    2.192    2.122    2.301

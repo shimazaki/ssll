@@ -434,7 +434,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
     s = dlpo
     # Perform first line search
     theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo, sigma_o_i,
-                                       etas, theta_o)
+                                       etas, theta_o, dllk)
     # Calculate new likelihood gradient
     dllk, etas = pseudo_dllk(theta_max, X_t, fs)
     # and new prior
@@ -454,7 +454,7 @@ def pseudo_cg(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
         s = d_th + beta * s
         # Perform line search in this direction
         theta_max, fs = pseudo_line_search2(theta_max, X_t, s, fs, dlpo,
-                                            sigma_o_i, etas, theta_o)
+                                            sigma_o_i, etas, theta_o, dllk)
         # Calculate the new gradient and conditional rates
         dllk, etas = pseudo_dllk(theta_max, X_t, fs)
 
@@ -538,7 +538,7 @@ def pseudo_bfgs(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
         dlpo_prev = dlpo
         # Perform line search
         theta_max, fs = pseudo_line_search2(theta_max, X_t, s_dir, fs, dlpo,
-                                           sigma_o_i, etas, theta_o)
+                                           sigma_o_i, etas, theta_o, dllk)
         # Get the difference between old and new theta
         d_theta = theta_max - theta_prev
         # Compute derivative of posterior
@@ -624,7 +624,8 @@ def pseudo_line_search(theta, X, s, fs, dlpo, sigma_o_i, etas):
     return theta_new, fs_new
 
 
-def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
+def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o,
+                        dllk):
     """ Performs the line search for pseudo-log-likelihood as objective
     function by quadratic approximation at current theta, but does more than one
     step.
@@ -643,6 +644,10 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
         (d,d) inverse of one-step covariance
     :param numpy.ndarray etas:
         (r,c) conditional rate for each run and cell
+    :param numpy.ndarray dllk:
+        (d,) log-likelihood gradient at (theta, fs); reused inside the
+        quadratic line search rather than recomputed by ``pseudo_dllk``,
+        saving one csr_matvec per call.
 
     :returns:
         (d,) new theta according to quadratic approximation
@@ -660,11 +665,11 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
-    # pseudo_dllk depends only on fs (theta is unused), and fs is loop-
-    # invariant below — hoist the call out so the csr_matvec runs once
-    # per line search rather than once per iteration. Same logic for
-    # etas/detas/ddlpo_s, which only change with fs.
-    dllk_const, _ = pseudo_dllk(theta, X, fs)
+    # Use the pre-computed dllk from the caller. The quadratic line search
+    # holds dllk constant (it only depends on fs, which is loop-invariant
+    # here), and the caller has just evaluated pseudo_dllk(theta, X, fs)
+    # — no need to recompute.
+    dllk_const = dllk
     detas = etas * (1 - etas)
     ddlpo_s = numpy.sum(detas * Fx_s_s_sq) + sigma_o_i_s
     num_iter = 0
