@@ -103,7 +103,8 @@ def compute_Fx_s(X, O):
         Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
 
 
-def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
+def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None,
+                   spike_cols=None):
     """
     Constructs the sparse matrix F(x_s=1, x_\\s) - F(x_s=0, x_\\s) at time t
     for neuron s.  Only subsets containing neuron s produce non-zero rows.
@@ -111,6 +112,10 @@ def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
     : param numpy.array Xt:
         Two dimensional (r, c) binary array, where the first dimension is runs
         (trials) and the second is the number of cells.
+    : param list spike_cols:
+        Optional precomputed per-neuron nonzero-trial index arrays for time t,
+        i.e. spike_cols[k] = numpy.nonzero(Xt[:, k])[0]. When provided, pair
+        subsets {s, k} look up cols directly instead of recomputing.
     : returns (D, R) sparse CSR feature-difference matrix at time t.
     """
     s = neuron
@@ -127,7 +132,6 @@ def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
     # corresponding to runs where the product of others' spikes equals 1.
     # Sort entries by row index so we can construct CSR indptr in order.
     entries_sorted = sorted(entries, key=lambda e: e[0])
-    cols_per_row = []  # list of (idx, col_array) pairs in sorted-idx order
     all_cols_arrays = []
     nnz_per_row = []
     row_indices = []
@@ -135,11 +139,21 @@ def compute_Fx_s_t(neuron, Xt, subsets, subset_lookup=None):
         if len(others) == 0:
             cols = numpy.arange(R, dtype=numpy.int32)
         elif len(others) == 1:
-            cols = numpy.nonzero(Xt[:, others[0]])[0].astype(numpy.int32)
+            k = others[0]
+            cols = (spike_cols[k] if spike_cols is not None
+                    else numpy.nonzero(Xt[:, k])[0].astype(numpy.int32))
         else:
-            mask = Xt[:, others[0]].astype(bool)
-            for c in others[1:]:
-                mask &= Xt[:, c].astype(bool)
+            if spike_cols is not None:
+                mask = numpy.zeros(R, dtype=bool)
+                mask[spike_cols[others[0]]] = True
+                for c in others[1:]:
+                    m = numpy.zeros(R, dtype=bool)
+                    m[spike_cols[c]] = True
+                    mask &= m
+            else:
+                mask = Xt[:, others[0]].astype(bool)
+                for c in others[1:]:
+                    mask &= Xt[:, c].astype(bool)
             cols = numpy.nonzero(mask)[0].astype(numpy.int32)
         if cols.size:
             row_indices.append(idx)
@@ -219,7 +233,13 @@ def compute_Fx_s_parallel(X, O):
     # With direct-CSR build, the per-task cost is small enough that
     # multiprocessing IPC/fork overhead dominates. Run serially.
     for i in range(T):
-        Fx_s.append([compute_Fx_s_t(s, X[i,:,:], subsets, subset_lookup)
+        Xt = X[i, :, :]
+        # Precompute per-neuron nonzero-trial indices so pair subsets
+        # in compute_Fx_s_t don't recompute nonzero() N times each.
+        spike_cols = [numpy.nonzero(Xt[:, k])[0].astype(numpy.int32)
+                      for k in range(N)]
+        Fx_s.append([compute_Fx_s_t(s, Xt, subsets, subset_lookup,
+                                    spike_cols=spike_cols)
                      for s in range(N)])
         Fx_s_stacked.append(sparse.hstack(Fx_s[i], format='csr'))
 
