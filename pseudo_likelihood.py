@@ -605,24 +605,26 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o):
     Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
+    # pseudo_dllk depends only on fs (theta is unused), and fs is loop-
+    # invariant below — hoist the call out so the csr_matvec runs once
+    # per line search rather than once per iteration. Same logic for
+    # etas/detas/ddlpo_s, which only change with fs.
+    dllk_const, _ = pseudo_dllk(theta, X, fs)
+    detas = etas * (1 - etas)
+    ddlpo_s = numpy.sum(detas * Fx_s_s_sq) + sigma_o_i_s
     num_iter = 0
     conv = numpy.inf
     while conv > 1e-2 and num_iter < 10:
         dlpo_s_old = numpy.absolute(dlpo_s)
-        # Project conditional rate on search direction
-        detas = etas*(1-etas)
-        # Hessian projection: sum over all (r,n) of detas*Fx_s_s^2
-        ddlpo_s = numpy.sum(detas * Fx_s_s_sq) + sigma_o_i_s
         # Compute how much the step should be along search direction
         alpha = dlpo_s/ddlpo_s
         # Update sum of active thetas
         fs_new = fs + .5*alpha*Fx_s_s
         # Update theta
         theta_new = theta + .5*alpha*s
-        dllk, etas = pseudo_dllk(theta_new, X, fs)
         # Calculate prior: element-wise multiply with 1D diagonal
         dlpr = -sigma_o_i_tmp * (theta_new - theta_o)
-        dlpo = dllk + dlpr
+        dlpo = dllk_const + dlpr
         dlpo_s = numpy.dot(dlpo.T, s)
         conv = numpy.absolute(dlpo_s_old-dlpo_s)
         num_iter += 1
