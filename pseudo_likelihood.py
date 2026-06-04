@@ -57,8 +57,17 @@ _R_trials = 0
 # Cached lex pair (i<j) indices (length n_pairs each) for dense symmetric
 # reconstruction of the pair-block of a theta-like (D,) vector. Set in
 # compute_Fx_s_parallel when running the order=2 cg/bf direct-CSR path.
+# ``_pair_flat_upper`` / ``_pair_flat_lower`` are the row-major flat
+# equivalents of (_pair_i_idx, _pair_j_idx) / (_pair_j_idx, _pair_i_idx)
+# into a (N, N) buffer -- 1D fancy indexing is ~2x faster than the 2D
+# form for our pair counts. ``_theta2_buf`` is a persistent (N, N) zero
+# buffer reused by ``_fs_from_theta_dense``; its off-diagonal entries
+# are fully overwritten each call, so we never need to re-zero it.
 _pair_i_idx = None
 _pair_j_idx = None
+_pair_flat_upper = None
+_pair_flat_lower = None
+_theta2_buf = None
 time_bin = -1
 
 
@@ -75,10 +84,11 @@ def _fs_from_theta_dense(theta, X):
     is ~1.4x faster than the CSC matvec for N=60, more for larger N.
     """
     N = _N_cells
-    Theta2 = numpy.zeros((N, N))
-    Theta2[_pair_i_idx, _pair_j_idx] = theta[N:]
-    Theta2[_pair_j_idx, _pair_i_idx] = theta[N:]
-    return theta[:N] + X.dot(Theta2)
+    theta_pair = theta[N:]
+    T2f = _theta2_buf.ravel()
+    T2f[_pair_flat_upper] = theta_pair
+    T2f[_pair_flat_lower] = theta_pair
+    return theta[:N] + X.dot(_theta2_buf)
 
 
 def _build_stacked_csr_o2(spike_cols_flat, spike_cols_offset, N, R,
@@ -406,13 +416,28 @@ def compute_Fx_s_parallel(X, O, map_function='cg'):
     subsets = transforms.enumerate_subsets(N, O)
     # Initialize Fx_s
     global Fx_s, Fx_s_stacked, Fx_s_stacked_T, _N_cells, _R_trials
-    global _pair_i_idx, _pair_j_idx
+    global _pair_i_idx, _pair_j_idx, _pair_flat_upper, _pair_flat_lower
+    global _theta2_buf
     _N_cells = N
     _R_trials = R
     # List of lists (for each time bin) of sparse matrices (for each cell)
     Fx_s = []
     Fx_s_stacked = []
     Fx_s_stacked_T = []
+
+    pair_i, pair_j = _enumerate_pair_idx(N)
+    _pair_i_idx = pair_i
+    _pair_j_idx = pair_j
+    # 1D flat (row-major) equivalents of (pair_i, pair_j) / (pair_j, pair_i)
+    # for fast scatter into a (N, N) buffer. intp is the numpy default for
+    # 1D fancy index, so we use it explicitly to avoid a cast each call.
+    _pair_flat_upper = (pair_i.astype(numpy.intp) * N
+                        + pair_j.astype(numpy.intp))
+    _pair_flat_lower = (pair_j.astype(numpy.intp) * N
+                        + pair_i.astype(numpy.intp))
+    # Persistent scratch buffer for _fs_from_theta_dense; off-diagonals
+    # are fully overwritten each call, diagonal stays zero from this init.
+    _theta2_buf = numpy.zeros((N, N))
 
     # For order=2 cg/bf, both forward and transpose matvecs against
     # ``Fx_s_stacked`` have been replaced by dense BLAS gemms over
@@ -422,15 +447,8 @@ def compute_Fx_s_parallel(X, O, map_function='cg'):
     # and compute_cond_eta read X from this stored reference instead.
     skip_per_s = (O == 2 and map_function in ('cg', 'bf'))
     if skip_per_s:
-        pair_i, pair_j = _enumerate_pair_idx(N)
-        _pair_i_idx = pair_i
-        _pair_j_idx = pair_j
         Fx_s = [None] * T  # per-s not used by cg/bf
         return
-
-    pair_i, pair_j = _enumerate_pair_idx(N)
-    _pair_i_idx = pair_i
-    _pair_j_idx = pair_j
 
     subset_lookup = _build_subset_lookup(subsets, N)
     # With direct-CSR build, the per-task cost is small enough that
@@ -885,12 +903,14 @@ def pseudo_dllk(theta, X, fs):
     #                                = (M + M.T)[i, j] where M = X.T @ res.
     # Avoids the order='F' ravel forced-copy that the sparse path requires,
     # which dominates at N=60 when fs is now produced C-contiguous.
+    # The pair-block is gathered via a 1D flat index into M.ravel(): ~2x
+    # faster than the equivalent (i, j) / (j, i) 2D fancy indexing.
     res = X - etas
     M = X.T.dot(res)
-    dllk = numpy.empty(_N_cells + _pair_i_idx.shape[0])
+    Mf = M.ravel()
+    dllk = numpy.empty(_N_cells + _pair_flat_upper.shape[0])
     dllk[:_N_cells] = res.sum(axis=0)
-    dllk[_N_cells:] = (M[_pair_i_idx, _pair_j_idx]
-                       + M[_pair_j_idx, _pair_i_idx])
+    dllk[_N_cells:] = Mf[_pair_flat_upper] + Mf[_pair_flat_lower]
     return dllk, etas
 
 
