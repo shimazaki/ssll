@@ -119,3 +119,15 @@
 # opt:    60  1.755  1.574  1.810   (~-17.6% median, -21.1% min)
 # direct stacked-CSR build for order=2 (cg/bf) skips per-s sparse + hstack
  60    1.755    1.574    1.810
+
+# bench_pseudo_mf @ 2026-06-05 (paired 15 reps, post opt/ls2-scalar-recurrence)
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 repeats=15 order=2 param_est=pseudo param_est_eta=mf max_iter=20
+# columns: N  median_s  min_s  max_s   (master->opt)
+# master: 60  1.659  1.480  2.577
+# opt:    60  1.540  1.464  1.624   (~-7.2% median, much tighter variance)
+# pseudo_line_search2 inner loop collapsed to scalar affine recurrence
+# (theta does not accumulate across iters, so dlpr is affine in alpha and
+#  the entire D-vector inner work reduces to scalar; theta_new/fs_new
+#  reconstructed once at the end from the final alpha)
+ 60    1.540    1.464    1.624

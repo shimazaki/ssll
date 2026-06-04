@@ -798,30 +798,33 @@ def pseudo_line_search2(theta, X, s, fs, dlpo, sigma_o_i_tmp, etas, theta_o,
     Fx_s_s_sq = Fx_s_s * Fx_s_s  # (R, N)
     # Project posterior on search direction
     dlpo_s = numpy.dot(dlpo.T, s)
-    # Use the pre-computed dllk from the caller. The quadratic line search
-    # holds dllk constant (it only depends on fs, which is loop-invariant
-    # here), and the caller has just evaluated pseudo_dllk(theta, X, fs)
-    # — no need to recompute.
-    dllk_const = dllk
     detas = etas * (1 - etas)
     ddlpo_s = numpy.sum(detas * Fx_s_s_sq) + sigma_o_i_s
+    # Inside the original inner loop, ``theta`` does not accumulate -- each
+    # iter rebuilds theta_new = theta + 0.5*alpha*s from the SAME input
+    # theta with a different alpha. Because dlpr is affine in alpha:
+    #     dlpr_k       = dlpr_input - 0.5 * alpha_k * sigma_o_i * s
+    #     dlpo_k       = dlpo_input - 0.5 * alpha_k * sigma_o_i * s
+    #     dlpo_s_k     = dlpo_s_input - r * dlpo_s_{k-1}      (r = 0.5*sigma_o_i_s/ddlpo_s)
+    # so the entire inner loop reduces to a scalar affine recurrence. The
+    # per-iter D-vector ops (theta_new, dlpr, dlpo, dot(dlpo,s)) in the
+    # original loop are dead weight: only the final alpha matters, so we
+    # iterate in scalars and reconstruct theta_new and fs_new once at the
+    # end.
+    dlpo_s_input = dlpo_s
+    r = 0.5 * sigma_o_i_s / ddlpo_s
+    last_alpha = 0.0
     num_iter = 0
     conv = numpy.inf
     while conv > 1e-2 and num_iter < 10:
-        dlpo_s_old = numpy.absolute(dlpo_s)
-        # Compute how much the step should be along search direction
-        alpha = dlpo_s/ddlpo_s
-        # Update sum of active thetas
-        fs_new = fs + .5*alpha*Fx_s_s
-        # Update theta
-        theta_new = theta + .5*alpha*s
-        # Calculate prior: element-wise multiply with 1D diagonal
-        dlpr = -sigma_o_i_tmp * (theta_new - theta_o)
-        dlpo = dllk_const + dlpr
-        dlpo_s = numpy.dot(dlpo.T, s)
-        conv = numpy.absolute(dlpo_s_old-dlpo_s)
+        dlpo_s_old = abs(dlpo_s)
+        last_alpha = dlpo_s / ddlpo_s
+        dlpo_s = dlpo_s_input - r * dlpo_s
+        conv = abs(dlpo_s_old - dlpo_s)
         num_iter += 1
-    # Return
+    half_alpha = 0.5 * last_alpha
+    theta_new = theta + half_alpha * s
+    fs_new = fs + half_alpha * Fx_s_s
     return theta_new, fs_new
 
 
