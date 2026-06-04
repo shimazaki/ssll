@@ -188,7 +188,8 @@ class EMData:
 
         elif param_est == 'pseudo':
             #pseudo_likelihood.compute_Fx_s(self.spikes, self.order)
-            pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order)
+            pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order,
+                                                    map_function=map_function)
             self.max_posterior = pseudo_likelihood.functions[map_function]
 
             # Compute the sufficient statistics for the model from the input spikes
