@@ -205,6 +205,81 @@ def forward_problem_hessian(theta, N):
     return eta
 
 
+def forward_problem_hessian_batch(theta, N):
+    """Batched TAP forward problem.
+
+    Solves ``forward_problem_hessian(theta[b], N)`` for all b in a single
+    vectorised numpy loop: the self-consistent NR iteration runs in
+    parallel over the batch dimension, terminating when the worst-case
+    convergence over the batch drops below 1e-4. The Fisher-info inverse
+    is done with ``numpy.linalg.inv`` on the (B, N, N) stack, which is
+    BLAS-vectorised.
+
+    :param numpy.ndarray theta: (B, D) batch of natural parameter vectors,
+        where D = N + N*(N-1)/2 for an order-2 model.
+    :param int N: number of cells.
+    :returns: (B, D) array of expectation parameters.
+
+    For small B (~ a few timesteps) this is similar to looping in Python;
+    the win grows with B. For B*N**2 too large to keep in memory, fall
+    back to looping in chunks.
+    """
+    theta = numpy.asarray(theta)
+    if theta.ndim == 1:
+        return forward_problem_hessian(theta, N)
+
+    B, D = theta.shape
+    triu_idx = numpy.triu_indices(N, k=1)
+
+    theta1 = theta[:, :N]                                  # (B, N)
+    theta2 = numpy.zeros((B, N, N), dtype=theta.dtype)
+    theta2[:, triu_idx[0], triu_idx[1]] = theta[:, N:]
+    theta2 = theta2 + theta2.transpose(0, 2, 1)             # symmetric
+    theta2_sq = theta2 ** 2
+
+    eta_max = 1.0 / (1.0 + numpy.exp(-theta1))              # (B, N)
+    spacing = numpy.spacing(1.0)
+    conv = numpy.inf
+    for iter_num in range(5000):
+        eta_var = eta_max - eta_max ** 2                    # (B, N)
+        # batched mat-vec via einsum: theta2[b] @ eta_max[b]
+        t2_em = numpy.einsum('bij,bj->bi', theta2, eta_max)
+        t2sq_ev = numpy.einsum('bij,bj->bi', theta2_sq, eta_var)
+        half_minus = 0.5 - eta_max                          # (B, N)
+        # ((0.5 - eta_max)[..., None] * theta2_sq) @ eta_var
+        ons_term = numpy.einsum('bij,bj->bi',
+                                half_minus[:, :, None] * theta2_sq, eta_var)
+        deta = (numpy.log(eta_max) - numpy.log(1.0 - eta_max)
+                - theta1 - t2_em - 0.5 * ons_term)
+        H_diag = 1.0 / eta_max + 1.0 / (1.0 - eta_max) + 0.5 * t2sq_ev
+        eta_max = eta_max - 0.1 * deta / H_diag
+        numpy.clip(eta_max, spacing, 1.0 - spacing, out=eta_max)
+        conv = numpy.max(numpy.abs(deta))
+        if conv <= 1e-4:
+            break
+    else:
+        raise Exception('Self consistent equations could not be solved!')
+
+    half_minus = 0.5 - eta_max
+    # fisher_info_inv = -theta2 - theta2_sq * outer(half_minus, half_minus)
+    outer_hm = half_minus[:, :, None] * half_minus[:, None, :]
+    fisher_info_inv = -theta2 - theta2_sq * outer_hm
+    diag_val = (1.0 / eta_max + 1.0 / (1.0 - eta_max)
+                + 0.5 * numpy.einsum('bij,bj->bi', theta2_sq,
+                                     eta_max - eta_max ** 2))
+    # Set the diagonal of each (N, N) slice to diag_val[b]
+    di = numpy.arange(N)
+    fisher_info_inv[:, di, di] = diag_val
+    fisher_info = numpy.linalg.inv(fisher_info_inv)
+    eta2 = fisher_info + eta_max[:, :, None] * eta_max[:, None, :]
+
+    eta = numpy.empty_like(theta)
+    eta[:, :N] = eta_max
+    eta[:, N:] = eta2[:, triu_idx[0], triu_idx[1]]
+    numpy.clip(eta, spacing, 1.0 - spacing, out=eta)
+    return eta
+
+
 def _forward_problem_hessian_jax(theta, N):
     """JAX-accelerated version of forward_problem_hessian."""
     eta = numpy.empty(theta.shape)

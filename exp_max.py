@@ -91,11 +91,17 @@ def e_step(emd):
     e_step_smooth(emd)
 
     # Compute expectation parameters
-    for i in range(emd.T):
-        if emd.param_est_eta == 'exact':
-            p = transforms.compute_p(emd.theta_s[i,:])
-            emd.eta_s[i,:] = transforms.compute_eta(p)
-        else:
+    if emd.param_est_eta == 'exact':
+        # batched: one sparse matmul + per-row eta projection
+        P = transforms.compute_p_vec(emd.theta_s)  # (T, 2**N)
+        for i in range(emd.T):
+            emd.eta_s[i, :] = transforms.compute_eta(P[i])
+    elif emd.param_est_eta == 'mf':
+        # batched TAP across T
+        import mean_field
+        emd.eta_s[:] = mean_field.forward_problem_hessian_batch(emd.theta_s, emd.N)
+    else:
+        for i in range(emd.T):
             emd.eta_s[i,:] = pseudo_likelihood.compute_eta[emd.param_est_eta](emd.theta_s[i,:], emd.N)
 
 
