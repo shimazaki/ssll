@@ -161,21 +161,35 @@ def e_step_smooth(emd):
             # Compute the backward-smoothed lag-one covariances
             emd.sigma_s_lag[i+1] = numpy.dot(A, emd.sigma_s[i+1,:])
     else:
-        for i in reversed(range(emd.T - 1)):
-            # Compute the A matrix: diag(sigma_f) @ F.T @ diag(sigma_o_inv)
-            # diag(d) @ M = d[:,None] * M; M @ diag(d) = M * d[None,:]
-            a = emd.sigma_f[i][:, numpy.newaxis] * emd.F.T
-            A = a * emd.sigma_o_inv[i+1][numpy.newaxis, :]
-            # Compute the backward-smoothed means
-            tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
-            emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
-            # Compute the backward-smoothed covariances
-            # A @ diag(d) @ A.T, then take diagonal
-            Ad = A * (emd.sigma_s[i+1] - emd.sigma_o[i+1])[numpy.newaxis, :]
-            emd.sigma_s[i] = emd.sigma_f[i] + numpy.sum(Ad * A, axis=1)
-            # Compute the backward-smoothed lag-one covariances
-            # (A @ diag(sigma_s)).diagonal() = sum(A * sigma_s, axis=1)
-            emd.sigma_s_lag[i+1] = numpy.sum(A * emd.sigma_s[i+1][numpy.newaxis, :], axis=1)
+        # If F was never updated by m_step_F (state_ar_0 is None), F stays
+        # equal to the identity, and the entire smoother collapses to O(D)
+        # per timestep (everything is diagonal). This is the default path
+        # for ssll.run, so worth special-casing — for D=1830 (N=60) the
+        # speedup is ~D in the inner work.
+        if emd.state_ar_0 is None:
+            for i in reversed(range(emd.T - 1)):
+                A = emd.sigma_f[i] * emd.sigma_o_inv[i+1]  # (D,)
+                emd.theta_s[i, :] = emd.theta_f[i, :] + A * (
+                    emd.theta_s[i+1, :] - emd.theta_o[i+1, :])
+                emd.sigma_s[i] = emd.sigma_f[i] + (A * A) * (
+                    emd.sigma_s[i+1] - emd.sigma_o[i+1])
+                emd.sigma_s_lag[i+1] = A * emd.sigma_s[i+1]
+        else:
+            for i in reversed(range(emd.T - 1)):
+                # Compute the A matrix: diag(sigma_f) @ F.T @ diag(sigma_o_inv)
+                # diag(d) @ M = d[:,None] * M; M @ diag(d) = M * d[None,:]
+                a = emd.sigma_f[i][:, numpy.newaxis] * emd.F.T
+                A = a * emd.sigma_o_inv[i+1][numpy.newaxis, :]
+                # Compute the backward-smoothed means
+                tmp = numpy.dot(A, emd.theta_s[i+1,:] - emd.theta_o[i+1,:])
+                emd.theta_s[i,:] = emd.theta_f[i,:] + tmp
+                # Compute the backward-smoothed covariances
+                # A @ diag(d) @ A.T, then take diagonal
+                Ad = A * (emd.sigma_s[i+1] - emd.sigma_o[i+1])[numpy.newaxis, :]
+                emd.sigma_s[i] = emd.sigma_f[i] + numpy.sum(Ad * A, axis=1)
+                # Compute the backward-smoothed lag-one covariances
+                # (A @ diag(sigma_s)).diagonal() = sum(A * sigma_s, axis=1)
+                emd.sigma_s_lag[i+1] = numpy.sum(A * emd.sigma_s[i+1][numpy.newaxis, :], axis=1)
 
 
 def m_step(emd):#, stationary='None'):
