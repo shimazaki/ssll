@@ -66,6 +66,42 @@ def _psi(theta, N, O, method):
     raise ValueError("method must be 'auto', 'exact', or 'approx'")
 
 
+def _gibbs_pairwise_batch(theta, N, R, burn_in, seed):
+    """Vectorized parallel-chain Gibbs sampler for the pairwise (O=2) model.
+
+    Runs R independent chains per time bin, batched across all T bins. After
+    ``burn_in`` full sweeps it returns one sample per chain, so each (t, r)
+    sample is independent. Cost per sweep is one batched matmul of shape
+    (T, R, N) x (T, N, N), i.e. O(T*R*N^2) flops with no Python inner loop.
+
+    :param numpy.ndarray theta: (T, D) parameter array, D = N + N*(N-1)/2.
+    :param int N: number of cells.
+    :param int R: number of parallel chains (samples) per time bin.
+    :param int burn_in: number of full Gibbs sweeps before sampling.
+    :param int seed: RNG seed.
+    :return: numpy.ndarray (T, R, N) of uint8 spike samples.
+    """
+    T, D = theta.shape
+    theta_1 = theta[:, :N]                                   # (T, N)
+    iu, ju = numpy.triu_indices(N, 1)
+    J = numpy.zeros((T, N, N))
+    J[:, iu, ju] = theta[:, N:]
+    J[:, ju, iu] = theta[:, N:]                              # (T, N, N), symmetric, zero diag
+
+    rng = numpy.random.default_rng(seed)
+    x = (rng.random((T, R, N)) < 0.5).astype(numpy.float64)
+    # Per-sweep cost is N batched matvecs of shape (T, R, N) x (T, N), one per
+    # neuron, computing only the (T, R) field slice we need. Avoids materializing
+    # any (T, R, N) temporary on the inner loop.
+    for _ in range(burn_in):
+        rand = rng.random((N, T, R))
+        for i in range(N):
+            h_i = theta_1[:, i, None] + numpy.einsum('trj,tj->tr', x, J[:, i, :])
+            p_i = 1.0 / (1.0 + numpy.exp(-h_i))
+            x[:, :, i] = (rand[i] < p_i).astype(numpy.float64)
+    return x.astype(numpy.uint8)
+
+
 def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
                             parallel=False, num_proc=1):
     """Sampling-based heat capacity via the fluctuation-dissipation identity.
@@ -76,6 +112,10 @@ def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
     rest of the library). This matches the quantity returned by the
     finite-difference path in :func:`compute_heat_capacity`.
 
+    For O=2 (pairwise) uses the batched parallel-chain sampler
+    :func:`_gibbs_pairwise_batch`; for O>2 falls back to the per-bin
+    single-chain Gibbs sampler in :mod:`synthesis`.
+
     :param numpy.ndarray theta_eff:
         (T, D) array. Pass ``beta * theta_s`` when probing inverse temperature
         ``beta``.
@@ -83,12 +123,25 @@ def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
     :param int O: model interaction order.
     :param int R: number of Gibbs samples per time bin.
     :param int pre_n: burn-in sweeps per time bin.
-    :param int sample_steps: thinning between retained samples.
+    :param int sample_steps: thinning between retained samples (O>2 path only).
     :param int seed: RNG seed (per-bin seeds are derived from this).
-    :param bool parallel: if True, use the multiprocessing Gibbs sampler.
-    :param int num_proc: pool size when ``parallel`` is True.
+    :param bool parallel: if True and O>2, use the multiprocessing fallback.
+    :param int num_proc: pool size for the O>2 multiprocessing fallback.
     :return: numpy.ndarray of shape (T,) — heat capacity per time bin.
     """
+    T = theta_eff.shape[0]
+    if O == 2:
+        X = _gibbs_pairwise_batch(theta_eff, N, R, burn_in=pre_n, seed=seed)
+        # Energy E_{t,r} = theta_1 . x + theta_2 . (x_i * x_j over pairs)
+        theta_1 = theta_eff[:, :N]                                  # (T, N)
+        theta_2 = theta_eff[:, N:]                                  # (T, N(N-1)/2)
+        iu, ju = numpy.triu_indices(N, 1)
+        X_f = X.astype(numpy.float64)
+        E_lin = numpy.einsum('ti,tri->tr', theta_1, X_f)
+        E_pair = numpy.einsum('tk,trk->tr',
+                              theta_2, X_f[:, :, iu] * X_f[:, :, ju])
+        E = E_lin + E_pair                                          # (T, R)
+        return E.var(axis=1, ddof=1)
     if parallel:
         X = synthesis.generate_spikes_gibbs_parallel(
             theta_eff, N, O, R, seed=seed, pre_n=pre_n,
@@ -97,19 +150,16 @@ def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
         X = synthesis.generate_spikes_gibbs(
             theta_eff, N, O, R, seed=seed, pre_n=pre_n,
             sample_steps=sample_steps)
-    # X: (T, R, N). Build subset-indicator features once.
     subsets = transforms.enumerate_subsets(N, O)
     D = len(subsets)
     subset_map = numpy.zeros((D, N))
     for i in range(D):
         subset_map[i, subsets[i]] = 1
     subset_count = subset_map.sum(axis=1)
-    T = theta_eff.shape[0]
     C = numpy.empty(T)
     for t in range(T):
-        # f[d, r] == 1 iff every neuron in subset d is active in trial r.
         active = (subset_map @ X[t].T == subset_count[:, None]).astype(numpy.float64)
-        E = theta_eff[t] @ active  # (R,)
+        E = theta_eff[t] @ active
         C[t] = E.var(ddof=1)
     return C
 
