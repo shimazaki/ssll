@@ -41,6 +41,49 @@ import energies
 import synthesis
 import transforms
 
+try:
+    import numba as _numba
+    _HAVE_NUMBA = True
+except ImportError:
+    _HAVE_NUMBA = False
+
+
+if _HAVE_NUMBA:
+
+    @_numba.njit(cache=True, fastmath=True, parallel=True)
+    def _gibbs_pairwise_sweeps_nb(x, theta_1, J, burn_in, seed):
+        """Inner Gibbs sweep for pairwise model — parallel over chains.
+
+        x: (T, R, N) float64, updated in place.
+        theta_1: (T, N) float64.
+        J: (T, N, N) float64, symmetric, zero diag.
+        burn_in: int — number of full Gibbs sweeps.
+        seed: int — seed for numba's internal RNG (one global stream).
+
+        Uses numba's internal RNG so we avoid materializing a
+        (burn_in, N, T, R) float64 uniform buffer (which can be larger than
+        the entire downstream computation). Parallelizes the outer (t, r)
+        chain dimension across threads — chains are independent so the
+        per-thread RNG splits do not affect correctness of the MC estimator.
+        """
+        numpy.random.seed(seed)
+        T, R, N = x.shape
+        TR = T * R
+        for sweep in range(burn_in):
+            for i in range(N):
+                for tr in _numba.prange(TR):
+                    t = tr // R
+                    r = tr - t * R
+                    h = theta_1[t, i]
+                    for j in range(N):
+                        h += x[t, r, j] * J[t, i, j]
+                    if h >= 0.0:
+                        p = 1.0 / (1.0 + numpy.exp(-h))
+                    else:
+                        e = numpy.exp(h)
+                        p = e / (1.0 + e)
+                    x[t, r, i] = 1.0 if numpy.random.random() < p else 0.0
+
 
 def _psi(theta, N, O, method):
     """Compute psi for a (T, D) theta array using the requested method.
@@ -90,15 +133,21 @@ def _gibbs_pairwise_batch(theta, N, R, burn_in, seed):
 
     rng = numpy.random.default_rng(seed)
     x = (rng.random((T, R, N)) < 0.5).astype(numpy.float64)
-    # Per-sweep cost is N batched matvecs of shape (T, R, N) x (T, N), one per
-    # neuron, computing only the (T, R) field slice we need. Avoids materializing
-    # any (T, R, N) temporary on the inner loop.
-    for _ in range(burn_in):
-        rand = rng.random((N, T, R))
-        for i in range(N):
-            h_i = theta_1[:, i, None] + numpy.einsum('trj,tj->tr', x, J[:, i, :])
-            p_i = 1.0 / (1.0 + numpy.exp(-h_i))
-            x[:, :, i] = (rand[i] < p_i).astype(numpy.float64)
+    if _HAVE_NUMBA:
+        # Numba inner loop: fused matvec + sample, no per-neuron numpy call.
+        # numpy.random.seed inside numba is independent of `rng` (used for the
+        # initial x state above), so derive a 32-bit seed deterministically.
+        nb_seed = 0 if seed is None else (int(seed) ^ 0xDEADBEEF) & 0xFFFFFFFF
+        _gibbs_pairwise_sweeps_nb(x, theta_1, J, burn_in, nb_seed)
+    else:
+        # Numpy fallback: N batched matvecs of shape (T, R, N) x (T, N) per
+        # sweep, no (T, R, N) temporary on the inner loop.
+        for _ in range(burn_in):
+            rand = rng.random((N, T, R))
+            for i in range(N):
+                h_i = theta_1[:, i, None] + numpy.einsum('trj,tj->tr', x, J[:, i, :])
+                p_i = 1.0 / (1.0 + numpy.exp(-h_i))
+                x[:, :, i] = (rand[i] < p_i).astype(numpy.float64)
     return x.astype(numpy.uint8)
 
 
