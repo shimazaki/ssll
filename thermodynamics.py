@@ -238,14 +238,19 @@ def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
     T = theta_eff.shape[0]
     if O == 2:
         X = _gibbs_pairwise_batch(theta_eff, N, R, burn_in=pre_n, seed=seed)
-        # Energy E_{t,r} = theta_1 . x + theta_2 . (x_i * x_j over pairs)
+        # Energy E_{t,r} = theta_1 . x + 0.5 * x . J . x  (J symmetric, zero diag).
+        # Rewriting as a contraction over N avoids materializing the
+        # (T, R, N(N-1)/2) pair-product tensor, which would dominate memory
+        # at large N or when callers fuse betas into the T axis.
         theta_1 = theta_eff[:, :N]                                  # (T, N)
-        theta_2 = theta_eff[:, N:]                                  # (T, N(N-1)/2)
         iu, ju = numpy.triu_indices(N, 1)
+        J = numpy.zeros((T, N, N))
+        J[:, iu, ju] = theta_eff[:, N:]
+        J[:, ju, iu] = theta_eff[:, N:]
         X_f = X.astype(numpy.float64)
         E_lin = numpy.einsum('ti,tri->tr', theta_1, X_f)
-        E_pair = numpy.einsum('tk,trk->tr',
-                              theta_2, X_f[:, :, iu] * X_f[:, :, ju])
+        JX = numpy.einsum('tij,trj->tri', J, X_f)                   # (T, R, N)
+        E_pair = 0.5 * numpy.einsum('tri,tri->tr', X_f, JX)
         E = E_lin + E_pair                                          # (T, R)
         return E.var(axis=1, ddof=1)
     if parallel:
@@ -346,12 +351,13 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto',
     thetas = beta * get_theta_samples(emd, samples)  # (T, D, samples)
 
     if method == 'sampling':
-        C = numpy.empty((T, samples))
-        for s in range(samples):
-            s_seed = None if seed is None else seed + s
-            C[:, s] = _heat_capacity_sampling(
-                thetas[:, :, s], emd.N, emd.order, R=n_samples,
-                pre_n=pre_n, sample_steps=sample_steps, seed=s_seed)
+        # Stack (samples, T) into one big batch axis so the kernel sees a
+        # single (samples*T)-wide problem and runs as one GPU/numba launch.
+        th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, D)
+        C_flat = _heat_capacity_sampling(
+            th_stack, emd.N, emd.order, R=n_samples,
+            pre_n=pre_n, sample_steps=sample_steps, seed=seed)
+        C = C_flat.reshape(samples, T).T
     else:
         # Reshape (T, D, samples) -> (samples*T, D) so psi runs in one batched call.
         th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, D)
@@ -458,13 +464,14 @@ def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto',
     betas = numpy.linspace(span[0], span[1], num)
     T, D = emd.theta_s.shape
     if method == 'sampling':
-        C = numpy.empty((num, T))
-        for k, b in enumerate(betas):
-            k_seed = None if seed is None else seed + k
-            C[k] = _heat_capacity_sampling(
-                b * emd.theta_s, emd.N, emd.order, R=n_samples,
-                pre_n=pre_n, sample_steps=sample_steps, seed=k_seed)
-        return C
+        # Stack betas into the T axis so the kernel sees one (num*T)-wide
+        # problem and the whole sweep runs as a single launch.
+        theta_stack = (betas[:, None, None]
+                       * emd.theta_s[None, :, :]).reshape(num * T, D)
+        C_flat = _heat_capacity_sampling(
+            theta_stack, emd.N, emd.order, R=n_samples,
+            pre_n=pre_n, sample_steps=sample_steps, seed=seed)
+        return C_flat.reshape(num, T)
     epsilon = 1e-3
     # Build a (num*T, D) stack so psi only needs to be evaluated three times
     # across all betas (psi, +eps, -eps) — same total inner work, one batched call.
