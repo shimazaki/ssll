@@ -38,7 +38,97 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import numpy
 import itertools
 import energies
+import synthesis
 import transforms
+
+try:
+    import numba as _numba
+    _HAVE_NUMBA = True
+except ImportError:
+    _HAVE_NUMBA = False
+
+try:
+    import jax as _jax
+    import jax.numpy as _jnp
+    _HAVE_JAX = True
+except ImportError:
+    _HAVE_JAX = False
+
+
+if _HAVE_JAX:
+
+    def _gibbs_pairwise_sweeps_jax(x0, theta_1, J, key, burn_in):
+        """JIT'd parallel-chain Gibbs sampler for the pairwise model.
+
+        x0: (T, R, N) float, initial state.
+        theta_1: (T, N) float.
+        J: (T, N, N) float, symmetric, zero diag.
+        key: jax.random.PRNGKey.
+        burn_in: static int — full Gibbs sweeps before return.
+
+        Returns x of the same shape as x0 after burn_in sweeps. burn_in is
+        a static argument so XLA can specialize the scan length.
+        """
+        T, R, N = x0.shape
+
+        def neuron_step(x, idx_and_key):
+            i, k = idx_and_key
+            J_row = _jax.lax.dynamic_index_in_dim(J, i, axis=1, keepdims=False)  # (T, N)
+            theta_i = _jax.lax.dynamic_index_in_dim(theta_1, i, axis=1, keepdims=False)  # (T,)
+            h = theta_i[:, None] + _jnp.einsum('trj,tj->tr', x, J_row)
+            u = _jax.random.uniform(k, (T, R), dtype=x.dtype)
+            x_new = (u < _jax.nn.sigmoid(h)).astype(x.dtype)
+            x = x.at[:, :, i].set(x_new)
+            return x, None
+
+        def sweep_step(x, sweep_key):
+            keys = _jax.random.split(sweep_key, N)
+            x, _ = _jax.lax.scan(neuron_step, x, (_jnp.arange(N), keys))
+            return x, None
+
+        sweep_keys = _jax.random.split(key, burn_in)
+        x_final, _ = _jax.lax.scan(sweep_step, x0, sweep_keys)
+        return x_final
+
+    _gibbs_pairwise_sweeps_jax = _jax.jit(
+        _gibbs_pairwise_sweeps_jax, static_argnames=('burn_in',))
+
+
+if _HAVE_NUMBA:
+
+    @_numba.njit(cache=True, fastmath=True, parallel=True)
+    def _gibbs_pairwise_sweeps_nb(x, theta_1, J, burn_in, seed):
+        """Inner Gibbs sweep for pairwise model — parallel over chains.
+
+        x: (T, R, N) float64, updated in place.
+        theta_1: (T, N) float64.
+        J: (T, N, N) float64, symmetric, zero diag.
+        burn_in: int — number of full Gibbs sweeps.
+        seed: int — seed for numba's internal RNG (one global stream).
+
+        Uses numba's internal RNG so we avoid materializing a
+        (burn_in, N, T, R) float64 uniform buffer (which can be larger than
+        the entire downstream computation). Parallelizes the outer (t, r)
+        chain dimension across threads — chains are independent so the
+        per-thread RNG splits do not affect correctness of the MC estimator.
+        """
+        numpy.random.seed(seed)
+        T, R, N = x.shape
+        TR = T * R
+        for sweep in range(burn_in):
+            for i in range(N):
+                for tr in _numba.prange(TR):
+                    t = tr // R
+                    r = tr - t * R
+                    h = theta_1[t, i]
+                    for j in range(N):
+                        h += x[t, r, j] * J[t, i, j]
+                    if h >= 0.0:
+                        p = 1.0 / (1.0 + numpy.exp(-h))
+                    else:
+                        e = numpy.exp(h)
+                        p = e / (1.0 + e)
+                    x[t, r, i] = 1.0 if numpy.random.random() < p else 0.0
 
 
 def _psi(theta, N, O, method):
@@ -63,6 +153,121 @@ def _psi(theta, N, O, method):
             psi[i] = energies.ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
         return psi
     raise ValueError("method must be 'auto', 'exact', or 'approx'")
+
+
+def _gibbs_pairwise_batch(theta, N, R, burn_in, seed):
+    """Vectorized parallel-chain Gibbs sampler for the pairwise (O=2) model.
+
+    Runs R independent chains per time bin, batched across all T bins. After
+    ``burn_in`` full sweeps it returns one sample per chain, so each (t, r)
+    sample is independent. Cost per sweep is one batched matmul of shape
+    (T, R, N) x (T, N, N), i.e. O(T*R*N^2) flops with no Python inner loop.
+
+    :param numpy.ndarray theta: (T, D) parameter array, D = N + N*(N-1)/2.
+    :param int N: number of cells.
+    :param int R: number of parallel chains (samples) per time bin.
+    :param int burn_in: number of full Gibbs sweeps before sampling.
+    :param int seed: RNG seed.
+    :return: numpy.ndarray (T, R, N) of uint8 spike samples.
+    """
+    T, D = theta.shape
+    theta_1 = theta[:, :N]                                   # (T, N)
+    iu, ju = numpy.triu_indices(N, 1)
+    J = numpy.zeros((T, N, N))
+    J[:, iu, ju] = theta[:, N:]
+    J[:, ju, iu] = theta[:, N:]                              # (T, N, N), symmetric, zero diag
+
+    rng = numpy.random.default_rng(seed)
+    x = (rng.random((T, R, N)) < 0.5).astype(numpy.float64)
+    if _HAVE_JAX:
+        # JAX path: one JIT'd scan over (sweep, neuron). Whole burn-in runs as
+        # a single XLA program; on GPU the (T*R)-wide chains saturate SIMT.
+        jax_seed = 0 if seed is None else int(seed) & 0xFFFFFFFF
+        key = _jax.random.PRNGKey(jax_seed)
+        x_j = _jnp.asarray(x)
+        theta_1_j = _jnp.asarray(theta_1)
+        J_j = _jnp.asarray(J)
+        x_out = _gibbs_pairwise_sweeps_jax(x_j, theta_1_j, J_j, key, burn_in)
+        # Block until the device finishes and copy back.
+        x = numpy.asarray(x_out.block_until_ready())
+    elif _HAVE_NUMBA:
+        # Numba inner loop: fused matvec + sample, no per-neuron numpy call.
+        # numpy.random.seed inside numba is independent of `rng` (used for the
+        # initial x state above), so derive a 32-bit seed deterministically.
+        nb_seed = 0 if seed is None else (int(seed) ^ 0xDEADBEEF) & 0xFFFFFFFF
+        _gibbs_pairwise_sweeps_nb(x, theta_1, J, burn_in, nb_seed)
+    else:
+        # Numpy fallback: N batched matvecs of shape (T, R, N) x (T, N) per
+        # sweep, no (T, R, N) temporary on the inner loop.
+        for _ in range(burn_in):
+            rand = rng.random((N, T, R))
+            for i in range(N):
+                h_i = theta_1[:, i, None] + numpy.einsum('trj,tj->tr', x, J[:, i, :])
+                p_i = 1.0 / (1.0 + numpy.exp(-h_i))
+                x[:, :, i] = (rand[i] < p_i).astype(numpy.float64)
+    return x.astype(numpy.uint8)
+
+
+def _heat_capacity_sampling(theta_eff, N, O, R, pre_n, sample_steps, seed,
+                            parallel=False, num_proc=1):
+    """Sampling-based heat capacity via the fluctuation-dissipation identity.
+
+    For ``g(s) := psi(s * theta_eff)``, ``g''(s=1)`` equals
+    ``Var_{x ~ p(.|theta_eff)}[theta_eff . f(x)]``, where ``f(x)`` is the
+    order-O sufficient-statistic vector (subset-indicator features used by the
+    rest of the library). This matches the quantity returned by the
+    finite-difference path in :func:`compute_heat_capacity`.
+
+    For O=2 (pairwise) uses the batched parallel-chain sampler
+    :func:`_gibbs_pairwise_batch`; for O>2 falls back to the per-bin
+    single-chain Gibbs sampler in :mod:`synthesis`.
+
+    :param numpy.ndarray theta_eff:
+        (T, D) array. Pass ``beta * theta_s`` when probing inverse temperature
+        ``beta``.
+    :param int N: number of cells.
+    :param int O: model interaction order.
+    :param int R: number of Gibbs samples per time bin.
+    :param int pre_n: burn-in sweeps per time bin.
+    :param int sample_steps: thinning between retained samples (O>2 path only).
+    :param int seed: RNG seed (per-bin seeds are derived from this).
+    :param bool parallel: if True and O>2, use the multiprocessing fallback.
+    :param int num_proc: pool size for the O>2 multiprocessing fallback.
+    :return: numpy.ndarray of shape (T,) — heat capacity per time bin.
+    """
+    T = theta_eff.shape[0]
+    if O == 2:
+        X = _gibbs_pairwise_batch(theta_eff, N, R, burn_in=pre_n, seed=seed)
+        # Energy E_{t,r} = theta_1 . x + theta_2 . (x_i * x_j over pairs)
+        theta_1 = theta_eff[:, :N]                                  # (T, N)
+        theta_2 = theta_eff[:, N:]                                  # (T, N(N-1)/2)
+        iu, ju = numpy.triu_indices(N, 1)
+        X_f = X.astype(numpy.float64)
+        E_lin = numpy.einsum('ti,tri->tr', theta_1, X_f)
+        E_pair = numpy.einsum('tk,trk->tr',
+                              theta_2, X_f[:, :, iu] * X_f[:, :, ju])
+        E = E_lin + E_pair                                          # (T, R)
+        return E.var(axis=1, ddof=1)
+    if parallel:
+        X = synthesis.generate_spikes_gibbs_parallel(
+            theta_eff, N, O, R, seed=seed, pre_n=pre_n,
+            sample_steps=sample_steps, num_proc=num_proc)
+    else:
+        X = synthesis.generate_spikes_gibbs(
+            theta_eff, N, O, R, seed=seed, pre_n=pre_n,
+            sample_steps=sample_steps)
+    subsets = transforms.enumerate_subsets(N, O)
+    D = len(subsets)
+    subset_map = numpy.zeros((D, N))
+    for i in range(D):
+        subset_map[i, subsets[i]] = 1
+    subset_count = subset_map.sum(axis=1)
+    C = numpy.empty(T)
+    for t in range(T):
+        active = (subset_map @ X[t].T == subset_count[:, None]).astype(numpy.float64)
+        E = theta_eff[t] @ active
+        C[t] = E.var(ddof=1)
+    return C
 
 
 def compute_entropy_b(emd, samples, threshold):
@@ -108,7 +313,8 @@ def compute_entropy_b(emd, samples, threshold):
     return S_pair, S_pair_all[:, [disregard, -disregard - 1]], S_ratio, S_ratio_all[:, [disregard, -disregard - 1]]
 
 
-def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto'):
+def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto',
+                            n_samples=1000, pre_n=100, sample_steps=1, seed=None):
     """
     Computes he heat capacity and the bounding heat capacities based on the threshold.
     :param emd: container.EMData
@@ -122,6 +328,16 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto'):
     :param method: str
     'auto' (default): exact for N<=15, Ogata-Tanemura for N>15.
     'exact': always enumerate 2**N. 'approx': always use Ogata-Tanemura.
+    'sampling': Gibbs Monte Carlo via the fluctuation-dissipation identity
+    (see :func:`_heat_capacity_sampling`).
+    :param n_samples: int
+    Gibbs samples per (theta_sample, time bin) when ``method='sampling'``.
+    :param pre_n: int
+    burn-in sweeps per bin when ``method='sampling'``.
+    :param sample_steps: int
+    thinning between retained Gibbs samples.
+    :param seed: int or None
+    RNG seed for the Gibbs sampler.
     :return: numpy.ndarray, numpy.ndarray
     The heat capacity and the bounds based on the threshold
     """
@@ -129,13 +345,21 @@ def compute_heat_capacity_b(emd, samples, threshold, beta=1, method='auto'):
 
     thetas = beta * get_theta_samples(emd, samples)  # (T, D, samples)
 
-    # Reshape (T, D, samples) -> (samples*T, D) so psi runs in one batched call.
-    th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, D)
-    epsilon = 1e-3
-    psi = _psi(th_stack, emd.N, emd.order, method)
-    tmp1 = _psi(th_stack * (1 + epsilon), emd.N, emd.order, method)
-    tmp2 = _psi(th_stack * (1 - epsilon), emd.N, emd.order, method)
-    C = ((tmp1 - 2 * psi + tmp2) / (epsilon ** 2)).reshape(samples, T).T
+    if method == 'sampling':
+        C = numpy.empty((T, samples))
+        for s in range(samples):
+            s_seed = None if seed is None else seed + s
+            C[:, s] = _heat_capacity_sampling(
+                thetas[:, :, s], emd.N, emd.order, R=n_samples,
+                pre_n=pre_n, sample_steps=sample_steps, seed=s_seed)
+    else:
+        # Reshape (T, D, samples) -> (samples*T, D) so psi runs in one batched call.
+        th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, D)
+        epsilon = 1e-3
+        psi = _psi(th_stack, emd.N, emd.order, method)
+        tmp1 = _psi(th_stack * (1 + epsilon), emd.N, emd.order, method)
+        tmp2 = _psi(th_stack * (1 - epsilon), emd.N, emd.order, method)
+        C = ((tmp1 - 2 * psi + tmp2) / (epsilon ** 2)).reshape(samples, T).T
 
     C_map = C[:, 0]
     disregard = int((samples - threshold / 100.0 * samples) / 2)
@@ -168,7 +392,8 @@ def compute_p_silence_b(emd, samples, threshold):
     return p_silence, p_silence_bounds
 
 
-def compute_heat_capacity(emd, beta=1, method='auto'):
+def compute_heat_capacity(emd, beta=1, method='auto',
+                          n_samples=1000, pre_n=100, sample_steps=1, seed=None):
     """
     Computes the heat capacity
 
@@ -179,11 +404,26 @@ def compute_heat_capacity(emd, beta=1, method='auto'):
     :param method: str
     'auto' (default): exact for N<=15, Ogata-Tanemura for N>15.
     'exact': always enumerate 2**N. 'approx': always use Ogata-Tanemura.
+    'sampling': Gibbs Monte Carlo — applicable to any N. Computes
+    ``Var_{p(x|beta*theta)}[(beta*theta) . f(x)]`` directly via the
+    fluctuation-dissipation identity.
+    :param n_samples: int
+    Gibbs samples per time bin when ``method='sampling'``.
+    :param pre_n: int
+    burn-in sweeps per bin when ``method='sampling'``.
+    :param sample_steps: int
+    thinning between retained Gibbs samples.
+    :param seed: int or None
+    RNG seed for the Gibbs sampler.
     :return: numpy.ndarray, numpy.ndarray
     The heat capacity (if you wants bounding heat capacity, use compute_heat_capacity_b)
     """
-    epsilon = 1e-3
     theta = beta * emd.theta_s
+    if method == 'sampling':
+        return _heat_capacity_sampling(theta, emd.N, emd.order, R=n_samples,
+                                       pre_n=pre_n, sample_steps=sample_steps,
+                                       seed=seed)
+    epsilon = 1e-3
     psi = _psi(theta, emd.N, emd.order, method)
     tmp1 = _psi(theta * (1 + epsilon), emd.N, emd.order, method)
     tmp2 = _psi(theta * (1 - epsilon), emd.N, emd.order, method)
@@ -191,7 +431,8 @@ def compute_heat_capacity(emd, beta=1, method='auto'):
 
     return C
 
-def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto'):
+def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto',
+                           n_samples=1000, pre_n=100, sample_steps=1, seed=None):
     """
     Computes the heat capacity num times by multiplying theta by equaly spaced betas in span)
 
@@ -202,12 +443,28 @@ def get_heat_capacity_beta(emd, num, span=[0.25, 2], method='auto'):
     :param span: list
     The span for betas
     :param method: str
-    'auto' (default), 'exact', or 'approx' — see compute_heat_capacity.
+    'auto' (default), 'exact', 'approx', or 'sampling' — see compute_heat_capacity.
+    :param n_samples: int
+    Gibbs samples per (beta, time bin) when ``method='sampling'``.
+    :param pre_n: int
+    burn-in sweeps per bin when ``method='sampling'``.
+    :param sample_steps: int
+    thinning between retained Gibbs samples.
+    :param seed: int or None
+    RNG seed for the Gibbs sampler.
     :return: numpy.ndarray
     The heat capacities computed with num different betas.
     """
     betas = numpy.linspace(span[0], span[1], num)
     T, D = emd.theta_s.shape
+    if method == 'sampling':
+        C = numpy.empty((num, T))
+        for k, b in enumerate(betas):
+            k_seed = None if seed is None else seed + k
+            C[k] = _heat_capacity_sampling(
+                b * emd.theta_s, emd.N, emd.order, R=n_samples,
+                pre_n=pre_n, sample_steps=sample_steps, seed=k_seed)
+        return C
     epsilon = 1e-3
     # Build a (num*T, D) stack so psi only needs to be evaluated three times
     # across all betas (psi, +eps, -eps) — same total inner work, one batched call.

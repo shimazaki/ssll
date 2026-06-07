@@ -56,15 +56,27 @@ def main():
     p.add_argument('--samples', type=int, default=100)
     p.add_argument('--repeats', type=int, default=3)
     p.add_argument('--seed', type=int, default=2026)
+    p.add_argument('--method', default='auto',
+                   choices=['auto', 'exact', 'approx', 'sampling'])
+    p.add_argument('--n_samples', type=int, default=2000,
+                   help='Gibbs samples per bin (sampling method only)')
+    p.add_argument('--pre_n', type=int, default=200,
+                   help='Gibbs burn-in (sampling method only)')
     p.add_argument('--out', default=os.path.join(_THIS, 'bench_thermo.txt'))
     args = p.parse_args()
+
+    sampling_kw = {}
+    if args.method == 'sampling':
+        sampling_kw = dict(n_samples=args.n_samples, pre_n=args.pre_n, seed=0)
 
     header = [
         f"# bench_thermo @ {time.strftime('%Y-%m-%d %H:%M:%S')}",
         f"# host={platform.node()} python={platform.python_version()} "
         f"numpy={numpy.__version__}",
         f"# T={args.T} R={args.R} num_beta={args.num_beta} "
-        f"samples={args.samples} repeats={args.repeats}",
+        f"samples={args.samples} repeats={args.repeats} method={args.method}"
+        + (f" n_samples={args.n_samples} pre_n={args.pre_n}"
+           if args.method == 'sampling' else ''),
         f"# columns: N  fn  median_s  min_s  max_s",
     ]
     print('\n'.join(header))
@@ -74,7 +86,8 @@ def main():
         emd = _fit(N, args.T, args.R, args.seed)
 
         ts = _time(lambda: thermodynamics.get_heat_capacity_beta(
-            emd, num=args.num_beta, span=[0.25, 2.0], method='auto'),
+            emd, num=args.num_beta, span=[0.25, 2.0], method=args.method,
+            **sampling_kw),
             repeats=args.repeats)
         med = sorted(ts)[len(ts) // 2]
         row = f"{N:>3d}  get_heat_capacity_beta  {med:7.3f}  {min(ts):7.3f}  {max(ts):7.3f}"
@@ -82,7 +95,8 @@ def main():
         print(row, flush=True)
 
         ts = _time(lambda: thermodynamics.compute_heat_capacity_b(
-            emd, samples=args.samples, threshold=95, beta=1.0, method='auto'),
+            emd, samples=args.samples, threshold=95, beta=1.0,
+            method=args.method, **sampling_kw),
             repeats=args.repeats)
         med = sorted(ts)[len(ts) // 2]
         row = f"{N:>3d}  compute_heat_capacity_b  {med:7.3f}  {min(ts):7.3f}  {max(ts):7.3f}"
