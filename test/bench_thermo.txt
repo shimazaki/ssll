@@ -25,3 +25,10 @@
  12  get_heat_capacity_beta    0.932    0.927    1.126
  12  compute_heat_capacity_b    2.355    2.334    2.370
 
+# bench_thermo @ 2026-06-08 04:10:00
+# host=carnot python=3.6.4 numpy=1.19.2
+# T=50 R=100 num_beta=50 samples=20 repeats=2 method=sampling n_samples=1000 pre_n=100
+# columns: N  fn  median_s  min_s  max_s
+ 12  get_heat_capacity_beta   65.816   65.447   65.816
+ 12  compute_heat_capacity_b   27.148   26.885   27.148
+
