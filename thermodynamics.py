@@ -293,22 +293,27 @@ def compute_entropy_b(emd, samples, threshold):
 
     N = emd.N
     O = emd.order
-    thetas = get_theta_samples(emd, samples)
+    T = emd.T
+    thetas = get_theta_samples(emd, samples)            # (T, D, samples)
 
-    S_pair_all = numpy.zeros((emd.T, samples))
-    S_ratio_all = numpy.zeros((emd.T, samples))
-    for n in range(samples):
+    # Stack (samples, T) into a single (samples*T, D) batch dim so
+    # compute_eta / compute_psi run once over the whole posterior fan-out
+    # instead of once per posterior sample. Same total numerical work as
+    # the loop, but eliminates the per-sample Python overhead and lets the
+    # batched paths (transforms.compute_psi_vec for N<=15, the per-bin
+    # TAP/OT loop for N>15) see a (samples*T)-long T axis at once.
+    th_stack = numpy.moveaxis(thetas, 2, 0).reshape(samples * T, -1)
+    eta_stack, emd.eta_sampled = energies.compute_eta(th_stack, N, O)
+    psi_stack = energies.compute_psi(th_stack, N, O)
+    eta1_stack = eta_stack[:, :N]
+    theta1_stack = energies.compute_ind_theta(eta1_stack)
+    psi1_stack = energies.compute_ind_psi(theta1_stack)
+    S1_stack = energies.compute_entropy(theta1_stack, eta1_stack, psi1_stack, 1)
+    S_pair_stack = energies.compute_entropy(th_stack, eta_stack, psi_stack, 2)
+    S_ratio_stack = (S1_stack - S_pair_stack) / (S0 - S_pair_stack) * 100
 
-        theta = thetas[:, :, n]
-        eta, emd.eta_sampled = energies.compute_eta(theta, N, O)
-        psi = energies.compute_psi(theta, N, O)
-        eta1 = eta[:, :N]
-        theta1 = energies.compute_ind_theta(eta1)
-        psi1 = energies.compute_ind_psi(theta1)
-        S1 = energies.compute_entropy(theta1, eta1, psi1, 1)
-        eta = eta
-        S_pair_all[:, n] = energies.compute_entropy(theta, eta, psi, 2)
-        S_ratio_all[:, n] = (S1 - S_pair_all[:, n]) / (S0 - S_pair_all[:, n]) * 100
+    S_pair_all = S_pair_stack.reshape(samples, T).T     # (T, samples)
+    S_ratio_all = S_ratio_stack.reshape(samples, T).T
 
     S_pair = S_pair_all[:, 0]
     S_ratio = S_ratio_all[:, 0]
