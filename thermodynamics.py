@@ -47,6 +47,52 @@ try:
 except ImportError:
     _HAVE_NUMBA = False
 
+try:
+    import jax as _jax
+    import jax.numpy as _jnp
+    _HAVE_JAX = True
+except ImportError:
+    _HAVE_JAX = False
+
+
+if _HAVE_JAX:
+
+    def _gibbs_pairwise_sweeps_jax(x0, theta_1, J, key, burn_in):
+        """JIT'd parallel-chain Gibbs sampler for the pairwise model.
+
+        x0: (T, R, N) float, initial state.
+        theta_1: (T, N) float.
+        J: (T, N, N) float, symmetric, zero diag.
+        key: jax.random.PRNGKey.
+        burn_in: static int — full Gibbs sweeps before return.
+
+        Returns x of the same shape as x0 after burn_in sweeps. burn_in is
+        a static argument so XLA can specialize the scan length.
+        """
+        T, R, N = x0.shape
+
+        def neuron_step(x, idx_and_key):
+            i, k = idx_and_key
+            J_row = _jax.lax.dynamic_index_in_dim(J, i, axis=1, keepdims=False)  # (T, N)
+            theta_i = _jax.lax.dynamic_index_in_dim(theta_1, i, axis=1, keepdims=False)  # (T,)
+            h = theta_i[:, None] + _jnp.einsum('trj,tj->tr', x, J_row)
+            u = _jax.random.uniform(k, (T, R), dtype=x.dtype)
+            x_new = (u < _jax.nn.sigmoid(h)).astype(x.dtype)
+            x = x.at[:, :, i].set(x_new)
+            return x, None
+
+        def sweep_step(x, sweep_key):
+            keys = _jax.random.split(sweep_key, N)
+            x, _ = _jax.lax.scan(neuron_step, x, (_jnp.arange(N), keys))
+            return x, None
+
+        sweep_keys = _jax.random.split(key, burn_in)
+        x_final, _ = _jax.lax.scan(sweep_step, x0, sweep_keys)
+        return x_final
+
+    _gibbs_pairwise_sweeps_jax = _jax.jit(
+        _gibbs_pairwise_sweeps_jax, static_argnames=('burn_in',))
+
 
 if _HAVE_NUMBA:
 
@@ -133,7 +179,18 @@ def _gibbs_pairwise_batch(theta, N, R, burn_in, seed):
 
     rng = numpy.random.default_rng(seed)
     x = (rng.random((T, R, N)) < 0.5).astype(numpy.float64)
-    if _HAVE_NUMBA:
+    if _HAVE_JAX:
+        # JAX path: one JIT'd scan over (sweep, neuron). Whole burn-in runs as
+        # a single XLA program; on GPU the (T*R)-wide chains saturate SIMT.
+        jax_seed = 0 if seed is None else int(seed) & 0xFFFFFFFF
+        key = _jax.random.PRNGKey(jax_seed)
+        x_j = _jnp.asarray(x)
+        theta_1_j = _jnp.asarray(theta_1)
+        J_j = _jnp.asarray(J)
+        x_out = _gibbs_pairwise_sweeps_jax(x_j, theta_1_j, J_j, key, burn_in)
+        # Block until the device finishes and copy back.
+        x = numpy.asarray(x_out.block_until_ready())
+    elif _HAVE_NUMBA:
         # Numba inner loop: fused matvec + sample, no per-neuron numpy call.
         # numpy.random.seed inside numba is independent of `rng` (used for the
         # initial x state above), so derive a 32-bit seed deterministically.
