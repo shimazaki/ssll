@@ -149,7 +149,7 @@ def compute_eta(theta, N, O, R=1000):
     return eta, bins_to_sample
 
 
-def compute_psi(theta, N, O, R=1000):
+def compute_psi(theta, N, O, R=1000, estimator='ais'):
     """ Computes psi from given theta.
 
     :param numpy.ndarray theta:
@@ -159,32 +159,133 @@ def compute_psi(theta, N, O, R=1000):
     :param int O:
         order of model
     :param int R:
-        trials that should be sampled to estimate eta
-    :return numpy.ndarray, list:
-        (t, d) array with log-partition and a list with indices of bins, for which has been sampled
+        trials that should be sampled to estimate eta (legacy arg, kept
+        for backwards compatibility; unused by the current estimators)
+    :param str estimator:
+        which approximate estimator to use when N > 15.  One of:
+            'ais' (default) -- annealed importance sampling, ais_estimator;
+            'ot'            -- Ogata-Tanemura with TAP eta, ot_estimator.
+        For N <= 15 the exact 2^N enumeration is always used regardless of
+        this argument.
+    :return numpy.ndarray:
+        (t,) array with log-partition
 
-    For first order the analytical solution is used. For networks with 15 units and less the exact solution is computed.
-    Otherwise, the Ogata-Tanemura-Estimator is used. It tries to solve the forward problem and samples where it fails.
+    For first order the analytical solution is used. For networks with 15
+    units or less the exact solution is computed.  For N > 15 the requested
+    approximate estimator is invoked along the linear path from the
+    matched-H independent Bernoulli model to theta.
     """
     T = theta.shape[0]
-    bins_sampled = []
     psi = numpy.empty(T)
 
     if O == 1:
-        psi = compute_ind_psi(theta[:,:N])
+        psi = compute_ind_psi(theta[:, :N])
     if O == 2:
         # if few cells compute exact result
         if N > 15:
             theta0 = numpy.copy(theta)
-            theta0[:,N:] = 0
-            psi0 = compute_ind_psi(theta0[:,:N])
-            for i in range(T):
-                psi[i] = ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
-        # else approximate
+            theta0[:, N:] = 0
+            psi0 = compute_ind_psi(theta0[:, :N])
+            if estimator == 'ais':
+                for i in range(T):
+                    psi[i] = ais_estimator(theta0[i], psi0[i], theta[i], N, O,
+                                           seed=i)
+            elif estimator == 'ot':
+                for i in range(T):
+                    psi[i] = ot_estimator(theta0[i], psi0[i], theta[i], N, O, N)
+            else:
+                raise ValueError(
+                    "compute_psi: unknown estimator %r (expected 'ais' or 'ot')"
+                    % (estimator,))
+        # else exact
         else:
             transforms.initialise(N, 2)
             psi = transforms.compute_psi_vec(theta)
     return psi
+
+
+def ais_estimator(th0, psi0, th1, N, O, S=500, T=1000, seed=0):
+    """Annealed importance sampling estimator of psi(th1) (Neal 2001).
+
+    Bridges from a tractable reference distribution at th0 (typically the
+    matched-H independent Bernoulli model, with theta_J = 0 and psi0 in
+    closed form) to th1 along the linear path
+
+        theta(alpha) = th0 + alpha * (th1 - th0),    alpha in [0, 1],
+
+    with T annealing steps and one full Gibbs sweep per step.  S
+    independent chains are propagated in parallel, initialised by exact
+    samples from the independent model at th0.  Returns
+
+        psi_hat = psi0 + logsumexp(log_w) - log(S),
+
+    which is an unbiased estimator of psi(th1) - psi(th0) plus psi0.
+
+    Unlike ot_estimator, AIS uses no Plefka anchor at intermediate
+    theta(alpha), so its accuracy does not degrade when the rescaled
+    model crosses the critical line of the inner mean-field solver.
+
+    :param numpy.ndarray th0:
+        (d,) array, reference natural parameters (theta_J = 0).
+    :param float psi0:
+        psi corresponding to th0 (closed-form independent log-partition).
+    :param numpy.ndarray th1:
+        (d,) array, target natural parameters.
+    :param int N:
+        number of cells.
+    :param int O:
+        order of interactions (currently O=2 only).
+    :param int S:
+        number of independent AIS chains.
+    :param int T:
+        number of annealing steps along the path.
+    :param int seed:
+        RNG seed for chain initialisation and Gibbs proposals.
+    :returns float:
+        AIS estimate of psi(th1).
+    """
+    if O != 2:
+        raise NotImplementedError("ais_estimator currently supports O=2 only")
+    from scipy.special import logsumexp
+
+    rng = numpy.random.default_rng(seed)
+    h0 = th0[:N]
+    h1 = th1[:N]
+    # symmetric coupling matrix for theta1 (zero diagonal), built from upper triangle
+    triu = numpy.triu_indices(N, k=1)
+    J0 = numpy.zeros((N, N))
+    J1 = numpy.zeros((N, N))
+    J0[triu] = th0[N:]; J0 += J0.T
+    J1[triu] = th1[N:]; J1 += J1.T
+
+    dh = h1 - h0      # field increment along the path (zero for matched-H bridge)
+    dJ = J1 - J0      # coupling increment
+
+    # Initial samples: exact independent Bernoulli draws from the th0 model.
+    # We assume th0_J = 0 (legacy convention shared with ot_estimator); if not,
+    # the user is responsible for an exact-samplable reference distribution.
+    p0 = 1.0 / (1.0 + numpy.exp(-h0))
+    x = (rng.random((S, N)) < p0[None, :]).astype(numpy.float64)
+
+    alphas = numpy.linspace(0.0, 1.0, T + 1)
+    log_w = numpy.zeros(S)
+
+    for t in range(1, T + 1):
+        da = alphas[t] - alphas[t - 1]
+        # log p_alpha(x) - log p_{alpha-da}(x) = da * [dh . x + 0.5 x^T dJ x]
+        lin = x.dot(dh)
+        quad = 0.5 * numpy.einsum('si,si->s', x, x.dot(dJ))
+        log_w += da * (lin + quad)
+        # Gibbs sweep at alpha = alphas[t]
+        a_now = alphas[t]
+        h_eff = h0 + a_now * dh
+        J_eff = J0 + a_now * dJ
+        for i in range(N):
+            field = h_eff[i] + x.dot(J_eff[:, i])
+            p_i = 1.0 / (1.0 + numpy.exp(-field))
+            x[:, i] = (rng.random(S) < p_i).astype(numpy.float64)
+
+    return float(psi0 + logsumexp(log_w) - numpy.log(S))
 
 
 def ot_estimator(th0, psi0, th1, N, O, K, expansion='TAP'):
