@@ -125,10 +125,13 @@ def compute_fisher_info(p, eta):
     """
     global p_map, eta_map
 
-    # Stack columns of p for next step
-    p_stack = numpy.repeat(p, eta.size).reshape(p.size, eta.size)
+    # Scale each row i of p_map by p[i]. The previous implementation built a
+    # dense (2**N, D) array (numpy.repeat(p, D)) whose every column equals p,
+    # then did p_map.multiply(p_stack). Broadcasting a column vector gives the
+    # identical result (p_map.multiply(p_stack) == p_map.multiply(p[:,None]))
+    # without allocating/filling that dense intermediate each Newton step.
     # Compute Fisher matrix
-    fisher = eta_map.dot(p_map.multiply(p_stack)) - numpy.outer(eta, eta)
+    fisher = eta_map.dot(p_map.multiply(p[:, None])) - numpy.outer(eta, eta)
 
     return numpy.array(fisher)
 
