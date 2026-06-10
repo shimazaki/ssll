@@ -216,6 +216,21 @@ def compute_p_vec(theta):
     return (p / p.sum(axis=0, keepdims=True)).T
 
 
+def compute_eta_vec(P):
+    """Vectorised compute_eta over a batch of probability vectors.
+
+    Equivalent to stacking ``compute_eta(P[i])`` for all i, but folded
+    into a single sparse-dense matmul (eta_map @ P.T) instead of T
+    per-row sparse mat-vecs, removing the Python-level loop.
+
+    :param numpy.ndarray P: (T, 2**N) probability matrix.
+    :returns: (T, D) expectation-parameter matrix.
+    """
+    global eta_map
+    # eta_map is (D, 2**N); P.T is (2**N, T); product is (D, T).
+    return numpy.asarray(eta_map.dot(P.T)).T
+
+
 def binalize_spikes(spikes, order, window):
     """
     Returns the binary spike sequences computed from the original spike/count 

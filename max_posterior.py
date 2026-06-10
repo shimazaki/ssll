@@ -98,6 +98,9 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
     iterations = 0
     # Initialise theta_max to the smooth theta value of the previous iteration
     theta_max = theta_0
+    # Regularisation term added to the Hessian; constant across iterations,
+    # so build it once rather than re-allocating an identity each step.
+    eps_I = numpy.finfo(float).eps * numpy.identity(theta_max.shape[0])
     # Iterate the gradient ascent algorithm until convergence or failure
     while max_dlpo > GA_CONVERGENCE:
         #print(theta_max)
@@ -111,7 +114,6 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
         # Compute the second derivative of the posterior prob. w.r.t. theta_max
         ddlpo = -R * transforms.compute_fisher_info(p, eta) - sigma_o_i
         # Solve for the Newton step (avoid computing full inverse in loop)
-        eps_I = numpy.finfo(float).eps * numpy.identity(eta.shape[0])
         theta_max -= numpy.linalg.solve(ddlpo + eps_I, dlpo)
         # Update the look guard
         max_dlpo = numpy.amax(numpy.absolute(dlpo)) / R
@@ -124,7 +126,6 @@ def newton_raphson(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i, *args):
                 'number iterations.')
 
     # Compute inverse only once at convergence for the covariance
-    eps_I = numpy.finfo(float).eps * numpy.identity(eta.shape[0])
     ddlpo_i = numpy.linalg.inv(ddlpo + eps_I)
     return theta_max, -ddlpo_i
 

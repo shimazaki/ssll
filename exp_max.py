@@ -92,10 +92,9 @@ def e_step(emd):
 
     # Compute expectation parameters
     if emd.param_est_eta == 'exact':
-        # batched: one sparse matmul + per-row eta projection
+        # batched: one sparse matmul for p, one for the eta projection
         P = transforms.compute_p_vec(emd.theta_s)  # (T, 2**N)
-        for i in range(emd.T):
-            emd.eta_s[i, :] = transforms.compute_eta(P[i])
+        emd.eta_s[:] = transforms.compute_eta_vec(P)
     elif emd.param_est_eta == 'mf':
         # batched TAP across T
         import mean_field
