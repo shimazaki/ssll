@@ -51,3 +51,11 @@ AIS optimization (master 2e5796c, numba incremental-energy AIS kernel,
   accuracy identical to job 12358 (th1 0.2709, th2 0.1037, eta corr2 0.979).
 Remaining cost is now dominated by the per-bin gradient steps
 (min_iter=50 + polyak_iters=50 floor at ~2.3 ms/step).
+
+Parallel kernels (master 589e751, prange over chains/bins, 8 threads via
+SLURM_CPUS_PER_TASK): N=60 job 12362, same 10-iter setup:
+  mc  11.7 s/EM-iter  (was 40.1 single-core numba, 122.0 original numpy:
+                       10.4x cumulative)
+  accuracy unchanged (th2 0.1037 corr 0.911, eta corr2 0.978).
+A converged ~28-iteration N=60 fit now costs ~5.5 min. Results are
+bitwise invariant to thread count (per-chain / per-bin RNG seeding).
