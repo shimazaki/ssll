@@ -68,13 +68,24 @@ from scipy.special import expit
 import energies
 import transforms
 
+try:
+    import numba
+    _HAVE_NUMBA = True
+except ImportError:
+    _HAVE_NUMBA = False
+
 
 # Tunable parameters of the MC fit. Users may modify this dict before
 # calling ssll.run (e.g. boltzmann_learning.MC_PARAMS['n_chains'] = 256).
 MC_PARAMS = {
     # --- sampler ---
-    'n_chains': 100,     # persistent Gibbs chains
-    'n_sweeps': 10,      # full Gibbs sweeps per gradient step
+    # Cost per gradient step scales with n_sweeps * N (Python-level site
+    # updates; the chain dimension is vectorized and nearly free), while
+    # the Monte Carlo error scales with 1/sqrt(n_chains * n_sweeps).
+    # So prefer many chains x few sweeps at a fixed sample budget.
+    'n_chains': 256,     # persistent Gibbs chains
+    'n_sweeps': 4,       # full Gibbs sweeps per gradient step
+    'sampler': 'auto',   # 'auto' (numba when importable), 'numba', 'numpy'
     'burnin': 100,       # one-time burn-in sweeps at the first time bin
     'seed': 0,           # base RNG seed (reset at t=0 of every E-step)
     # --- Adam / convergence ---
@@ -193,7 +204,92 @@ def gibbs_sample_eta(theta, N, chains, rng, n_sweeps, accumulate=True):
 
     :returns:
         (D,) eta estimate averaged over n_sweeps * C samples, or None.
+
+    Two implementations are provided. The default ('auto') uses a numba
+    JIT kernel with per-chain incremental effective fields (fields are
+    only updated when a spin actually flips, escaping the O(C*N) full
+    field recomputation per site of the vectorized path); it falls back
+    to the pure-numpy chain-vectorized path when numba is not
+    installed. Both are valid systematic-scan Gibbs samplers and both
+    are deterministic given the rng state, but they consume different
+    random streams, so switching sampler changes results within the
+    Monte Carlo error.
     """
+    sampler = MC_PARAMS.get('sampler', 'auto')
+    if sampler == 'numba' and not _HAVE_NUMBA:
+        raise ImportError("MC_PARAMS['sampler']='numba' but numba is not "
+                          "installed")
+    if _HAVE_NUMBA and sampler in ('auto', 'numba'):
+        h, J = theta_to_h_J(theta, N)
+        # One integer from the rng seeds the kernel's own generator, so
+        # the call remains deterministic given the rng state.
+        seed = int(rng.integers(1, 2 ** 31 - 1))
+        eta1, eta2 = _gibbs_kernel_numba(h, J, chains, int(n_sweeps), seed,
+                                         accumulate)
+        if not accumulate:
+            return None
+        S = n_sweeps * chains.shape[0]
+        ii, jj = _triu(N)
+        eta = numpy.empty(N + ii.size)
+        eta[:N] = eta1 / S
+        eta[N:] = eta2[ii, jj] / S
+        return eta
+    return _gibbs_sample_eta_numpy(theta, N, chains, rng, n_sweeps,
+                                   accumulate)
+
+
+if _HAVE_NUMBA:
+    @numba.njit(cache=True)
+    def _gibbs_kernel_numba(h, J, chains, n_sweeps, seed, accumulate):
+        """
+        Systematic-scan Gibbs sweeps with per-chain incremental effective
+        fields. F[c, k] = h[k] + sum_j J[k, j] * x[c, j] is maintained
+        across site updates and only touched when a spin flips (~2p(1-p)
+        of updates), instead of being recomputed from the full chain
+        state at every site. eta accumulation visits only active spins.
+        """
+        numpy.random.seed(seed)
+        C, N = chains.shape
+        # fresh fields at call start: bounds any float drift to one call
+        F = numpy.empty((C, N))
+        for c in range(C):
+            for k in range(N):
+                s = h[k]
+                for j in range(N):
+                    s += J[k, j] * chains[c, j]
+                F[c, k] = s
+        eta1 = numpy.zeros(N)
+        eta2 = numpy.zeros((N, N))
+        active = numpy.empty(N, dtype=numpy.int64)
+        for _ in range(n_sweeps):
+            for c in range(C):
+                for i in range(N):
+                    p_on = 1.0 / (1.0 + numpy.exp(-F[c, i]))
+                    x_new = 1.0 if numpy.random.random() < p_on else 0.0
+                    d = x_new - chains[c, i]
+                    if d != 0.0:
+                        chains[c, i] = x_new
+                        for k in range(N):
+                            F[c, k] += J[i, k] * d
+                if accumulate:
+                    # collect active spins; pairs only over the active set
+                    n_act = 0
+                    for i in range(N):
+                        if chains[c, i] != 0.0:
+                            active[n_act] = i
+                            n_act += 1
+                    # active is ascending, so i < j always holds here
+                    for a in range(n_act):
+                        i = active[a]
+                        eta1[i] += 1.0
+                        for b in range(a + 1, n_act):
+                            eta2[i, active[b]] += 1.0
+        return eta1, eta2
+
+
+def _gibbs_sample_eta_numpy(theta, N, chains, rng, n_sweeps,
+                            accumulate=True):
+    """Pure-numpy fallback sampler, vectorized over chains."""
     h, J = theta_to_h_J(theta, N)
     C = chains.shape[0]
     # One batched draw replaces the n_sweeps * N per-site rng.random(C)

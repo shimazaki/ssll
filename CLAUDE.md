@@ -93,3 +93,4 @@ The approximate inference path (`param_est='pseudo'`, `param_est_eta='mf'`) has 
 - `pseudo_likelihood.py`: CSR sparse format for Fx_s matrices, precomputed stacked sparse matrices (`Fx_s_stacked`) for vectorized gradient/fs computation, single-pool parallelism for init, direct Fx_s_t diff computation (skips subsets not containing neuron s), precomputed subset membership lookup.
 - `mean_field.py`: Precomputed `theta2_sq` reused throughout TAP solver. Optional JAX JIT-compiled TAP solver (`_tap_solver_jax`, `_tap_post_jax`) eliminates Python loop overhead (0.29s → 0.05s at N=20).
 - `exp_max.py`: Identity matrix allocated once outside M-step loop.
+- `boltzmann_learning.py`: numba JIT Gibbs kernel with per-chain incremental effective fields (auto-selected, pure-numpy fallback; `MC_PARAMS['sampler']`); batched RNG draws and cached triu indices in the numpy path. N=60: 12.5 -> 2.3 ms per gradient step.
