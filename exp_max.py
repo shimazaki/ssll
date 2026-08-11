@@ -99,6 +99,11 @@ def e_step(emd):
         # batched TAP across T
         import mean_field
         emd.eta_s[:] = mean_field.forward_problem_hessian_batch(emd.theta_s, emd.N)
+    elif emd.param_est_eta == 'mc':
+        # Gibbs-sampled eta along the smoothed trajectory (persistent chains)
+        import boltzmann_learning
+        emd.eta_s[:] = boltzmann_learning.compute_eta_trajectory(emd.theta_s,
+                                                                 emd.N)
     else:
         for i in range(emd.T):
             emd.eta_s[i,:] = pseudo_likelihood.compute_eta[emd.param_est_eta](emd.theta_s[i,:], emd.N)

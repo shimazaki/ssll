@@ -76,6 +76,7 @@ import energies
 import thermodynamics
 import util
 import bethe_approximation
+import boltzmann_learning
 
 
 def run(spikes, order=2, window=1, map_function='cg', \
@@ -125,12 +126,15 @@ def run(spikes, order=2, window=1, map_function='cg', \
     :param int max_iter:
         Maximum number of iterations for which to run the EM algorithm.
     :param str param_est:
-        Parameter whether exact likelihood ('exact') or pseudo likelihood
-        ('pseudo') should be used
+        Parameter whether exact likelihood ('exact'), pseudo likelihood
+        ('pseudo'), or Boltzmann learning with Gibbs-sampled eta ('mc',
+        exact likelihood, asymptotically unbiased, order=2 only) should be
+        used
     :param str param_est_eta:
         Eta parameters are either calculated exactly ('exact'), by mean
-        field TAP approximation ('mf'), or Bethe approximation (belief
-        propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid')
+        field TAP approximation ('mf'), Bethe approximation (belief
+        propagation-'bethe_BP', CCCP-'bethe_CCCP', hybrid-'bethe_hybrid'),
+        or by Gibbs sampling ('mc'; use together with param_est='mc')
     :param stationary:
         To fit stationary model. Set 'all' to have stationary thetas. (
         Default='None')

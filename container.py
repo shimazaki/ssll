@@ -63,6 +63,7 @@ import transforms
 import mean_field
 import pseudo_likelihood
 import bethe_approximation
+import boltzmann_learning
 import max_posterior
 import probability
 
@@ -71,7 +72,8 @@ log_marginal_functions = {'exact': probability.log_marginal,
                           'mf': mean_field.log_marginal,
                           'bethe_BP': bethe_approximation.log_marginal_BP,
                           'bethe_CCCP': bethe_approximation.log_marginal_CCCP,
-                          'bethe_hybrid': bethe_approximation.log_marginal_hybrid}
+                          'bethe_hybrid': bethe_approximation.log_marginal_hybrid,
+                          'mc': boltzmann_learning.log_marginal}
 
 class EMData:
     """
@@ -191,6 +193,19 @@ class EMData:
             pseudo_likelihood.compute_Fx_s_parallel(self.spikes, self.order,
                                                     map_function=map_function)
             self.max_posterior = pseudo_likelihood.functions[map_function]
+
+            # Compute the sufficient statistics for the model from the input spikes
+            self.y = transforms.compute_y(self.spikes, self.order)
+            # Count timesteps, trials, cells and interaction dimensions
+            self.T, self.D = self.y.shape
+            assert self.T == int(T / window)
+
+        elif param_est == 'mc':
+            # Boltzmann learning: exact likelihood with Gibbs-sampled eta
+            # (persistent chains); shares the diagonal-covariance branch
+            # with the pseudo path. No 2**N structures are built.
+            boltzmann_learning.initialise(self.N, self.order)
+            self.max_posterior = boltzmann_learning.functions[map_function]
 
             # Compute the sufficient statistics for the model from the input spikes
             self.y = transforms.compute_y(self.spikes, self.order)

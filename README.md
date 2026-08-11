@@ -114,8 +114,9 @@ For large N where exact 2^N computation is infeasible:
   - Belief propagation (`'bethe_BP'`): Iterative message passing.
   - CCCP (`'bethe_CCCP'`): Concave-convex procedure, guaranteed convergence.
   - Hybrid (`'bethe_hybrid'`): Tries BP first, falls back to CCCP.
+- **Boltzmann learning** (`param_est='mc'` + `param_est_eta='mc'`): Fits the exact likelihood with Gibbs-sampled expectation parameters (persistent contrastive divergence + Adam + Polyak averaging), so it stays asymptotically unbiased at any N, at the cost of Monte Carlo sampling per gradient step. The log partition function for the marginal likelihood is estimated by annealed importance sampling for N > 15. Order 2 only; sampler settings in `boltzmann_learning.MC_PARAMS`.
 
-**When to use which:** Use exact methods for N <= 12. For larger networks, use `pseudo` + `mf` for speed, or `pseudo` + `bethe_hybrid` for better accuracy.
+**When to use which:** Use exact methods for N <= 12. For larger networks, use `pseudo` + `mf` for speed, `pseudo` + `bethe_hybrid` for better accuracy, or `mc` for unbiased (sampling-based) estimates when accuracy matters more than runtime.
 
 ### Macroscopic Network Properties
 
@@ -153,8 +154,8 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `order` | int | 2 | Interaction order (1=rates, 2=pairwise, 3=triplet) |
 | `window` | int | 1 | Bin width in ms |
 | `map_function` | str | `'cg'` | MAP optimizer: `'nr'`, `'cg'`, `'bf'` |
-| `param_est` | str | `'exact'` | `'exact'` or `'pseudo'` |
-| `param_est_eta` | str | `'exact'` | `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'` |
+| `param_est` | str | `'exact'` | `'exact'`, `'pseudo'`, or `'mc'` (Boltzmann learning) |
+| `param_est_eta` | str | `'exact'` | `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'`, `'mc'` |
 | `state_cov` | float/array/list | 0.01 | Initial noise covariance Q: scalar (isotropic), 1D array (diagonal), D×D array (full), or list of 2 values [λ1, λ2] (separate rates/interactions) |
 | `state_ar` | ndarray | None | Autoregressive parameter F (DxD); None = identity |
 | `max_iter` | int | 100 | Maximum EM iterations |
@@ -180,6 +181,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 ```bash
 python example_exact.py    # Exact inference (3 neurons, 2nd-order)
 python example_approx.py   # Approximate inference (20 neurons, pseudo-likelihood + TAP/Bethe)
+python example_mc.py       # Boltzmann-learning (MC) inference (8 neurons, vs exact)
 ```
 
 ## Performance

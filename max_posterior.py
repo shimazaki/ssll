@@ -40,6 +40,7 @@ import numpy
 import probability
 import transforms
 import pseudo_likelihood
+import boltzmann_learning
 
 # Named function pointers to MAP estimators
 #functions = {'nr': newton_raphson,
@@ -58,8 +59,10 @@ def run(emd, t):
     mean and covariance for the same timestep. This function pass the variables
     at time t to the user-specified gradient ascent alogirhtm.
     """
-    # Set time bin in pseudo_likelihood
+    # Set time bin in pseudo_likelihood and boltzmann_learning (both keep
+    # per-sweep module state keyed on the current bin)
     pseudo_likelihood.time_bin = t
+    boltzmann_learning.time_bin = t
     # Extract observed patterns and one-step predictions for time t
     y_t = emd.y[t,:]
     # Data at time t

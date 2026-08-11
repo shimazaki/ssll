@@ -92,6 +92,17 @@ EXPECTED_MLL_SINGLE_TIME_BIN_BFGS_CCCP = -149.585147
 EXPECTED_MLL_SINGLE_NEURON = -133.413675
 EXPECTED_MLL_SINGLE_TRIAL = -17.040421
 
+# MC (Boltzmann-learning) Test Configuration
+MC_TEST_NEURONS = [4]     # Number of neurons for MC inference test
+MC_TEST_EM_ITER = 10      # EM iterations for the exact-vs-MC comparison
+MC_KERNEL_CHAINS = 200    # Gibbs chains for the kernel moment check
+MC_KERNEL_BURNIN = 200    # Burn-in sweeps for the kernel moment check
+MC_KERNEL_SWEEPS = 300    # Accumulation sweeps for the kernel moment check
+MC_KERNEL_TOLERANCE = 0.01   # max|eta_mc - eta_exact| at fixed theta
+MC_MLL_TOLERANCE = 2.0    # |mll_mc - mll_exact| after MC_TEST_EM_ITER iters
+MC_ETA_TOLERANCE = 0.05   # max|eta_s difference| between exact and MC fits
+MC_KL_TOLERANCE = 0.05    # max KL(exact || mc) of smoothed distributions
+
 # Thermodynamics Expected Values (N=4, O=2, T=20, R=20, seed=42/1, numpy.random.seed(0), samples=50)
 THERMO_RANDOM_SEED = 0
 THERMO_SAMPLES = 50
@@ -633,6 +644,65 @@ class TestEstimator(unittest.TestCase):
         # Restore
         self.T = T_orig
         self.R = R_orig
+
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
+    def test_c_mc_boltzmann(self):
+        """Test the MC (Boltzmann-learning) inference path, param_est='mc'.
+
+        First validates the Gibbs sampling kernel against the exact
+        expectation parameters at a fixed theta, then runs the full
+        state-space fit with param_est='mc' on the same data as the
+        exact-inference test and checks agreement with the exact path.
+        The MC path is deterministic (fixed seeds), but assertions compare
+        against the exact fit rather than pinned values so they are robust
+        across numpy versions.
+        """
+        print("Test MC (Boltzmann-learning) Inference (N=4, O=2).")
+        start_cpu_time = time.process_time()
+        import boltzmann_learning
+
+        N, O = MC_TEST_NEURONS[0], 2
+        transforms.initialise(N, O)
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+
+        # --- Kernel check: sampled eta vs exact eta at fixed theta ---
+        p0 = transforms.compute_p(theta[0])
+        eta_exact = transforms.compute_eta(p0)
+        boltzmann_learning.initialise(N, O)
+        rng = numpy.random.default_rng(0)
+        chains = (rng.random((MC_KERNEL_CHAINS, N)) < 0.5).astype(float)
+        boltzmann_learning.gibbs_sample_eta(theta[0], N, chains, rng,
+                                            MC_KERNEL_BURNIN,
+                                            accumulate=False)
+        eta_mc = boltzmann_learning.gibbs_sample_eta(theta[0], N, chains,
+                                                     rng, MC_KERNEL_SWEEPS)
+        kernel_err = numpy.amax(numpy.absolute(eta_mc - eta_exact))
+        print('Kernel max|eta_mc - eta_exact| = %.4f' % kernel_err)
+        self.assertLess(kernel_err, MC_KERNEL_TOLERANCE)
+
+        # --- Full fit: exact vs MC on identical data and EM iterations ---
+        p = numpy.zeros((self.T, 2 ** N))
+        for i in numpy.arange(self.T):
+            p[i, :] = transforms.compute_p(theta[i, :])
+        spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
+        emd_e = __init__.run(spikes, O, param_est='exact',
+                             param_est_eta='exact',
+                             max_iter=MC_TEST_EM_ITER, EM_Info=False)
+        emd_m = __init__.run(spikes, O, param_est='mc', param_est_eta='mc',
+                             max_iter=MC_TEST_EM_ITER, EM_Info=False)
+        mll_diff = numpy.absolute(emd_m.mll - emd_e.mll)
+        eta_diff = numpy.amax(numpy.absolute(emd_m.eta_s - emd_e.eta_s))
+        print('mll exact = %.4f, mc = %.4f (|diff| = %.4f)'
+              % (emd_e.mll, emd_m.mll, mll_diff))
+        print('max|eta_s difference| = %.4f' % eta_diff)
+        self.assertLess(mll_diff, MC_MLL_TOLERANCE)
+        self.assertLess(eta_diff, MC_ETA_TOLERANCE)
+        # Smoothed distributions should be close in KL for every time bin
+        kld = klic(emd_e.theta_s, emd_m.theta_s, N)
+        print('max KL(exact || mc) = %.4f' % numpy.amax(kld))
+        self.assertLess(numpy.amax(kld), MC_KL_TOLERANCE)
 
         end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
