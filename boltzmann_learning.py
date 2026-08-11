@@ -134,6 +134,17 @@ def initialise(N, O):
     _chains = None
 
 
+# Cache of upper-triangle index pairs, keyed by N (triu_indices is
+# surprisingly costly when rebuilt at every gradient step)
+_TRIU_CACHE = {}
+
+
+def _triu(N):
+    if N not in _TRIU_CACHE:
+        _TRIU_CACHE[N] = numpy.triu_indices(N, k=1)
+    return _TRIU_CACHE[N]
+
+
 def theta_to_h_J(theta, N):
     """
     Splits a natural-parameter vector into the field vector h and the
@@ -151,7 +162,7 @@ def theta_to_h_J(theta, N):
     """
     h = theta[:N]
     J = numpy.zeros((N, N))
-    ii, jj = numpy.triu_indices(N, k=1)
+    ii, jj = _triu(N)
     J[ii, jj] = theta[N:]
     J += J.T
     return h, J
@@ -185,20 +196,28 @@ def gibbs_sample_eta(theta, N, chains, rng, n_sweeps, accumulate=True):
     """
     h, J = theta_to_h_J(theta, N)
     C = chains.shape[0]
+    # One batched draw replaces the n_sweeps * N per-site rng.random(C)
+    # calls. numpy's Generator fills the array in C-order, so
+    # rand[s, i] is bit-identical to the s*N+i-th sequential random(C)
+    # call — the sampled stream (and thus every result) is unchanged.
+    rand = rng.random((n_sweeps, N, C))
     if accumulate:
         eta1_sum = numpy.zeros(N)
         eta2_sum = numpy.zeros((N, N))
-    for _ in range(n_sweeps):
+    for s in range(n_sweeps):
+        rand_s = rand[s]
         for i in range(N):
-            field = h[i] + chains.dot(J[:, i])
-            chains[:, i] = (rng.random(C) < expit(field))
+            # J is symmetric, so row J[i] equals column J[:, i] but is
+            # contiguous, which keeps the gemv on the fast path
+            field = h[i] + chains.dot(J[i])
+            chains[:, i] = (rand_s[i] < expit(field))
         if accumulate:
             eta1_sum += chains.sum(axis=0)
             eta2_sum += chains.T.dot(chains)
     if not accumulate:
         return None
     S = n_sweeps * C
-    ii, jj = numpy.triu_indices(N, k=1)
+    ii, jj = _triu(N)
     eta = numpy.empty(N + ii.size)
     eta[:N] = eta1_sum / S
     eta[N:] = eta2_sum[ii, jj] / S
