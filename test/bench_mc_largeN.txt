@@ -44,3 +44,10 @@ Confirms the fixed-budget reading: with ~3x the iterations the mc
 first-order error drops 0.271 -> 0.164 (approaching pseudo's 0.152,
 mll still descending slowly at stop), while the pairwise advantage
 over pseudo widens further (0.093 vs 0.124).
+
+AIS optimization (master 2e5796c, numba incremental-energy AIS kernel,
+422 -> 54 ms/bin standalone): N=60 job 12360, same 10-iter setup:
+  mc  40.1 s/EM-iter  (was 62.3 post-kernel-opt, 122.0 pre-opt; 3.0x total)
+  accuracy identical to job 12358 (th1 0.2709, th2 0.1037, eta corr2 0.979).
+Remaining cost is now dominated by the per-bin gradient steps
+(min_iter=50 + polyak_iters=50 floor at ~2.3 ms/step).
