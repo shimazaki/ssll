@@ -114,6 +114,7 @@ For large N where exact 2^N computation is infeasible:
   - Belief propagation (`'bethe_BP'`): Iterative message passing.
   - CCCP (`'bethe_CCCP'`): Concave-convex procedure, guaranteed convergence.
   - Hybrid (`'bethe_hybrid'`): Tries BP first, falls back to CCCP.
+- **Bethe MAP** (`param_est='bethe'` + `param_est_eta='bethe_hybrid'`): Exact-likelihood gradient with Bethe-approximated eta/psi (L-BFGS per bin) — the Donner et al. (2017) large-N route. Deterministic, no 2^N structures, less biased than pseudo-likelihood; order 2 only.
 - **Boltzmann learning** (`param_est='mc'` + `param_est_eta='mc'`): Fits the exact likelihood with Gibbs-sampled expectation parameters (persistent contrastive divergence + Adam + Polyak averaging), so it stays asymptotically unbiased at any N, at the cost of Monte Carlo sampling per gradient step. The log partition function for the marginal likelihood is estimated by annealed importance sampling for N > 15. Order 2 only; sampler settings in `boltzmann_learning.MC_PARAMS`.
 
 **When to use which:** Use exact methods for N <= 12. For larger networks, use `pseudo` + `mf` for speed, `pseudo` + `bethe_hybrid` for better accuracy, or `mc` for unbiased (sampling-based) estimates when accuracy matters more than runtime.
@@ -154,7 +155,7 @@ Main entry point. Returns an `EMData` container with smoothed posterior estimate
 | `order` | int | 2 | Interaction order (1=rates, 2=pairwise, 3=triplet) |
 | `window` | int | 1 | Bin width in ms |
 | `map_function` | str | `'cg'` | MAP optimizer: `'nr'`, `'cg'`, `'bf'` |
-| `param_est` | str | `'exact'` | `'exact'`, `'pseudo'`, or `'mc'` (Boltzmann learning) |
+| `param_est` | str | `'exact'` | `'exact'`, `'pseudo'`, `'bethe'` (Bethe MAP), or `'mc'` (Boltzmann learning) |
 | `param_est_eta` | str | `'exact'` | `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'`, `'mc'` |
 | `state_cov` | float/array/list | 0.01 | Initial noise covariance Q: scalar (isotropic), 1D array (diagonal), D×D array (full), or list of 2 values [λ1, λ2] (separate rates/interactions) |
 | `state_ar` | ndarray | None | Autoregressive parameter F (DxD); None = identity |

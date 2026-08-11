@@ -200,6 +200,22 @@ class EMData:
             self.T, self.D = self.y.shape
             assert self.T == int(T / window)
 
+        elif param_est == 'bethe':
+            # Exact-likelihood gradient with Bethe eta/psi (Donner 2017
+            # large-N route): deterministic, no 2**N structures, shares
+            # the diagonal-covariance branch. Use with
+            # param_est_eta='bethe_hybrid' (or 'bethe_BP'/'bethe_CCCP').
+            if self.order != 2:
+                raise NotImplementedError(
+                    "param_est='bethe' supports order=2 (pairwise) only")
+            self.max_posterior = bethe_approximation.functions[map_function]
+
+            # Compute the sufficient statistics for the model from the input spikes
+            self.y = transforms.compute_y(self.spikes, self.order)
+            # Count timesteps, trials, cells and interaction dimensions
+            self.T, self.D = self.y.shape
+            assert self.T == int(T / window)
+
         elif param_est == 'mc':
             # Boltzmann learning: exact likelihood with Gibbs-sampled eta
             # (persistent chains); shares the diagonal-covariance branch

@@ -744,3 +744,72 @@ def compute_eta_hybrid(theta, N, return_psi=False):
         return compute_eta_BP(theta, N, return_psi=return_psi)
     except:
         return compute_eta_CCCP(theta, N, return_psi=return_psi)
+
+
+def bethe_map(y_t, X_t, R, theta_0, theta_o, sigma_o, sigma_o_i,
+              param_est_eta='bethe_hybrid'):
+    """
+    MAP estimate of the natural parameters at one time bin using the EXACT
+    likelihood gradient with Bethe-approximated expectation parameters
+    (param_est='bethe'; Donner, Obermayer & Shimazaki 2017 route for large
+    N). The log posterior
+
+        l(theta) = R (y_t . theta - psi_B(theta))
+                   - (theta - theta_o)' diag(sigma_o_i) (theta - theta_o)/2
+
+    uses the Bethe log partition psi_B and its gradient R (y_t - eta_B) -
+    sigma_o_i * (theta - theta_o), where (eta_B, psi_B) come from belief
+    propagation (compute_eta_hybrid; at a BP fixed point eta_B is the
+    gradient of psi_B, so objective and gradient are consistent).
+    Optimized with L-BFGS-B. No 2**N structure is built anywhere, unlike
+    param_est='exact'; unlike param_est='pseudo' the likelihood itself is
+    not replaced.
+
+    Signature, return convention (diagonal covariances) and the final
+    Fisher-diagonal posterior variance match the pseudo_likelihood
+    estimators.
+
+    :param str param_est_eta:
+        Which Bethe solver supplies (eta, psi): 'bethe_hybrid' (default),
+        'bethe_BP', or 'bethe_CCCP'.
+    """
+    from scipy.optimize import minimize
+    import max_posterior  # lazy: avoid circular import at module load
+
+    eta_functions = {'bethe_BP': compute_eta_BP,
+                     'bethe_CCCP': compute_eta_CCCP,
+                     'bethe_hybrid': compute_eta_hybrid}
+    if param_est_eta not in eta_functions:
+        raise ValueError("param_est='bethe' requires param_est_eta in %s, "
+                         "got %r" % (sorted(eta_functions), param_est_eta))
+    eta_fun = eta_functions[param_est_eta]
+    N = X_t.shape[1]
+
+    def neg_log_posterior(theta):
+        eta, psi = eta_fun(theta, N, return_psi=True)
+        theta_d = theta - theta_o
+        f = -(R * (numpy.dot(y_t, theta) - psi)
+              - 0.5 * numpy.dot(theta_d, sigma_o_i * theta_d))
+        g = -(R * (y_t - eta) - sigma_o_i * theta_d)
+        return f, g
+
+    res = minimize(neg_log_posterior, numpy.array(theta_0, dtype=float),
+                   jac=True, method='L-BFGS-B',
+                   options={'maxiter': max_posterior.MAX_GA_ITERATIONS,
+                            'ftol': 1e-12,
+                            'gtol': max_posterior.GA_CONVERGENCE * R})
+    theta_max = res.x
+
+    # Posterior variance from the Fisher diagonal at the optimum, as in
+    # the pseudo_likelihood estimators (features are binary, so
+    # diag(G) = eta (1 - eta))
+    eta = eta_fun(theta_max, N)
+    ddlpo = -R * construct_fisher_diag(eta, N) - sigma_o_i
+    return theta_max, -1.0 / ddlpo
+
+
+# Named function pointers to MAP estimators for param_est='bethe'. One
+# optimizer serves all map_function keys so ssll.run's default works.
+functions = {'nr': bethe_map,
+             'cg': bethe_map,
+             'bf': bethe_map}

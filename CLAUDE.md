@@ -68,6 +68,7 @@ The `run()` function in `__init__.py` is the main entry point. It initializes an
 5. **Approximation methods** — For large N where exact 2^N computation is infeasible:
    - `mean_field.py` — TAP approximation (`param_est_eta='mf'`)
    - `bethe_approximation.py` — Belief propagation, CCCP, or hybrid (`'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'`)
+   - `bethe_approximation.py` also provides `bethe_map` (`param_est='bethe'`): exact-likelihood gradient with Bethe eta/psi via L-BFGS, no 2^N structures; order 2 only
    - `boltzmann_learning.py` — Boltzmann learning (`param_est='mc'`, `param_est_eta='mc'`): exact likelihood with Gibbs-sampled eta (PCD + Adam + Polyak averaging, persistent chains across time bins), Fisher diagonal = eta(1-eta), AIS log-partition for N > 15. Unbiased but sampling-cost per gradient step; order 2 only. Tunables in `MC_PARAMS`.
 6. **`synthesis.py`** — Generates synthetic theta (via GP) and spikes (direct sampling or Gibbs MCMC). Gibbs sampling supports parallel execution.
 7. **`probability.py`** — Log-likelihood and log-marginal-likelihood computations.
@@ -75,7 +76,7 @@ The `run()` function in `__init__.py` is the main entry point. It initializes an
 ### Key Parameters
 
 - `order`: Interaction order (1=rates, 2=pairwise, 3=triplet). Complexity scales as 2^N with exact methods.
-- `param_est`: `'exact'` (full likelihood), `'pseudo'` (pseudo-likelihood, fast for large N), or `'mc'` (Boltzmann learning: full likelihood with sampled gradients, unbiased for large N).
+- `param_est`: `'exact'` (full likelihood), `'pseudo'` (pseudo-likelihood, fast for large N), `'bethe'` (exact-likelihood gradient with Bethe eta/psi, deterministic large-N), or `'mc'` (Boltzmann learning: full likelihood with sampled gradients, unbiased for large N).
 - `param_est_eta`: `'exact'`, `'mf'`, `'bethe_BP'`, `'bethe_CCCP'`, `'bethe_hybrid'`, `'mc'`.
 - `state_cov`: Noise covariance — scalar (isotropic), vector (diagonal), or matrix (full).
 - `state_ar`: Autoregressive parameter matrix for state dynamics.

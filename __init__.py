@@ -127,9 +127,11 @@ def run(spikes, order=2, window=1, map_function='cg', \
         Maximum number of iterations for which to run the EM algorithm.
     :param str param_est:
         Parameter whether exact likelihood ('exact'), pseudo likelihood
-        ('pseudo'), or Boltzmann learning with Gibbs-sampled eta ('mc',
-        exact likelihood, asymptotically unbiased, order=2 only) should be
-        used
+        ('pseudo'), exact-likelihood gradient with Bethe eta/psi ('bethe',
+        deterministic large-N route, order=2 only; combine with
+        param_est_eta='bethe_hybrid'), or Boltzmann learning with
+        Gibbs-sampled eta ('mc', exact likelihood, asymptotically
+        unbiased, order=2 only) should be used
     :param str param_est_eta:
         Eta parameters are either calculated exactly ('exact'), by mean
         field TAP approximation ('mf'), Bethe approximation (belief

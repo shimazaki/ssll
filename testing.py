@@ -92,6 +92,10 @@ EXPECTED_MLL_SINGLE_TIME_BIN_BFGS_CCCP = -149.585147
 EXPECTED_MLL_SINGLE_NEURON = -133.413675
 EXPECTED_MLL_SINGLE_TRIAL = -17.040421
 
+# Bethe-MAP (param_est='bethe') Test Configuration
+BETHE_MAP_MLL_TOLERANCE = 2.0   # |mll_bethe - mll_exact| after 10 EM iters
+BETHE_MAP_KL_TOLERANCE = 0.05   # max KL(exact || bethe) of smoothed dists
+
 # MC (Boltzmann-learning) Test Configuration
 MC_TEST_NEURONS = [4]     # Number of neurons for MC inference test
 MC_TEST_EM_ITER = 10      # EM iterations for the exact-vs-MC comparison
@@ -703,6 +707,41 @@ class TestEstimator(unittest.TestCase):
         kld = klic(emd_e.theta_s, emd_m.theta_s, N)
         print('max KL(exact || mc) = %.4f' % numpy.amax(kld))
         self.assertLess(numpy.amax(kld), MC_KL_TOLERANCE)
+
+        end_cpu_time = time.process_time()
+        print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
+
+    def test_d_bethe_map(self):
+        """Test the Bethe-MAP inference path, param_est='bethe'.
+
+        Fits the exact-likelihood gradient with Bethe eta/psi (no 2**N
+        structures) on the same data as the exact-inference test and
+        checks agreement with the exact path within the Bethe
+        approximation error.
+        """
+        print("Test Bethe-MAP Inference (N=4, O=2).")
+        start_cpu_time = time.process_time()
+
+        N, O = 4, 2
+        transforms.initialise(N, O)
+        theta = synthesis.generate_thetas(N, O, self.T, seed=DEFAULT_THETA_SEED)
+        p = numpy.zeros((self.T, 2 ** N))
+        for i in numpy.arange(self.T):
+            p[i, :] = transforms.compute_p(theta[i, :])
+        spikes = synthesis.generate_spikes(p, self.R, seed=self.spike_seed)
+        emd_e = __init__.run(spikes, O, param_est='exact',
+                             param_est_eta='exact', max_iter=10,
+                             EM_Info=False)
+        emd_b = __init__.run(spikes, O, param_est='bethe',
+                             param_est_eta='bethe_hybrid', max_iter=10,
+                             EM_Info=False)
+        mll_diff = numpy.absolute(emd_b.mll - emd_e.mll)
+        kld = klic(emd_e.theta_s, emd_b.theta_s, N)
+        print('mll exact = %.4f, bethe = %.4f (|diff| = %.4f)'
+              % (emd_e.mll, emd_b.mll, mll_diff))
+        print('max KL(exact || bethe) = %.4f' % numpy.amax(kld))
+        self.assertLess(mll_diff, BETHE_MAP_MLL_TOLERANCE)
+        self.assertLess(numpy.amax(kld), BETHE_MAP_KL_TOLERANCE)
 
         end_cpu_time = time.process_time()
         print('Total CPU time: %.3f seconds' % (end_cpu_time - start_cpu_time))
