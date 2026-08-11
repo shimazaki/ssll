@@ -35,3 +35,12 @@ numbers at N=60 are a fixed-budget artifact: the mc mll trace is still
 descending steeply at iteration 10 (slow first-order components not yet
 converged), whereas pseudo+mf plateaus by ~iteration 6. See the 30-iteration
 N=60 run below.
+
+30-iteration N=60 run (job 12359, post-opt code, same data):
+  mc, 28 EM iterations (converged), 59.2 s/iter, 1657 s total
+  th1 0.1641 (corr 0.651)   th2 0.0928 (corr 0.922)
+  eta rmse1 0.0133  rmse2 0.0047  corr2 0.980
+Confirms the fixed-budget reading: with ~3x the iterations the mc
+first-order error drops 0.271 -> 0.164 (approaching pseudo's 0.152,
+mll still descending slowly at stop), while the pairwise advantage
+over pseudo widens further (0.093 vs 0.124).
