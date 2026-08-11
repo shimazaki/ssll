@@ -10,5 +10,8 @@
 
 source ~/bin/slurm-preamble.sh ssll
 
+# Let the numba kernels in boltzmann_learning use the allocated cores
+export NUMBA_NUM_THREADS=${SLURM_CPUS_PER_TASK:-8}
+
 # Usage: sbatch submit_bench_mc.sh <N> [T] [R] [EM_ITERS]
 python test/bench_mc_largeN.py "$@"

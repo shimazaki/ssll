@@ -111,6 +111,12 @@ MC_PARAMS = {
     # --- AIS settings for the log marginal likelihood at N > 15 ---
     'ais_chains': 200,
     'ais_anneals': 200,
+    # --- threading (numba kernels only) ---
+    # Chains (PCD kernel) and time bins (AIS kernel) are independent and
+    # run under numba prange. Capped explicitly because numba's default
+    # is ALL cores, which is both impolite on shared head nodes and
+    # slower for these small parallel regions.
+    'n_threads': 8,
 }
 
 # Time bin currently processed by the filter; set by max_posterior.run
@@ -221,126 +227,136 @@ def gibbs_sample_eta(theta, N, chains, rng, n_sweeps, accumulate=True):
                           "installed")
     if _HAVE_NUMBA and sampler in ('auto', 'numba'):
         h, J = theta_to_h_J(theta, N)
-        # One integer from the rng seeds the kernel's own generator, so
-        # the call remains deterministic given the rng state.
-        seed = int(rng.integers(1, 2 ** 31 - 1))
-        eta1, eta2 = _gibbs_kernel_numba(h, J, chains, int(n_sweeps), seed,
-                                         accumulate)
+        _set_threads()
+        # Per-chain seeds from the rng keep the call deterministic given
+        # the rng state, independent of thread scheduling.
+        C = chains.shape[0]
+        seeds = rng.integers(1, 2 ** 31 - 1, size=C).astype(numpy.int64)
+        states = numpy.empty((int(n_sweeps), C, N), dtype=numpy.uint8)
+        _gibbs_kernel_numba(h, J, chains, int(n_sweeps), seeds, states)
         if not accumulate:
             return None
-        S = n_sweeps * chains.shape[0]
+        # Deterministic reduction outside the parallel region: stack the
+        # per-sweep states and take first/second moments with BLAS.
+        X = states.reshape(int(n_sweeps) * C, N).astype(numpy.float64)
+        S = X.shape[0]
         ii, jj = _triu(N)
         eta = numpy.empty(N + ii.size)
-        eta[:N] = eta1 / S
-        eta[N:] = eta2[ii, jj] / S
+        eta[:N] = X.sum(axis=0) / S
+        eta[N:] = X.T.dot(X)[ii, jj] / S
         return eta
     return _gibbs_sample_eta_numpy(theta, N, chains, rng, n_sweeps,
                                    accumulate)
 
 
+def _set_threads():
+    """Caps numba's thread pool at MC_PARAMS['n_threads']."""
+    numba.set_num_threads(
+        max(1, min(int(MC_PARAMS.get('n_threads', 8)),
+                   numba.config.NUMBA_NUM_THREADS)))
+
+
 if _HAVE_NUMBA:
-    @numba.njit(cache=True)
-    def _gibbs_kernel_numba(h, J, chains, n_sweeps, seed, accumulate):
+    @numba.njit(cache=True, parallel=True)
+    def _gibbs_kernel_numba(h, J, chains, n_sweeps, seeds, states):
         """
-        Systematic-scan Gibbs sweeps with per-chain incremental effective
-        fields. F[c, k] = h[k] + sum_j J[k, j] * x[c, j] is maintained
+        Systematic-scan Gibbs sweeps, parallel over chains (independent;
+        each prange iteration touches only its own row of `chains` and
+        its own slice of `states`, and seeds numba's thread-local RNG
+        from seeds[c], so results are deterministic and independent of
+        thread scheduling). Per-chain effective fields
+        F[k] = h[k] + sum_j J[k, j] * x[j] are maintained incrementally
         across site updates and only touched when a spin flips (~2p(1-p)
         of updates), instead of being recomputed from the full chain
-        state at every site. eta accumulation visits only active spins.
+        state at every site. The post-sweep states are written to
+        `states` (uint8); moment accumulation happens in the caller.
         """
-        numpy.random.seed(seed)
         C, N = chains.shape
-        # fresh fields at call start: bounds any float drift to one call
-        F = numpy.empty((C, N))
-        for c in range(C):
+        for c in numba.prange(C):
+            numpy.random.seed(seeds[c])
+            # fresh fields at call start: bounds float drift to one call
+            F = numpy.empty(N)
             for k in range(N):
                 s = h[k]
                 for j in range(N):
                     s += J[k, j] * chains[c, j]
-                F[c, k] = s
-        eta1 = numpy.zeros(N)
-        eta2 = numpy.zeros((N, N))
-        active = numpy.empty(N, dtype=numpy.int64)
-        for _ in range(n_sweeps):
-            for c in range(C):
+                F[k] = s
+            for sw in range(n_sweeps):
                 for i in range(N):
-                    p_on = 1.0 / (1.0 + numpy.exp(-F[c, i]))
+                    p_on = 1.0 / (1.0 + numpy.exp(-F[i]))
                     x_new = 1.0 if numpy.random.random() < p_on else 0.0
                     d = x_new - chains[c, i]
                     if d != 0.0:
                         chains[c, i] = x_new
                         for k in range(N):
-                            F[c, k] += J[i, k] * d
-                if accumulate:
-                    # collect active spins; pairs only over the active set
-                    n_act = 0
-                    for i in range(N):
-                        if chains[c, i] != 0.0:
-                            active[n_act] = i
-                            n_act += 1
-                    # active is ascending, so i < j always holds here
-                    for a in range(n_act):
-                        i = active[a]
-                        eta1[i] += 1.0
-                        for b in range(a + 1, n_act):
-                            eta2[i, active[b]] += 1.0
-        return eta1, eta2
+                            F[k] += J[i, k] * d
+                for i in range(N):
+                    states[sw, c, i] = numba.uint8(chains[c, i])
 
 
 if _HAVE_NUMBA:
-    @numba.njit(cache=True)
-    def _ais_kernel_numba(h1, J1, n_chains, n_anneals, seed):
+    @numba.njit(cache=True, parallel=True)
+    def _ais_kernel_numba(H1, J1s, todo, n_chains, n_anneals, seeds,
+                          log_w_out):
         """
-        AIS log-weights for the matched-H bridge from the independent
-        model (h = h1, J = 0) to (h1, J1) along the linear path
-        alpha*J1, one systematic Gibbs sweep per anneal step (the same
-        bridge as energies.ais_estimator with dh = 0).
+        AIS log-weights for a batch of time bins, parallel over bins
+        (independent; each prange iteration seeds numba's thread-local
+        RNG from seeds[t] at the start of its bin, so every bin's random
+        stream — and result — is deterministic and identical to a serial
+        per-bin run regardless of thread scheduling).
 
-        The quadratic energy Q[c] = 0.5 x' J1 x and the coupling fields
+        Per bin: the matched-H bridge from the independent model
+        (h = H1[t], J = 0) to (H1[t], J1s[t]) along the linear path
+        alpha*J1, one systematic Gibbs sweep per anneal step (the same
+        bridge as energies.ais_estimator with dh = 0). The quadratic
+        energy Q[c] = 0.5 x' J1 x and the coupling fields
         G[c, k] = sum_j J1[k, j] x[c, j] are maintained incrementally on
         spin flips, so each anneal step costs O(S) for the weight update
         plus flip-limited field updates, instead of the S*N^2 dense
         recomputation of the numpy version.
         """
-        numpy.random.seed(seed)
-        N = h1.shape[0]
-        x = numpy.empty((n_chains, N))
-        G = numpy.zeros((n_chains, N))
-        Q = numpy.zeros(n_chains)
-        log_w = numpy.zeros(n_chains)
-        # exact independent-model samples at alpha = 0
-        for c in range(n_chains):
-            for i in range(N):
-                p0 = 1.0 / (1.0 + numpy.exp(-h1[i]))
-                x[c, i] = 1.0 if numpy.random.random() < p0 else 0.0
-        for c in range(n_chains):
-            for k in range(N):
-                s = 0.0
-                for j in range(N):
-                    s += J1[k, j] * x[c, j]
-                G[c, k] = s
-            q = 0.0
-            for i in range(N):
-                q += x[c, i] * G[c, i]
-            Q[c] = 0.5 * q
-        da = 1.0 / n_anneals
-        for t in range(1, n_anneals + 1):
-            a = t * da
+        T, N = H1.shape
+        for t in numba.prange(T):
+            if not todo[t]:
+                continue
+            numpy.random.seed(seeds[t])
+            h1 = H1[t]
+            J1 = J1s[t]
+            x = numpy.empty((n_chains, N))
+            G = numpy.zeros((n_chains, N))
+            Q = numpy.zeros(n_chains)
+            # exact independent-model samples at alpha = 0
             for c in range(n_chains):
-                # weight increment at the previous state, then sweep at
-                # alpha = a (same order as energies.ais_estimator)
-                log_w[c] += da * Q[c]
                 for i in range(N):
-                    field = h1[i] + a * G[c, i]
-                    p_on = 1.0 / (1.0 + numpy.exp(-field))
-                    x_new = 1.0 if numpy.random.random() < p_on else 0.0
-                    d = x_new - x[c, i]
-                    if d != 0.0:
-                        x[c, i] = x_new
-                        Q[c] += d * G[c, i]
-                        for k in range(N):
-                            G[c, k] += J1[i, k] * d
-        return log_w
+                    p0 = 1.0 / (1.0 + numpy.exp(-h1[i]))
+                    x[c, i] = 1.0 if numpy.random.random() < p0 else 0.0
+            for c in range(n_chains):
+                for k in range(N):
+                    s = 0.0
+                    for j in range(N):
+                        s += J1[k, j] * x[c, j]
+                    G[c, k] = s
+                q = 0.0
+                for i in range(N):
+                    q += x[c, i] * G[c, i]
+                Q[c] = 0.5 * q
+            da = 1.0 / n_anneals
+            for step in range(1, n_anneals + 1):
+                a = step * da
+                for c in range(n_chains):
+                    # weight increment at the previous state, then sweep
+                    # at alpha = a (same order as energies.ais_estimator)
+                    log_w_out[t, c] += da * Q[c]
+                    for i in range(N):
+                        field = h1[i] + a * G[c, i]
+                        p_on = 1.0 / (1.0 + numpy.exp(-field))
+                        x_new = 1.0 if numpy.random.random() < p_on else 0.0
+                        d = x_new - x[c, i]
+                        if d != 0.0:
+                            x[c, i] = x_new
+                            Q[c] += d * G[c, i]
+                            for k in range(N):
+                                G[c, k] += J1[i, k] * d
 
 
 def _gibbs_sample_eta_numpy(theta, N, chains, rng, n_sweeps,
@@ -552,28 +568,40 @@ def compute_psi_trajectory(theta_array, N):
     psi = numpy.empty(T)
     sampler = p.get('sampler', 'auto')
     use_numba = _HAVE_NUMBA and sampler in ('auto', 'numba')
+    # closed form for bins whose couplings are all zero
+    psi_ind = numpy.log(1 + numpy.exp(theta_array[:, :N])).sum(axis=1)
+    todo = ~numpy.all(numpy.isclose(theta_array[:, N:], 0.0), axis=1)
+    psi[:] = psi_ind
+    if not todo.any():
+        return psi
+    if use_numba:
+        # same matched-H AIS bridge as energies.ais_estimator, in a
+        # numba kernel with incremental energy bookkeeping (different
+        # random stream, so psi differs within the AIS error), parallel
+        # over bins with fixed per-bin seeds (deterministic)
+        from scipy.special import logsumexp
+        _set_threads()
+        ii, jj = _triu(N)
+        H1 = numpy.ascontiguousarray(theta_array[:, :N])
+        J1s = numpy.zeros((T, N, N))
+        J1s[:, ii, jj] = theta_array[:, N:]
+        J1s += numpy.transpose(J1s, (0, 2, 1))
+        seeds = numpy.arange(1, T + 1, dtype=numpy.int64)
+        log_w = numpy.zeros((T, p['ais_chains']))
+        _ais_kernel_numba(H1, J1s, todo, p['ais_chains'],
+                          p['ais_anneals'], seeds, log_w)
+        psi[todo] = psi_ind[todo] + logsumexp(log_w[todo], axis=1) - \
+            numpy.log(p['ais_chains'])
+        return psi
     theta0 = numpy.zeros(theta_array.shape[1])
     for t in range(T):
+        if not todo[t]:
+            continue
         theta_t = theta_array[t]
         theta0[:N] = theta_t[:N]
-        psi0 = float(numpy.sum(numpy.log(1 + numpy.exp(theta0[:N]))))
-        if numpy.allclose(theta_t[N:], 0.0):
-            psi[t] = psi0
-        elif use_numba:
-            # same matched-H AIS bridge as energies.ais_estimator, in a
-            # numba kernel with incremental energy bookkeeping (different
-            # random stream, so psi differs within the AIS error)
-            from scipy.special import logsumexp
-            h1, J1 = theta_to_h_J(theta_t, N)
-            log_w = _ais_kernel_numba(numpy.ascontiguousarray(h1), J1,
-                                      p['ais_chains'], p['ais_anneals'],
-                                      t + 1)
-            psi[t] = psi0 + float(logsumexp(log_w)) - \
-                numpy.log(p['ais_chains'])
-        else:
-            psi[t] = energies.ais_estimator(theta0.copy(), psi0, theta_t, N,
-                                            2, S=p['ais_chains'],
-                                            T=p['ais_anneals'], seed=t)
+        psi[t] = energies.ais_estimator(theta0.copy(), float(psi_ind[t]),
+                                        theta_t, N, 2, S=p['ais_chains'],
+                                        T=p['ais_anneals'], seed=t)
     return psi
 
 
